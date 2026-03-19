@@ -1,0 +1,16 @@
+policy: default
+description: "Default HyperShield policy — balanced security"
+filesystem:
+  allow_read: ["./", "/tmp/"]
+  allow_write: ["./", "/tmp/"]
+  deny: ["/etc/", "/usr/", "~/.ssh/"]
+network:
+  allow_outbound: true
+  allowed_domains: ["*"]
+  deny_domains: []
+audit:
+  log_all_calls: true
+  log_file: "hyperclaw-audit.log"
+certification:
+  require_claude_verification_for_chatjimmy: true
+  auto_certify_claude_outputs: false

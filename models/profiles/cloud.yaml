@@ -1,0 +1,7 @@
+profile: cloud
+description: "Cloud model profile — uses Anthropic Claude and ChatJimmy"
+primary_model: "claude-sonnet-4-6"
+fast_model: "chatjimmy"
+code_model: "claude-code"
+cost_budget_usd: null
+latency_budget_ms: null

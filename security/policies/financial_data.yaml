@@ -1,0 +1,18 @@
+policy: financial_data
+description: "Strict policy for finance domain"
+filesystem:
+  allow_read: ["./finance_data/"]
+  allow_write: ["./finance_data/outputs/"]
+  deny: ["/etc/", "/usr/", "~/.ssh/"]
+network:
+  allow_outbound: true
+  allowed_domains: ["api.hyperliquid.xyz", "api.coingecko.com", "pro-api.coinmarketcap.com"]
+  deny_domains: ["*"]  # allowlist-only
+audit:
+  log_all_calls: true
+  log_file: "finance-audit.log"
+  include_trade_logs: true
+certification:
+  require_claude_verification_for_chatjimmy: true
+  auto_certify_claude_outputs: false
+  require_human_review: true

@@ -1,0 +1,43 @@
+# HyperClaw Agent Registry
+agents:
+  - id: core_reasoner
+    name: "Core Reasoner"
+    domain: business
+    task_types: [research, analysis, synthesis, planning]
+    model_preference: "claude-sonnet-4-6"
+
+  - id: code_specialist
+    name: "Code Specialist"
+    domain: business
+    task_types: [code]
+    model_preference: "claude-code"
+
+  - id: fast_classifier
+    name: "Fast Classifier"
+    domain: business
+    task_types: [routing, classification, triage, status_check, quick_lookup]
+    model_preference: "chatjimmy"
+
+  - id: science_agent
+    name: "Science Agent"
+    domain: scientific
+    task_types: [scientific, research, analysis]
+    model_preference: "claude-sonnet-4-6"
+
+  - id: personal_assistant
+    name: "Personal Assistant"
+    domain: personal
+    task_types: [planning, health, draft, summarization]
+    model_preference: "claude-sonnet-4-6"
+
+  - id: finance_agent
+    name: "Finance Agent"
+    domain: business
+    task_types: [finance, analysis]
+    model_preference: "claude-sonnet-4-6"
+
+  - id: recursive_engine
+    name: "Recursive Engine"
+    domain: recursive
+    task_types: [research, synthesis, analysis]
+    model_preference: "claude-sonnet-4-6"

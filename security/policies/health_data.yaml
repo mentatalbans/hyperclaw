@@ -1,0 +1,17 @@
+policy: health_data
+description: "Strict policy for health domain — HIPAA-conscious"
+filesystem:
+  allow_read: ["./health_data/"]
+  allow_write: ["./health_data/outputs/"]
+  deny: ["/etc/", "/usr/", "~/.ssh/", "./config/"]
+network:
+  allow_outbound: false
+  allowed_domains: []
+audit:
+  log_all_calls: true
+  log_file: "health-audit.log"
+  include_phi_warnings: true
+certification:
+  require_claude_verification_for_chatjimmy: true
+  auto_certify_claude_outputs: false
+  require_human_review: true
