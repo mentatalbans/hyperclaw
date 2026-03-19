@@ -2,6 +2,13 @@
 
 > **The AI that actually takes over.**
 
+[![Tests](https://img.shields.io/badge/tests-184%20passing-brightgreen)](tests/)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/version-v0.1.0--alpha-orange)](https://github.com/mentatalbans/hyperclaw/releases)
+[![Agents](https://img.shields.io/badge/agents-22-purple)](swarm/agents/)
+[![GitHub Stars](https://img.shields.io/github/stars/mentatalbans/hyperclaw?style=social)](https://github.com/mentatalbans/hyperclaw)
+
 HyperClaw is an open-source, self-hosted, Claude-native multi-agent AI swarm platform built to manage every domain of human life and work — from daily scheduling and personal health to enterprise operations, deep scientific research, and space exploration data analysis.
 
 **One command. Full transparency. No limits.**
