@@ -22,7 +22,11 @@ app = typer.Typer(
     add_completion=False,
 )
 state_app = typer.Typer(help="Manage HyperState objects")
+policy_app = typer.Typer(help="Manage HyperShield policies")
+audit_app = typer.Typer(help="View HyperShield audit logs")
 app.add_typer(state_app, name="state")
+app.add_typer(policy_app, name="policy")
+app.add_typer(audit_app, name="audit")
 
 console = Console()
 
@@ -190,6 +194,202 @@ def state_inspect(state_id: str = typer.Argument(..., help="HyperState UUID")) -
         console.print(syntax)
 
     asyncio.run(_inspect())
+
+
+@policy_app.command("reload")
+def policy_reload(
+    path: str = typer.Option("security/policies/default.yaml", "--path", "-p"),
+) -> None:
+    """Hot-reload HyperShield policies."""
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from security.policy_engine import PolicyEngine
+    engine = PolicyEngine()
+    try:
+        policy = engine.load(path)
+        console.print(f"[green]✓[/green] Policy reloaded: [bold]{policy.profile}[/bold] from {path}")
+    except FileNotFoundError:
+        console.print(f"[red]Policy file not found:[/red] {path}")
+        raise typer.Exit(1)
+
+
+@policy_app.command("status")
+def policy_status(
+    path: str = typer.Option("security/policies/default.yaml", "--path", "-p"),
+) -> None:
+    """Show active policy profile and agent policies."""
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from security.policy_engine import PolicyEngine
+    engine = PolicyEngine()
+    try:
+        policy = engine.load(path)
+    except FileNotFoundError:
+        console.print(f"[yellow]Policy file not found:[/yellow] {path} (using defaults)")
+        return
+
+    console.print(f"\n[bold cyan]HyperShield Policy — {policy.profile}[/bold cyan]")
+    console.print(f"[dim]Network egress allowlist:[/dim] {', '.join(policy.network.egress_allowlist) or 'none'}")
+    console.print(f"[dim]Block all other egress:[/dim] {policy.network.block_all_other_egress}")
+    console.print(f"[dim]Sandbox root:[/dim] {policy.filesystem.sandbox_root}")
+
+    if policy.agents:
+        table = Table(title="Agent Policies", show_header=True, header_style="bold cyan")
+        table.add_column("Agent ID")
+        table.add_column("Network Mode")
+        table.add_column("Egress Allowlist")
+        table.add_column("Consent Required")
+        table.add_column("Strip PII")
+        for agent_id, ap in policy.agents.items():
+            table.add_row(
+                agent_id,
+                ap.network_mode,
+                ", ".join(ap.egress_allowlist) or "none",
+                "✓" if ap.require_explicit_consent else "",
+                "✓" if ap.strip_pii_from_logs else "",
+            )
+        console.print(table)
+
+
+@audit_app.command("recent")
+def audit_recent() -> None:
+    """Show last 20 audit log events."""
+    async def _run():
+        store = _get_store()
+        try:
+            await store.connect()
+            async with store._pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT event_type, agent_id, action, target, allowed, created_at "
+                    "FROM audit_log ORDER BY created_at DESC LIMIT 20"
+                )
+            await store.close()
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            return
+
+        table = Table(title="Recent Audit Events", show_header=True)
+        table.add_column("Time", width=20)
+        table.add_column("Type")
+        table.add_column("Agent")
+        table.add_column("Action")
+        table.add_column("Target", max_width=40)
+        table.add_column("Allowed")
+        for r in rows:
+            table.add_row(
+                r["created_at"].strftime("%m-%d %H:%M:%S"),
+                r["event_type"],
+                r["agent_id"] or "",
+                r["action"],
+                str(r["target"] or ""),
+                "[green]✓[/green]" if r["allowed"] else "[red]✗[/red]",
+            )
+        console.print(table)
+
+    asyncio.run(_run())
+
+
+@audit_app.command("blocked")
+def audit_blocked() -> None:
+    """Show blocked events from last 24 hours."""
+    async def _run():
+        store = _get_store()
+        try:
+            await store.connect()
+            async with store._pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT event_type, agent_id, action, target, policy_applied, created_at "
+                    "FROM audit_log WHERE allowed = false "
+                    "AND created_at > NOW() - INTERVAL '24 hours' "
+                    "ORDER BY created_at DESC"
+                )
+            await store.close()
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            return
+
+        if not rows:
+            console.print("[dim]No blocked events in the last 24 hours.[/dim]")
+            return
+
+        table = Table(title="Blocked Events (24h)", show_header=True, header_style="bold red")
+        table.add_column("Time", width=20)
+        table.add_column("Type")
+        table.add_column("Agent")
+        table.add_column("Action")
+        table.add_column("Target", max_width=40)
+        table.add_column("Policy")
+        for r in rows:
+            table.add_row(
+                r["created_at"].strftime("%m-%d %H:%M:%S"),
+                r["event_type"],
+                r["agent_id"] or "",
+                r["action"],
+                str(r["target"] or ""),
+                r["policy_applied"] or "",
+            )
+        console.print(table)
+
+    asyncio.run(_run())
+
+
+@app.command()
+def impact() -> None:
+    """Show impact summary across all domains."""
+    async def _run():
+        store = _get_store()
+        try:
+            await store.connect()
+            async with store._pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT domain, COUNT(*) as cnt, AVG(delta_pct) as avg_pct "
+                    "FROM impact_records GROUP BY domain ORDER BY avg_pct DESC"
+                )
+            await store.close()
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            return
+
+        if not rows:
+            console.print("[dim]No impact records found.[/dim]")
+            return
+
+        table = Table(title="HyperMemory Impact Summary", show_header=True, header_style="bold cyan")
+        table.add_column("Domain")
+        table.add_column("Records", justify="right")
+        table.add_column("Avg Improvement %", justify="right")
+        for r in rows:
+            table.add_row(r["domain"], str(r["cnt"]), f"{r['avg_pct']:.1f}%")
+        console.print(table)
+
+    asyncio.run(_run())
+
+
+@app.command("memory")
+def memory_stats() -> None:
+    """Show HyperMemory node/edge counts by domain."""
+    async def _run():
+        store = _get_store()
+        try:
+            await store.connect()
+            async with store._pool.acquire() as conn:
+                nodes = await conn.fetch(
+                    "SELECT domain, COUNT(*) as cnt FROM knowledge_nodes GROUP BY domain ORDER BY cnt DESC"
+                )
+                edge_count = await conn.fetchval("SELECT COUNT(*) FROM causal_edges") or 0
+            await store.close()
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            return
+
+        console.print(f"\n[bold cyan]HyperMemory Stats[/bold cyan]")
+        console.print(f"Total causal edges: [bold]{edge_count}[/bold]")
+        table = Table(title="Knowledge Nodes by Domain", show_header=True)
+        table.add_column("Domain")
+        table.add_column("Nodes", justify="right")
+        for r in nodes:
+            table.add_row(r["domain"], str(r["cnt"]))
+        console.print(table)
+
+    asyncio.run(_run())
 
 
 def main() -> None:

@@ -1,16 +1,43 @@
-policy: default
-description: "Default HyperShield policy — balanced security"
-filesystem:
-  allow_read: ["./", "/tmp/"]
-  allow_write: ["./", "/tmp/"]
-  deny: ["/etc/", "/usr/", "~/.ssh/"]
+profile: default
 network:
-  allow_outbound: true
-  allowed_domains: ["*"]
-  deny_domains: []
-audit:
-  log_all_calls: true
-  log_file: "hyperclaw-audit.log"
-certification:
-  require_claude_verification_for_chatjimmy: true
-  auto_certify_claude_outputs: false
+  egress_allowlist:
+    - "api.anthropic.com"
+    - "chatjimmy.ai"
+    - "supabase.co"
+  block_all_other_egress: true
+filesystem:
+  sandbox_root: "/hyperclaw/sandbox"
+  tmp_dir: "/tmp/hyperclaw"
+  block_host_reads: true
+logging:
+  log_all_inference_calls: true
+  log_file_access: true
+  log_network_requests: true
+  output: "hypermemory"
+agents:
+  VITALS:
+    egress_allowlist: []
+    require_explicit_consent: true
+    network_mode: "isolated"
+  MEDICUS:
+    egress_allowlist: []
+    require_explicit_consent: true
+    network_mode: "isolated"
+  MIDAS:
+    egress_allowlist: []
+    strip_pii_from_logs: true
+    network_mode: "isolated"
+  LEDGER:
+    egress_allowlist: []
+    strip_pii_from_logs: true
+    network_mode: "isolated"
+  SCOUT:
+    egress_allowlist:
+      - "arxiv.org"
+      - "pubmed.ncbi.nlm.nih.gov"
+      - "api.github.com"
+      - "news.ycombinator.com"
+    network_mode: "read_only"
+  ALCHEMIST:
+    egress_allowlist: []
+    network_mode: "isolated"

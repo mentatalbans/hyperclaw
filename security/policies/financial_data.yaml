@@ -1,18 +1,26 @@
-policy: financial_data
-description: "Strict policy for finance domain"
-filesystem:
-  allow_read: ["./finance_data/"]
-  allow_write: ["./finance_data/outputs/"]
-  deny: ["/etc/", "/usr/", "~/.ssh/"]
+profile: financial_data
 network:
-  allow_outbound: true
-  allowed_domains: ["api.hyperliquid.xyz", "api.coingecko.com", "pro-api.coinmarketcap.com"]
-  deny_domains: ["*"]  # allowlist-only
-audit:
-  log_all_calls: true
-  log_file: "finance-audit.log"
-  include_trade_logs: true
-certification:
-  require_claude_verification_for_chatjimmy: true
-  auto_certify_claude_outputs: false
-  require_human_review: true
+  egress_allowlist: []
+  block_all_other_egress: true
+filesystem:
+  sandbox_root: "/hyperclaw/sandbox/finance"
+  tmp_dir: "/tmp/hyperclaw/finance"
+  block_host_reads: true
+logging:
+  log_all_inference_calls: true
+  log_file_access: true
+  log_network_requests: true
+  output: "hypermemory"
+agents:
+  MIDAS:
+    egress_allowlist: []
+    strip_pii_from_logs: true
+    network_mode: "isolated"
+  LEDGER:
+    egress_allowlist: []
+    strip_pii_from_logs: true
+    network_mode: "isolated"
+  default:
+    egress_allowlist: []
+    strip_pii_from_logs: true
+    network_mode: "isolated"
