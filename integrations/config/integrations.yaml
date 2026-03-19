@@ -1,0 +1,180 @@
+# HyperClaw Integrations Configuration
+# Set enabled: true and provide credentials for each connector.
+# Missing credentials = connector disabled gracefully (no crash).
+
+messaging:
+  telegram:
+    enabled: false
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    webhook_url: ""
+  slack:
+    enabled: false
+    bot_token: "${SLACK_BOT_TOKEN}"
+    app_token: "${SLACK_APP_TOKEN}"
+    signing_secret: "${SLACK_SIGNING_SECRET}"
+  discord:
+    enabled: false
+    bot_token: "${DISCORD_BOT_TOKEN}"
+  whatsapp:
+    enabled: false
+    access_token: "${WHATSAPP_ACCESS_TOKEN}"
+    phone_number_id: "${WHATSAPP_PHONE_NUMBER_ID}"
+    verify_token: "${WHATSAPP_VERIFY_TOKEN}"
+  teams:
+    enabled: false
+    webhook_url: "${TEAMS_WEBHOOK_URL}"
+    app_id: "${TEAMS_APP_ID}"
+    app_password: "${TEAMS_APP_PASSWORD}"
+  signal:
+    enabled: false
+    api_url: "http://localhost:8080"
+    phone_number: "${SIGNAL_PHONE_NUMBER}"
+  imessage:
+    enabled: false
+    bluebubbles_url: "${BLUEBUBBLES_URL}"
+    bluebubbles_password: "${BLUEBUBBLES_PASSWORD}"
+  sms:
+    enabled: false
+    account_sid: "${TWILIO_ACCOUNT_SID}"
+    auth_token: "${TWILIO_AUTH_TOKEN}"
+    from_number: "${TWILIO_FROM_NUMBER}"
+  email:
+    enabled: false
+    provider: "smtp"
+    smtp_host: "${EMAIL_SMTP_HOST}"
+    smtp_port: 587
+    username: "${EMAIL_USERNAME}"
+    password: "${EMAIL_PASSWORD}"
+    imap_host: "${EMAIL_IMAP_HOST}"
+
+google:
+  oauth_credentials_file: "${GOOGLE_CREDENTIALS_FILE}"
+  gmail:
+    enabled: false
+  calendar:
+    enabled: false
+  drive:
+    enabled: false
+  docs:
+    enabled: false
+  sheets:
+    enabled: false
+  meet:
+    enabled: false
+  tasks:
+    enabled: false
+  analytics:
+    enabled: false
+    service_account_file: "${GOOGLE_SA_FILE}"
+
+microsoft:
+  tenant_id: "${MS_TENANT_ID}"
+  client_id: "${MS_CLIENT_ID}"
+  client_secret: "${MS_CLIENT_SECRET}"
+  outlook:
+    enabled: false
+  onedrive:
+    enabled: false
+  sharepoint:
+    enabled: false
+  calendar:
+    enabled: false
+
+productivity:
+  notion:
+    enabled: false
+    integration_token: "${NOTION_TOKEN}"
+  airtable:
+    enabled: false
+    api_key: "${AIRTABLE_API_KEY}"
+    base_id: "${AIRTABLE_BASE_ID}"
+  trello:
+    enabled: false
+    api_key: "${TRELLO_API_KEY}"
+    token: "${TRELLO_TOKEN}"
+  asana:
+    enabled: false
+    access_token: "${ASANA_TOKEN}"
+  linear:
+    enabled: false
+    api_key: "${LINEAR_API_KEY}"
+  todoist:
+    enabled: false
+    api_token: "${TODOIST_TOKEN}"
+
+enterprise:
+  salesforce:
+    enabled: false
+    client_id: "${SF_CLIENT_ID}"
+    client_secret: "${SF_CLIENT_SECRET}"
+    username: "${SF_USERNAME}"
+    password: "${SF_PASSWORD}"
+  hubspot:
+    enabled: false
+    api_key: "${HUBSPOT_API_KEY}"
+  jira:
+    enabled: false
+    base_url: "${JIRA_BASE_URL}"
+    email: "${JIRA_EMAIL}"
+    api_token: "${JIRA_API_TOKEN}"
+  confluence:
+    enabled: false
+    base_url: "${JIRA_BASE_URL}"
+    email: "${JIRA_EMAIL}"
+    api_token: "${JIRA_API_TOKEN}"
+
+developer:
+  github:
+    enabled: false
+    token: "${GITHUB_TOKEN}"
+  gitlab:
+    enabled: false
+    token: "${GITLAB_TOKEN}"
+    base_url: "https://gitlab.com"
+
+storage:
+  box:
+    enabled: false
+    access_token: "${BOX_ACCESS_TOKEN}"
+  dropbox:
+    enabled: false
+    access_token: "${DROPBOX_TOKEN}"
+
+finance:
+  stripe:
+    enabled: false
+    secret_key: "${STRIPE_SECRET_KEY}"
+  quickbooks:
+    enabled: false
+    client_id: "${QB_CLIENT_ID}"
+    client_secret: "${QB_CLIENT_SECRET}"
+    realm_id: "${QB_REALM_ID}"
+
+communication:
+  zoom:
+    enabled: false
+    account_id: "${ZOOM_ACCOUNT_ID}"
+    client_id: "${ZOOM_CLIENT_ID}"
+    client_secret: "${ZOOM_CLIENT_SECRET}"
+  twilio:
+    enabled: false
+    account_sid: "${TWILIO_ACCOUNT_SID}"
+    auth_token: "${TWILIO_AUTH_TOKEN}"
+    from_number: "${TWILIO_FROM_NUMBER}"
+
+automation:
+  zapier:
+    enabled: false
+    webhook_url: "${ZAPIER_WEBHOOK_URL}"
+  make:
+    enabled: false
+    webhook_url: "${MAKE_WEBHOOK_URL}"
+
+data:
+  postgres:
+    enabled: false
+    connection_string: "${POSTGRES_URL}"
+  supabase:
+    enabled: false
+    url: "${SUPABASE_URL}"
+    service_role_key: "${SUPABASE_SERVICE_ROLE_KEY}"

@@ -671,6 +671,99 @@ def doctor() -> None:
     raise typer.Exit(result)
 
 
+# ── Integrations Commands ─────────────────────────────────────────────────────
+
+integrations_app = typer.Typer(help="Manage HyperClaw integrations and connectors")
+app.add_typer(integrations_app, name="integrations")
+
+
+@integrations_app.command("list")
+def integrations_list() -> None:
+    """List all connectors and their status."""
+    import yaml as _yaml
+
+    config_path = Path(__file__).parent.parent / "integrations" / "config" / "integrations.yaml"
+    if not config_path.exists():
+        console.print("[yellow]No integrations config found.[/yellow]")
+        return
+
+    with open(config_path) as f:
+        config = _yaml.safe_load(f)
+
+    table = Table(title="HyperClaw Connectors")
+    table.add_column("ID", style="cyan")
+    table.add_column("Category", style="blue")
+    table.add_column("Status", style="green")
+
+    def walk(cfg, category=""):
+        for k, v in cfg.items():
+            if isinstance(v, dict):
+                if "enabled" in v:
+                    status = "[green]enabled[/green]" if v.get("enabled") else "[dim]disabled[/dim]"
+                    table.add_row(k, category or "misc", status)
+                else:
+                    walk(v, k)
+
+    walk(config)
+    console.print(table)
+
+
+@integrations_app.command("test")
+def integrations_test(
+    connector_id: str = typer.Argument(..., help="Connector ID to test")
+) -> None:
+    """Test a specific connector health."""
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+
+    config_path = str(Path(__file__).parent.parent / "integrations" / "config" / "integrations.yaml")
+
+    from integrations.base import ConnectorRegistry
+
+    registry = ConnectorRegistry.build_from_config(config_path)
+
+    try:
+        connector = registry.get(connector_id)
+
+        async def _test():
+            return await connector.health()
+
+        result = asyncio.run(_test())
+        if result:
+            console.print(f"[green]{connector_id} is healthy[/green]")
+        else:
+            console.print(f"[red]{connector_id} health check failed[/red]")
+    except KeyError:
+        console.print(f"[red]Connector {connector_id} not found or not enabled.[/red]")
+
+
+# ── Gateway Commands ──────────────────────────────────────────────────────────
+
+gateway_app = typer.Typer(help="Manage the HyperClaw Gateway")
+app.add_typer(gateway_app, name="gateway")
+
+
+@gateway_app.command("status")
+def gateway_status() -> None:
+    """Show Gateway status."""
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+
+    console.print("[bold]HyperClaw Gateway[/bold]")
+
+    config_path = str(Path(__file__).parent.parent / "integrations" / "config" / "integrations.yaml")
+
+    from integrations.base import ConnectorRegistry
+
+    registry = ConnectorRegistry.build_from_config(config_path)
+    messaging = registry.get_messaging_connectors()
+
+    if not messaging:
+        console.print("[yellow]No messaging connectors enabled.[/yellow]")
+    else:
+        console.print(f"[green]{len(messaging)} messaging connector(s) active[/green]")
+        for c in messaging:
+            console.print(f"  - {c.connector_id} ({c.info.platform})")
+
+
 def main() -> None:
     app()
 

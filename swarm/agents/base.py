@@ -35,6 +35,7 @@ class BaseAgent(AgentBidder):
     supported_task_types: list[str] = []
     preferred_model: str = "claude-sonnet-4-6"
     active_tasks: int = 0
+    connector_registry = None  # Optional ConnectorRegistry for platform integrations
 
     def __init__(
         self,
@@ -102,3 +103,29 @@ class BaseAgent(AgentBidder):
         self._log.info(
             f"{self.agent_id} completed task — model={model_used} success={success}"
         )
+
+    # ── Platform Integration Methods ──────────────────────────────────────────
+
+    async def send_to_platform(
+        self, platform: str, recipient_id: str, content: str
+    ) -> None:
+        """Send a message to any connected platform."""
+        if not self.connector_registry:
+            raise RuntimeError("No connector registry configured on this agent")
+
+        from integrations.base import OutboundMessage
+
+        connector = self.connector_registry.get(platform)
+        await connector.send(
+            OutboundMessage(
+                content=content, platform=platform, recipient_id=recipient_id
+            )
+        )
+
+    async def read_from_platform(self, platform: str, resource_id: str) -> dict:
+        """Read data from any connected platform."""
+        if not self.connector_registry:
+            raise RuntimeError("No connector registry configured on this agent")
+
+        connector = self.connector_registry.get(platform)
+        return await connector.read(resource_id)
