@@ -9,9 +9,9 @@
 [![Agents](https://img.shields.io/badge/agents-22-purple)](swarm/agents/)
 [![GitHub Stars](https://img.shields.io/github/stars/mentatalbans/hyperclaw?style=social)](https://github.com/mentatalbans/hyperclaw)
 
-HyperClaw is an open-source, self-hosted, Claude-native multi-agent AI swarm platform built to manage every domain of human life and work — from daily scheduling and personal health to enterprise operations, deep scientific research, and space exploration data analysis.
+HyperClaw is an open-source, self-hosted, civilization-scale AI orchestration platform powered by PROMETHEUS — the world's first self-expanding AGI-level orchestration operating system. Built to manage every domain of human life and work — from daily scheduling and personal health to enterprise operations, deep scientific research, and space exploration — with a living organizational knowledge base that captures every SOP, job description, checklist, workflow, and client profile your civilization runs on, and teaches it all to every agent, permanently.
 
-**One command. Full transparency. No limits.**
+**One command. No limits.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -313,4 +313,4 @@ MIT License — use it, fork it, build on it.
 
 ---
 
-*Built by Hyper Nimbus. Powered by Claude.*
+*Built by Hyper Nimbus. Powered by PROMETHEUS.*
