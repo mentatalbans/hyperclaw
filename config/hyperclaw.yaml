@@ -1,28 +1,27 @@
-# HyperClaw Configuration
-version: "0.1.0-alpha"
-
+anthropic:
+  api_key: REDACTED_ANTHROPIC_KEY
+chatjimmy:
+  base_url: https://chatjimmy.ai/api
+  timeout_seconds: 5.0
 database:
-  url: "postgresql://localhost/hyperclaw"
-
+  url: postgresql://postgres:REDACTED_DB_PASSWORD@db.truponyrnbaeplimswhl.supabase.co:5432/postgres
+logging:
+  file: hyperclaw.log
+  level: INFO
 models:
-  default: "claude-sonnet-4-6"
-  chatjimmy_url: "https://chatjimmy.ai/api"
   claude_max_tokens: 4096
-
+  default: claude-sonnet-4-6
 router:
   fast_loop_enabled: true
   slow_loop_interval_seconds: 300
-  cost_budget_usd: null
-  latency_budget_ms: null
-
-swarm:
-  max_agents: 50
-  default_domain: "business"
-
 security:
-  policy: "default"
   audit_log: true
-
-logging:
-  level: "INFO"
-  file: "hyperclaw.log"
+  policy: default
+supabase:
+  anon_key: REDACTED_ANON_KEY
+  service_key: REDACTED_SERVICE_KEY
+  url: https://truponyrnbaeplimswhl.supabase.co
+swarm:
+  default_domain: business
+  max_agents: 50
+version: 0.2.0-alpha

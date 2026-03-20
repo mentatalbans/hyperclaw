@@ -57,10 +57,10 @@ class HyperStateStore:
                 CREATE TABLE IF NOT EXISTS hyperstates (
                     state_id        UUID PRIMARY KEY,
                     domain          TEXT NOT NULL,
-                    state_data      JSONB NOT NULL,
+                    data            JSONB NOT NULL,
                     state_version   INTEGER NOT NULL DEFAULT 0,
                     created_at      TIMESTAMPTZ NOT NULL,
-                    last_updated    TIMESTAMPTZ NOT NULL,
+                    updated_at      TIMESTAMPTZ NOT NULL,
                     archived_at     TIMESTAMPTZ
                 );
 
@@ -68,7 +68,7 @@ class HyperStateStore:
                     id              BIGSERIAL PRIMARY KEY,
                     state_id        UUID NOT NULL REFERENCES hyperstates(state_id),
                     state_version   INTEGER NOT NULL,
-                    state_data      JSONB NOT NULL,
+                    data            JSONB NOT NULL,
                     recorded_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
 
@@ -85,13 +85,13 @@ class HyperStateStore:
         async with self._pool.acquire() as conn:
             async with conn.transaction():
                 await conn.execute("""
-                    INSERT INTO hyperstates (state_id, domain, state_data, state_version, created_at, last_updated)
+                    INSERT INTO hyperstates (state_id, domain, data, state_version, created_at, updated_at)
                     VALUES ($1, $2, $3::jsonb, $4, $5, $6)
                     ON CONFLICT (state_id) DO UPDATE SET
                         domain        = EXCLUDED.domain,
-                        state_data    = EXCLUDED.state_data,
+                        data            = EXCLUDED.data,
                         state_version = EXCLUDED.state_version,
-                        last_updated  = EXCLUDED.last_updated
+                        updated_at    = EXCLUDED.updated_at
                 """,
                     state.state_id,
                     state.domain,
@@ -101,7 +101,7 @@ class HyperStateStore:
                     state.last_updated,
                 )
                 await conn.execute("""
-                    INSERT INTO hyperstate_history (state_id, state_version, state_data)
+                    INSERT INTO hyperstate_history (state_id, state_version, snapshot)
                     VALUES ($1, $2, $3::jsonb)
                 """, state.state_id, state.state_version, data)
 
@@ -110,11 +110,11 @@ class HyperStateStore:
         assert self._pool, "Call connect() first"
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT state_data FROM hyperstates WHERE state_id = $1", state_id
+                "SELECT data FROM hyperstates WHERE state_id = $1", state_id
             )
         if row is None:
             raise KeyError(f"HyperState {state_id} not found")
-        return HyperState.model_validate_json(row["state_data"])
+        return HyperState.model_validate_json(row["data"])
 
     async def list_states(
         self,
@@ -125,17 +125,17 @@ class HyperStateStore:
         assert self._pool, "Call connect() first"
         if domain:
             rows = await self._pool.fetch(
-                "SELECT state_data FROM hyperstates WHERE domain = $1 AND archived_at IS NULL "
-                "ORDER BY last_updated DESC LIMIT $2",
+                "SELECT data FROM hyperstates WHERE domain = $1 AND archived_at IS NULL "
+                "ORDER BY updated_at DESC LIMIT $2",
                 domain, limit,
             )
         else:
             rows = await self._pool.fetch(
-                "SELECT state_data FROM hyperstates WHERE archived_at IS NULL "
-                "ORDER BY last_updated DESC LIMIT $1",
+                "SELECT data FROM hyperstates WHERE archived_at IS NULL "
+                "ORDER BY updated_at DESC LIMIT $1",
                 limit,
             )
-        return [HyperState.model_validate_json(r["state_data"]) for r in rows]
+        return [HyperState.model_validate_json(r["data"]) for r in rows]
 
     async def archive_state(self, state_id: UUID) -> None:
         """Set archived_at timestamp on a HyperState."""
@@ -149,7 +149,7 @@ class HyperStateStore:
         """Return all version snapshots for a HyperState."""
         assert self._pool, "Call connect() first"
         rows = await self._pool.fetch(
-            "SELECT state_version, state_data, recorded_at FROM hyperstate_history "
+            "SELECT state_version, snapshot, created_at as recorded_at FROM hyperstate_history "
             "WHERE state_id = $1 ORDER BY state_version ASC",
             state_id,
         )
@@ -157,7 +157,7 @@ class HyperStateStore:
             {
                 "state_version": r["state_version"],
                 "recorded_at": r["recorded_at"].isoformat(),
-                "state_data": json.loads(r["state_data"]),
+                "state_data": json.loads(r["snapshot"]),
             }
             for r in rows
         ]

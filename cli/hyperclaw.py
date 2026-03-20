@@ -304,6 +304,11 @@ def swarm_run(
 
         db_url = os.environ.get("DATABASE_URL", "")
         store = HyperStateStore(db_url) if db_url else HyperStateStore()
+        # Connect the store before use
+        try:
+            await store.connect()
+        except Exception as e:
+            console.print(f"[yellow]DB connect warning:[/yellow] {e}")
         state_manager = StateManager(store)
 
         causal_graph = None

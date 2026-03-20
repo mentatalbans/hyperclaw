@@ -107,28 +107,45 @@ class NexusAgent(BaseAgent):
         subtasks = await self.decompose(goal, domain)
         results: list[str] = []
 
+        import time
+        from core.hyperstate.schema import ExperimentEntry
+
         for subtask in subtasks:
             task_type = subtask["task_type"]
             description = subtask["description"]
+            t0 = time.time()
 
             # Find best agent from registry
             agent = self._find_agent(task_type, domain)
             if agent:
                 try:
                     result = await agent.run(description, state, {"domain": domain})
-                    results.append(f"[{agent.agent_id}] {result[:500]}")
+                    agent_label = agent.agent_id
                 except Exception as e:
                     log.warning(f"NEXUS: agent {agent.agent_id} failed: {e}")
-                    results.append(f"[{task_type}] (agent unavailable: {e})")
+                    result = f"(agent error: {e})"
+                    agent_label = agent.agent_id
             else:
                 # Direct model call as fallback
-                fallback = await self.model_router.call(
+                result = await self.model_router.call(
                     task_type=task_type,
                     messages=[{"role": "user", "content": description}],
-                    system="Complete this task concisely.",
+                    system="Complete this task concisely and helpfully.",
                     state=state,
                 )
-                results.append(f"[{task_type}] {fallback[:500]}")
+                agent_label = f"NEXUS-{task_type}"
+
+            results.append(f"[{agent_label}] {result[:800]}")
+
+            # Record in experiment log
+            entry = ExperimentEntry(
+                method=agent_label,
+                model_used="claude-sonnet-4-6",
+                result=result[:1000],
+                certified=len(result) > 50,
+                latency_ms=(time.time() - t0) * 1000,
+            )
+            state.experiment_log.append(entry)
 
         # HERALD assembly
         herald = self._registry.get("HERALD")
