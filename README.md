@@ -2,20 +2,17 @@
 
 > **The AI that actually takes over.**
 
-[![Tests](https://img.shields.io/badge/tests-184%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-377%20passing-brightgreen)](tests/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-v0.1.0--alpha-orange)](https://github.com/mentatalbans/hyperclaw/releases)
-[![Agents](https://img.shields.io/badge/agents-22-purple)](swarm/agents/)
+[![Agents](https://img.shields.io/badge/agents-50%2B-purple)](swarm/)
+[![Connectors](https://img.shields.io/badge/connectors-30%2B-blue)](integrations/)
 [![GitHub Stars](https://img.shields.io/github/stars/mentatalbans/hyperclaw?style=social)](https://github.com/mentatalbans/hyperclaw)
 
 HyperClaw is an open-source, self-hosted, civilization-scale AI orchestration platform powered by PROMETHEUS — the world's first self-expanding AGI-level orchestration operating system. Built to manage every domain of human life and work — from daily scheduling and personal health to enterprise operations, deep scientific research, and space exploration — with a living organizational knowledge base that captures every SOP, job description, checklist, workflow, and client profile your civilization runs on, and teaches it all to every agent, permanently.
 
 **One command. No limits.**
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-150%20passing-brightgreen.svg)](tests/)
 
 ---
 
@@ -39,93 +36,153 @@ pip install -e ".[dev]"
 # First-time setup
 hyperclaw init
 
-# Boot the full swarm + TUI
+# Boot PROMETHEUS — SOLOMON comes online
 hyperclaw start
 
-# Run a goal
-hyperclaw swarm run "Analyze our Q1 revenue trends and identify top 3 growth opportunities"
+# Submit a goal to SOLOMON
+hyperclaw swarm run "Analyze our Q1 revenue trends and identify the top 3 growth opportunities"
 
-# Trigger a research sweep
-hyperclaw research sweep
+# Ingest your organization's knowledge
+hyperclaw civ ingest ./docs/sops/
+
+# See what's missing
+hyperclaw civ gaps
 ```
 
 ---
 
 ## What HyperClaw Does
 
-HyperClaw deploys a swarm of 23 specialist AI agents across 5 domains. Each agent is purpose-built, UCB1-optimized for its task types, and protected by HyperShield security policies. They collaborate, bid for tasks, and continuously improve through the Recursive Growth Engine.
+**For individuals:** Manages your entire life — health, finance, scheduling, research, communications — across every platform you already use.
+
+**For organizations:** Learns how your organization actually works — ingests your SOPs, job descriptions, checklists, org charts, and client profiles — then operates against that knowledge as a deeply embedded team member across every domain.
+
+**For civilization:** A self-expanding intelligence that grows its own capabilities, fills its own knowledge gaps, and compounds in intelligence every single day it runs.
 
 ---
 
-## Architecture
+## PROMETHEUS Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    HyperClaw Platform                    │
-├──────────────┬──────────────────┬───────────────────────┤
-│  HyperCore   │   HyperSwarm     │   HyperMemory          │
-│              │                  │                        │
-│ HyperState   │ NEXUS (orch.)    │ CausalGraph            │
-│ HyperRouter  │ BidProtocol      │ VectorStore            │
-│ UCB1 Bandit  │ 23 Agents        │ AgentMemory            │
-│ FastLoop     │ AutoGenBridge    │ ImpactTracker          │
-│ SlowLoop     │ AgentRegistry    │ Migration Runner       │
-├──────────────┴──────────────────┴───────────────────────┤
-│            HyperShield Security Layer                    │
-│  PolicyEngine  │  NetworkGuard  │  FilesystemGuard       │
-│  AuditLogger   │  Hot-reload    │  Per-agent policies    │
-├─────────────────────────────────────────────────────────┤
-│          Recursive Growth Engine                         │
-│  SCOUT → ALCHEMIST → CALIBRATOR (runs every 6h)         │
-└─────────────────────────────────────────────────────────┘
+SOLOMON (Overmind — always on, always watching)
+├── 50+ Domain Specialists
+│   Sciences, Law, Medicine, Finance, Engineering,
+│   Philosophy, Business, Intelligence, Creative Arts...
+├── GENESIS Protocol (self-expanding — creates new specialists)
+├── Three-Tier Memory
+│   ├── Session (fast, in-context)
+│   ├── Domain (persistent per-specialist)
+│   └── Civilizational Graph (permanent, growing — pgvector)
+├── Civilization Knowledge Base
+│   ├── SOPs + Workflows
+│   ├── Job Descriptions + Roles
+│   ├── Checklists + Runbooks
+│   ├── Org Charts + Reporting Structures
+│   ├── Client Profiles
+│   └── Personal Routines
+├── 30+ Platform Connectors (HyperClaw Gateway)
+│   Telegram, Slack, Discord, WhatsApp, Teams, Signal,
+│   Gmail, Google Workspace, Microsoft 365, Notion,
+│   Salesforce, HubSpot, Jira, GitHub, Stripe, and more
+├── HyperShield Security (zero-trust, hot-reload YAML)
+├── UCB1 HyperRouter (self-improving model routing)
+└── Three Human Gates
+    ├── Ethical Gate
+    ├── Authorization Gate
+    └── Uncertainty Gate (confidence < 60%)
 ```
 
 ---
 
-## Agent Taxonomy
+## Civilization Knowledge Base
 
-### Personal Domain (6 agents)
-| Agent | Role | Primary Model |
-|-------|------|---------------|
-| **ATLAS** | Life Coordinator — schedules, habits, goals | Claude Sonnet |
-| **MIDAS** | Personal Finance — budgets, investments | Claude Sonnet |
-| **VITALS** | Health & Wellness — symptoms, wellness ⚕️ | Claude Sonnet |
-| **NOURISH** | Nutrition & Fitness — meals, workouts | ChatJimmy + Claude |
-| **NAVIGATOR** | Travel & Logistics — itineraries, routing | ChatJimmy + Claude |
-| **HEARTH** | Home Management — maintenance, vendors | ChatJimmy |
+The moat. Every other AI platform starts each task with zero organizational context. HyperClaw ingests all of it, versions it, and injects the relevant slice into every specialist's prompt before they touch a task. The result: agents that operate like people who've been inside your organization for years.
 
-### Business Domain (6 agents)
-| Agent | Role | Primary Model |
-|-------|------|---------------|
-| **STRATEGOS** | Executive Intelligence — strategy, competitive intel | Claude Sonnet |
-| **HERALD** | Output & Delivery — assembles final deliverables | Claude Sonnet |
-| **PIPELINE** | Sales & Marketing — leads, outreach, campaigns | ChatJimmy + Claude |
-| **LEDGER** | Financial Operations — reporting, forecasting | Claude Sonnet |
-| **COUNSEL** | Legal & Compliance — research, analysis ⚖️ | Claude Sonnet |
-| **TALENT** | HR & People — hiring, performance | Claude Sonnet |
+### What it captures
 
-### Scientific Domain (5 agents)
-| Agent | Role | Primary Model |
-|-------|------|---------------|
-| **MEDICUS** | Healthcare & Biology — literature, genomics ⚕️ | Claude Sonnet |
-| **COSMOS** | Space & Astronomy — orbital calculations, data | Claude Sonnet + Code |
-| **GAIA** | Climate & Environment — emissions, sustainability | Claude Sonnet |
-| **ORACLE** | Quantitative Analysis — statistical models, code | Claude Sonnet + Code |
-| **SCRIBE** | Research Synthesis — triage and deep synthesis | ChatJimmy + Claude |
+| Node Type | Description |
+|---|---|
+| **SOP** | Standard operating procedures with step-order preserved |
+| **Job Description** | Roles, responsibilities, KPIs, reporting structure |
+| **Role** | Operational accountability, decision authority, escalation paths |
+| **Person** | Team members, expertise, preferences, reporting chain |
+| **Checklist** | Recurring verification tasks with completion tracking |
+| **Runbook** | Incident response and technical operational procedures |
+| **Workflow** | Process graphs with decision nodes and SLA tracking |
+| **Org Chart** | Full organizational hierarchy, traversable by any agent |
+| **Client Profile** | Goals, pain points, health score, communication preferences |
+| **Personal Routine** | Individual operating rhythms and non-negotiables |
+| **Policy** | Organizational policies injected into relevant agent contexts |
+| **Knowledge Article** | Freeform institutional knowledge |
 
-### Creative Domain (2 agents)
-| Agent | Role | Primary Model |
-|-------|------|---------------|
-| **AUTHOR** | Long-form Writing — research-backed prose | Claude Sonnet |
-| **LENS** | Research & Retrieval — fast lookup + synthesis | ChatJimmy + Claude |
+### Three things that make this technically distinct
 
-### Recursive Domain (3 agents + NEXUS)
-| Agent | Role | Primary Model |
-|-------|------|---------------|
-| **SCOUT** | Capability Research — arXiv, GitHub, PubMed | ChatJimmy + Claude |
-| **ALCHEMIST** | Skill Integration — validates, implements, certifies | Claude Code |
-| **CALIBRATOR** | Performance Optimization — routing analysis | ChatJimmy |
-| **NEXUS** | Swarm Facilitator — orchestrates all agents | Claude Sonnet |
+**1. Procedural chunker preserves step order** — standard RAG chunking destroys SOPs by splitting them across chunks. This chunker treats each step as a unit with its surrounding context baked in, so agents can retrieve step 4 without losing the fact that step 3 must happen first.
+
+**2. Interview agent fills the tacit knowledge gap** — most organizational knowledge is in people's heads, never written down. The interview agent conducts Socratic sessions with your team to extract what they know and convert it into structured, versioned knowledge nodes.
+
+**3. OrgGraph traversal** — SOLOMON knows the reporting chain, knows who owns which SOP, knows which clients a person serves. Context injection becomes role-aware, not just topic-aware.
+
+### Commands
+
+```bash
+hyperclaw civ ingest <file_or_dir>   # Ingest documents
+hyperclaw civ interview start         # Start knowledge elicitation
+hyperclaw civ gaps                    # Detect missing knowledge
+hyperclaw civ gaps fill               # Interview to fill top gap
+hyperclaw civ nodes list              # All knowledge nodes
+hyperclaw civ org chart               # Print org chart as tree
+hyperclaw civ stats                   # Coverage score by type
+hyperclaw civ staleness               # Nodes not updated in 90+ days
+hyperclaw civ sync notion             # Sync from Notion
+hyperclaw civ sync gdrive             # Sync from Google Drive
+```
+
+---
+
+## 30+ Platform Connectors
+
+Every inbound message from any platform routes to SOLOMON automatically via the HyperClaw Gateway. A Telegram message, a Slack slash command, and a WhatsApp voice note all hit the same agent pipeline.
+
+### Messaging
+Telegram · Slack · Discord · WhatsApp · Microsoft Teams · Signal · iMessage · SMS (Twilio) · Email (SMTP/Gmail/Outlook)
+
+### Google Workspace
+Gmail · Calendar · Drive · Docs · Sheets · Meet · Tasks · Analytics
+
+### Microsoft 365
+Outlook · OneDrive · SharePoint · Calendar
+
+### Productivity
+Notion · Airtable · Trello · Asana · Linear · Todoist
+
+### Enterprise
+Salesforce · HubSpot · Jira · Confluence
+
+### Developer
+GitHub · GitLab
+
+### Finance
+Stripe · QuickBooks
+
+### Storage
+Box · Dropbox
+
+### Communication
+Zoom · Twilio
+
+### Automation
+Zapier · Make
+
+### Data
+Supabase · PostgreSQL · Google Analytics
+
+```bash
+hyperclaw integrations list         # All connectors + status
+hyperclaw integrations test <id>    # Health check a connector
+hyperclaw gateway start             # Start inbound message router
+hyperclaw gateway status            # Active platforms + message counts
+```
 
 ---
 
@@ -137,66 +194,50 @@ HyperRouter uses the **UCB1 multi-armed bandit algorithm** to continuously learn
 ucb1_score = mean_reward + C * sqrt(ln(total_attempts) / attempts)
 ```
 
-Models start as "unexplored" (score = ∞) and are tried once before exploitation begins. Over time, the best model for each task type rises to the top. Budget and latency constraints filter candidates before scoring.
-
-**Model fleet:**
-| Model | Use | Cost | Latency |
-|-------|-----|------|---------|
-| `claude-sonnet-4-6` | Research, analysis, synthesis | $0.003/1k | ~2s |
-| `chatjimmy` | Routing, classification, quick tasks | $0.000001/1k | ~50ms |
-| `claude-code` | Code generation + certification | $0.003/1k | ~3s |
-| `nim-local` | Local inference (zero cost) | Free | ~500ms |
-
----
-
-## Certification Loop
-
-HyperClaw certifies outputs empirically — no hallucinations, no guesses:
-
-```
-1. Claude generates code/analysis
-2. ClaudeCodeSubagent executes in sandboxed subprocess
-3. Test trace captured (stdout, stderr, exit code)
-4. Certifier validates: test_trace ≠ ∅, result ≠ ∅, certified = True
-5. CertifiedMethod written to HyperState
-6. Causal edge written to HyperMemory (cause → effect)
-```
-
-> **ChatJimmy outputs are never auto-certified.** All ChatJimmy outputs must pass through Claude verification before certification. This is enforced at the architecture level.
-
----
-
-## HyperMemory Causal Graph
-
-HyperMemory is not just a vector store — it's a structured causal knowledge graph. Every certified method writes:
-- A **cause node** (the action taken)
-- An **effect node** (the result produced)
-- A **causal edge** with confidence score
-
-This lets HyperClaw answer: *"What caused this outcome?"* and *"What does this action usually produce?"*
+Models start unexplored (score = ∞) and are tried once before exploitation begins. The best model for each task type rises to the top over time. Budget and latency constraints filter candidates before scoring.
 
 ---
 
 ## HyperShield Security
 
-All agent actions are governed by YAML policies with per-agent granularity:
+All agent actions governed by YAML policies with per-agent granularity. Hot-reload without restart:
 
 ```yaml
 agents:
   VITALS:
-    network_mode: "isolated"      # no outbound connections
+    network_mode: "isolated"
+    hypershield_context: "health_data"
     require_explicit_consent: true
-  SCOUT:
+  LEDGER:
+    hypershield_context: "financial_data"
     egress_allowlist:
-      - "arxiv.org"
-      - "api.github.com"
-    network_mode: "read_only"
+      - "api.stripe.com"
+      - "quickbooks.api.intuit.com"
 ```
 
-Policies hot-reload without restart:
-```bash
-hyperclaw policy reload --path security/policies/custom.yaml
+Finance connectors (Stripe, QuickBooks) run in `financial_data` context. Health data in `health_data` context. Signal in `isolated` context. All enforced at the architecture level.
+
+---
+
+## GENESIS Protocol
+
+When SOLOMON encounters a task outside the expertise of all 50+ current specialists, it doesn't fail — it builds:
+
 ```
+GENESIS detects knowledge gap
+  ↓
+SCOUT researches domain (arXiv, GitHub, PubMed)
+  ↓
+ALCHEMIST builds specialist agent from research
+  ↓
+Certifier validates against test suite
+  ↓ (if certified)
+New specialist registered in PROMETHEUS permanently
+  ↓
+CALIBRATOR updates UCB1 routing scores
+```
+
+Zero blind spots. Self-expanding by design.
 
 ---
 
@@ -207,42 +248,29 @@ Every 6 hours, HyperClaw upgrades itself:
 ```
 SCOUT → sweeps arXiv, GitHub, PubMed for new techniques
   ↓
-ALCHEMIST → validates discoveries, implements via ClaudeCodeSubagent
+ALCHEMIST → validates discoveries, implements, certifies
   ↓ (if certified)
-CausalGraph ← skill node + causal edge written
+CausalGraph ← skill node + causal edge written to HyperMemory
   ↓
-CALIBRATOR → reads SwarmMessage log, identifies routing inefficiencies
+CALIBRATOR → reads performance log, identifies routing inefficiencies
   ↓
 HyperRouter ← updated UCB1 scores
 ```
 
 ---
 
-## Configuration
+## Database
 
-`config/hyperclaw.yaml`:
-```yaml
-database:
-  url: "postgresql://localhost/hyperclaw"
+HyperClaw uses PostgreSQL with pgvector for all memory, knowledge, and agent state. Supabase is the recommended host.
 
-models:
-  default: "claude-sonnet-4-6"
-  chatjimmy_url: "https://chatjimmy.ai/api"
-
-router:
-  fast_loop_enabled: true
-  slow_loop_interval_seconds: 300
-
-swarm:
-  max_agents: 50
-  default_domain: "business"
-```
-
-Environment variables:
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-export DATABASE_URL="postgresql://localhost/hyperclaw"
+hyperclaw init          # Runs migrations automatically
+hyperclaw doctor        # Verify DB + all system checks
 ```
+
+**Migrations:**
+- `001_hypermemory.sql` — HyperMemory causal graph (nodes, edges, impacts, sessions)
+- `002_civilization.sql` — Civilization Knowledge Layer (nodes, versions, edges, interviews, gaps, sync log)
 
 ---
 
@@ -250,66 +278,78 @@ export DATABASE_URL="postgresql://localhost/hyperclaw"
 
 ```bash
 # Core
-hyperclaw init              # Initialize DB + config
-hyperclaw start             # Boot swarm + TUI
-hyperclaw version           # Print version
-
-# States
-hyperclaw state list        # List active HyperStates
-hyperclaw state inspect <id> # Inspect a HyperState
+hyperclaw init                        # Initialize DB + config
+hyperclaw start                       # Boot PROMETHEUS
+hyperclaw doctor                      # System health check
+hyperclaw version                     # Print version
 
 # Swarm
-hyperclaw swarm run "<goal>" # Submit goal to NEXUS
-hyperclaw agent list         # All agents + domains + UCB1 scores
-hyperclaw agent status <id>  # Specific agent detail
+hyperclaw swarm run "<goal>"          # Submit goal to SOLOMON
+hyperclaw prometheus specialists      # List all 50+ specialists
+hyperclaw prometheus genesis run      # Create specialist for new domain
+hyperclaw prometheus memory stats     # Three-tier memory stats
 
-# Research
-hyperclaw research sweep      # Trigger manual SCOUT sweep
-hyperclaw research discoveries # Show recent discoveries
-hyperclaw skills list         # Show certified skills
+# Civilization Knowledge
+hyperclaw civ ingest <file>           # Ingest document
+hyperclaw civ interview start         # Knowledge elicitation interview
+hyperclaw civ gaps                    # Show knowledge gaps
+hyperclaw civ org chart               # Print org chart
+hyperclaw civ stats                   # Node count + coverage score
+hyperclaw civ staleness               # Stale nodes (90+ days)
+
+# Integrations
+hyperclaw integrations list           # All 30+ connectors
+hyperclaw integrations test <id>      # Test connector health
+hyperclaw gateway start               # Start inbound message router
+hyperclaw gateway status              # Active platforms
 
 # Security
-hyperclaw policy reload       # Hot-reload HyperShield policies
-hyperclaw policy status       # Show active policy + agent policies
-hyperclaw audit recent        # Last 20 audit events
-hyperclaw audit blocked       # Blocked events (24h)
+hyperclaw policy reload               # Hot-reload HyperShield policies
+hyperclaw policy status               # Active policy summary
+hyperclaw audit recent                # Recent audit log
+hyperclaw audit blocked               # Blocked events (24h)
 
-# Memory & Impact
-hyperclaw impact              # Impact summary by domain
-hyperclaw memory              # HyperMemory node/edge counts
+# Memory
+hyperclaw memory stats                # HyperMemory node/edge counts
+hyperclaw impact                      # Impact summary by domain
 ```
 
 ---
 
-## Domains
+## Architecture Overview
 
-HyperClaw operates across **5 unlimited domains**:
-- **Personal** — health, finance, scheduling, travel, nutrition, home
-- **Business** — strategy, sales, finance, legal, HR, output
-- **Scientific** — medicine, astronomy, climate, statistics, research
-- **Creative** — writing, research, narrative
-- **Recursive** — self-improvement, capability research, skill integration
+| Component | Technology |
+|---|---|
+| Overmind | SOLOMON |
+| Specialists | 50+ domain agents |
+| Expansion | GENESIS Protocol |
+| Memory | pgvector + PostgreSQL (Supabase) |
+| Security | HyperShield (zero-trust, hot-reload YAML) |
+| Routing | UCB1 bandit (self-improving) |
+| Knowledge | Civilization Knowledge Base |
+| Connectors | 30+ platform integrations |
+| Growth | Recursive Growth Engine (SCOUT → ALCHEMIST → CALIBRATOR) |
 
 ---
 
 ## Contributing
 
-HyperClaw is MIT-licensed and open for contributions.
+MIT-licensed and open for contributions.
 
 ```bash
 git clone https://github.com/mentatalbans/hyperclaw.git
 cd hyperclaw
 pip install -e ".[dev]"
-pytest tests/ -v --cov=core --cov=memory --cov=security --cov=models
+python3 -m pytest tests/ -v
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. Join the community on Discord.
 
 ---
 
 ## License
 
-MIT License — use it, fork it, build on it.
+MIT — use it, fork it, build on it.
 
 ---
 
