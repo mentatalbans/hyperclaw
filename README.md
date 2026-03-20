@@ -10,7 +10,7 @@
 [![Connectors](https://img.shields.io/badge/connectors-30%2B-blue)](integrations/)
 [![GitHub Stars](https://img.shields.io/github/stars/mentatalbans/hyperclaw?style=social)](https://github.com/mentatalbans/hyperclaw)
 
-HyperClaw is an open-source, self-hosted, civilization-scale AI orchestration platform powered by PROMETHEUS — the world's first self-expanding AGI-level orchestration operating system. Built to manage every domain of human life and work — from daily scheduling and personal health to enterprise operations, deep scientific research, and space exploration — with a living organizational knowledge base that captures every SOP, job description, checklist, workflow, and client profile your civilization runs on, and teaches it all to every agent, permanently.
+HyperClaw is an open-source, self-hosted multi-agent AI orchestration platform. One system. Every domain. Built to run your organization the way it actually works — not the way it was documented.
 
 **One command. No limits.**
 
