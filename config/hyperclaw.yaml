@@ -1,5 +1,5 @@
 anthropic:
-  api_key: REDACTED_ANTHROPIC_KEY
+  api_key: ${ANTHROPIC_API_KEY}
 chatjimmy:
   base_url: https://chatjimmy.ai/api
   timeout_seconds: 5.0
