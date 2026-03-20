@@ -10,9 +10,9 @@
 [![Connectors](https://img.shields.io/badge/connectors-30%2B-blue)](integrations/)
 [![GitHub Stars](https://img.shields.io/github/stars/mentatalbans/hyperclaw?style=social)](https://github.com/mentatalbans/hyperclaw)
 
-HyperClaw is an open-source, self-hosted multi-agent AI orchestration platform. One system. Every domain. Built to run your organization the way it actually works — not the way it was documented.
+HyperClaw is an open-source, self-hosted multi-agent AI orchestration platform. One system. Every domain. Whether you're running a company, planning your week, managing your health, or building something new — HyperClaw brings intelligent automation to whatever matters to you.
 
-**One command. No limits.**
+**One command. No limits. For everyone.**
 
 ---
 
