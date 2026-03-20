@@ -4,7 +4,7 @@ chatjimmy:
   base_url: https://chatjimmy.ai/api
   timeout_seconds: 5.0
 database:
-  url: postgresql://postgres:REDACTED_DB_PASSWORD@db.truponyrnbaeplimswhl.supabase.co:5432/postgres
+  url: "${DATABASE_URL}"
 logging:
   file: hyperclaw.log
   level: INFO
@@ -18,9 +18,9 @@ security:
   audit_log: true
   policy: default
 supabase:
-  anon_key: REDACTED_ANON_KEY
-  service_key: REDACTED_SERVICE_KEY
-  url: https://truponyrnbaeplimswhl.supabase.co
+  anon_key: "${SUPABASE_ANON_KEY}"
+  service_key: "${SUPABASE_SERVICE_KEY}"
+  url: "${SUPABASE_URL}"
 swarm:
   default_domain: business
   max_agents: 50
