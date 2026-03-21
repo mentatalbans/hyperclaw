@@ -5,10 +5,10 @@
 [![Tests](https://img.shields.io/badge/tests-377%20passing-brightgreen)](tests/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-v0.1.0--alpha-orange)](https://github.com/mentatalbans/hyperclaw/releases)
+[![Version](https://img.shields.io/badge/version-v0.1.0--alpha-orange)](https://github.com/hyperclawai/hyperclaw/releases)
 [![Agents](https://img.shields.io/badge/agents-50%2B-purple)](swarm/)
 [![Connectors](https://img.shields.io/badge/connectors-30%2B-blue)](integrations/)
-[![GitHub Stars](https://img.shields.io/github/stars/mentatalbans/hyperclaw?style=social)](https://github.com/mentatalbans/hyperclaw)
+[![GitHub Stars](https://img.shields.io/github/stars/hyperclawai/hyperclaw?style=social)](https://github.com/hyperclawai/hyperclaw)
 
 HyperClaw is an open-source, self-hosted multi-agent AI orchestration platform. One system. Every domain. Whether you're running a company, planning your week, managing your health, or building something new — HyperClaw brings intelligent automation to whatever matters to you.
 
@@ -25,7 +25,7 @@ pip install hyperclaw
 Or from source:
 
 ```bash
-git clone https://github.com/mentatalbans/hyperclaw.git
+git clone https://github.com/hyperclawai/hyperclaw.git
 cd hyperclaw
 pip install -e ".[dev]"
 ```
@@ -337,7 +337,7 @@ hyperclaw impact                      # Impact summary by domain
 MIT-licensed and open for contributions.
 
 ```bash
-git clone https://github.com/mentatalbans/hyperclaw.git
+git clone https://github.com/hyperclawai/hyperclaw.git
 cd hyperclaw
 pip install -e ".[dev]"
 python3 -m pytest tests/ -v
