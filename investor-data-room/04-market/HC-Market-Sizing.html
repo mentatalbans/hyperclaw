@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperClaw — Market Sizing</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --bg2: #0f0f1a; --bg3: #13131f;
+    --accent: #6366f1; --accent2: #818cf8; --accent3: #a5b4fc;
+    --text: #f8fafc; --text2: #94a3b8; --text3: #64748b;
+    --border: rgba(99,102,241,0.15); --border2: rgba(255,255,255,0.06);
+    --green: #10b981; --purple: #a855f7;
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+  .page { max-width: 960px; margin: 0 auto; padding: 56px 40px; }
+  .header { margin-bottom: 40px; padding-bottom: 28px; border-bottom: 1px solid var(--border); }
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .badge { background: rgba(99,102,241,0.1); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.1em; }
+  .badge-line { height: 1px; flex: 1; background: var(--border); }
+  h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(135deg, #fff 30%, var(--accent3) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 10px; }
+  .subtitle { font-size: 14px; color: var(--text2); line-height: 1.65; }
+  .section-label { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.12em; margin: 36px 0 16px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  p { font-size: 14px; color: var(--text2); line-height: 1.75; margin-bottom: 14px; }
+  p strong { color: var(--text); }
+
+  .tam-section { display: grid; grid-template-columns: 1fr 1.4fr; gap: 40px; margin-bottom: 40px; align-items: start; }
+  .tam-bars { display: flex; flex-direction: column; gap: 20px; }
+  .tam-bar-item { }
+  .tam-bar-label { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .tam-bar-label .name { font-size: 13px; font-weight: 600; }
+  .tam-bar-label .value { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent2); font-weight: 700; }
+  .tam-bar-track { height: 32px; background: var(--bg3); border-radius: 6px; overflow: hidden; }
+  .tam-bar-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 12px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.8); }
+  .tam-bar-sub { font-size: 11px; color: var(--text3); margin-top: 5px; }
+  .tam-fill-1 { background: linear-gradient(90deg, var(--accent), var(--accent2)); width: 100%; }
+  .tam-fill-2 { background: linear-gradient(90deg, var(--purple), #c084fc); width: 65%; }
+  .tam-fill-3 { background: linear-gradient(90deg, var(--green), #34d399); width: 25%; }
+
+  .market-drivers { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .driver-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 18px; }
+  .driver-card .icon { font-size: 22px; margin-bottom: 10px; display: block; }
+  .driver-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .driver-card p { font-size: 12px; margin-bottom: 0; }
+
+  .stat-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 32px; }
+  .s-stat { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 16px; text-align: center; }
+  .s-stat .v { font-size: 26px; font-weight: 800; color: var(--accent2); display: block; margin-bottom: 4px; }
+  .s-stat .k { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .icp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 32px; }
+  .icp-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 18px; }
+  .icp-card .type { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .icp-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .icp-card ul { list-style: none; }
+  .icp-card ul li { font-size: 12px; color: var(--text3); padding: 3px 0; display: flex; gap: 7px; }
+  .icp-card ul li::before { content: '▸'; color: var(--accent2); }
+
+  table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--border2); border-radius: 10px; overflow: hidden; margin-bottom: 28px; }
+  thead th { background: var(--bg3); padding: 11px 14px; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--border2); text-align: left; }
+  tbody td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border2); color: var(--text2); }
+  tbody tr:last-child td { border-bottom: none; }
+  .highlight-col { color: var(--accent2) !important; font-weight: 600; }
+
+  .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border2); font-size: 12px; color: var(--text3); }
+  .footer .brand { font-family: 'JetBrains Mono', monospace; color: var(--accent2); }
+  @media print { html,body{background:#0a0a0f!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .page{padding:32px;} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="eyebrow"><span class="badge">Market Sizing</span><span class="badge-line"></span><span class="badge">Confidential</span></div>
+    <h1>$47B Market Opportunity<br>in AI Orchestration</h1>
+    <p class="subtitle">HyperClaw operates at the intersection of AI agent infrastructure, enterprise software, and the open-source developer economy. The market is early, large, and winner-take-most.</p>
+  </div>
+
+  <div class="stat-strip">
+    <div class="s-stat"><span class="v">$47B</span><span class="k">TAM by 2030</span></div>
+    <div class="s-stat"><span class="v">38%</span><span class="k">CAGR (AI Infra)</span></div>
+    <div class="s-stat"><span class="v">22M+</span><span class="k">Developers</span></div>
+    <div class="s-stat"><span class="v">$40B+</span><span class="k">Wasted on Agents</span></div>
+  </div>
+
+  <div class="section-label">TAM / SAM / SOM Analysis</div>
+  <div class="tam-section">
+    <div class="tam-bars">
+      <div class="tam-bar-item">
+        <div class="tam-bar-label"><span class="name">TAM — Total Addressable Market</span><span class="value">$47B</span></div>
+        <div class="tam-bar-track"><div class="tam-bar-fill tam-fill-1">AI Orchestration & Agent Infra</div></div>
+        <div class="tam-bar-sub">Global AI orchestration, agent frameworks, and enterprise AI tooling market by 2030 (IDC / Gartner estimates)</div>
+      </div>
+      <div class="tam-bar-item">
+        <div class="tam-bar-label"><span class="name">SAM — Serviceable Addressable Market</span><span class="value">$12B</span></div>
+        <div class="tam-bar-track"><div class="tam-bar-fill tam-fill-2">Enterprise orgs w/ AI programs</div></div>
+        <div class="tam-bar-sub">Organizations with >50 engineers actively deploying AI agents (Fortune 5000 + high-growth tech)</div>
+      </div>
+      <div class="tam-bar-item">
+        <div class="tam-bar-label"><span class="name">SOM — Serviceable Obtainable Market</span><span class="value">$1.2B</span></div>
+        <div class="tam-bar-track"><div class="tam-bar-fill tam-fill-3">5-yr dev-led capture</div></div>
+        <div class="tam-bar-sub">Realistic 5-year capture via open-source funnel and enterprise sales (2.5% of SAM)</div>
+      </div>
+    </div>
+    <div>
+      <p>The AI agent orchestration market is experiencing rapid expansion driven by enterprise demand for production-grade AI systems. Unlike the initial LLM wave (point solutions), organizations now need infrastructure to coordinate multiple agents working together — this is HyperClaw's core value proposition.</p>
+      <p>The open-source model provides a powerful distribution advantage: developers adopt HyperClaw freely, then advocate for enterprise licenses within their organizations. This is the proven playbook of <strong>HashiCorp ($6.4B exit), Elastic ($3B IPO), and dbt Labs ($4.2B valuation)</strong>.</p>
+      <p>HyperClaw's UCB1 routing and causal memory features are technically defensible differentiators — they cannot be trivially replicated by established players pivoting from simpler architectures.</p>
+    </div>
+  </div>
+
+  <div class="section-label">Market Drivers</div>
+  <div class="market-drivers">
+    <div class="driver-card">
+      <span class="icon">🤖</span>
+      <h3>The "Agent Year" Has Arrived</h3>
+      <p>2025-2026 is when AI agents move from research to production. Gartner predicts 25% of enterprise software will include embedded AI agents by 2027. Orchestration infrastructure is the critical missing layer.</p>
+    </div>
+    <div class="driver-card">
+      <span class="icon">🏢</span>
+      <h3>Enterprise AI Spend Accelerating</h3>
+      <p>Fortune 500 AI budgets up 300% YoY. Enterprise teams are hiring AI engineers — but existing tooling wasn't built for enterprise scale, security, or compliance requirements.</p>
+    </div>
+    <div class="driver-card">
+      <span class="icon">🔓</span>
+      <h3>Open-Source Developer Economy</h3>
+      <p>22M+ global developers. GitHub-native discovery drives zero-CAC acquisition. Developers adopt, advocate internally, trigger enterprise sales. HashiCorp and Elastic proved this at scale.</p>
+    </div>
+    <div class="driver-card">
+      <span class="icon">🛡️</span>
+      <h3>Regulatory & Compliance Pressure</h3>
+      <p>EU AI Act, SOC 2, HIPAA — enterprises need auditable AI systems. HyperShield's built-in policy engine is not a feature, it's a compliance requirement for regulated industries.</p>
+    </div>
+  </div>
+
+  <div class="section-label">Ideal Customer Profile (ICP)</div>
+  <div class="icp-grid">
+    <div class="icp-card">
+      <div class="type">Primary ICP</div>
+      <h3>Mid-Market Tech Companies</h3>
+      <ul>
+        <li>50–500 engineers</li>
+        <li>Active AI program</li>
+        <li>Series B+ funded</li>
+        <li>Python/Node stack</li>
+        <li>Need enterprise SLAs</li>
+        <li>Compliance-conscious</li>
+      </ul>
+    </div>
+    <div class="icp-card">
+      <div class="type">Secondary ICP</div>
+      <h3>Enterprise AI Teams</h3>
+      <ul>
+        <li>Fortune 2000</li>
+        <li>Internal AI CoE</li>
+        <li>Regulated industries</li>
+        <li>HIPAA/SOC2 required</li>
+        <li>On-prem or hybrid</li>
+        <li>Custom agent needs</li>
+      </ul>
+    </div>
+    <div class="icp-card">
+      <div class="type">Developer ICP</div>
+      <h3>AI Builders & Startups</h3>
+      <ul>
+        <li>AI-first companies</li>
+        <li>Agent product builders</li>
+        <li>Open-source contributors</li>
+        <li>Start free → upgrade</li>
+        <li>Seed to Series A</li>
+        <li>Developer-led adoption</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section-label">Market Sizing by Geography (2030 Projections)</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Region</th>
+        <th>TAM Share</th>
+        <th>TAM Value</th>
+        <th>HyperClaw Priority</th>
+        <th>Entry Strategy</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>North America</td><td>45%</td><td>$21.2B</td><td class="highlight-col">Primary</td><td>GitHub, developer community, direct sales</td></tr>
+      <tr><td>Europe</td><td>25%</td><td>$11.8B</td><td>Secondary</td><td>Compliance-led (GDPR, EU AI Act)</td></tr>
+      <tr><td>Asia-Pacific</td><td>20%</td><td>$9.4B</td><td>Secondary</td><td>Partnerships, cloud marketplace</td></tr>
+      <tr><td>Rest of World</td><td>10%</td><td>$4.7B</td><td>Tertiary</td><td>Open-source organic</td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer"><p class="brand">HYPERCLAW</p><p>Market Sizing · Confidential · © 2026</p></div>
+</div>
+</body>
+</html>

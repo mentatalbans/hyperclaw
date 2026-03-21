@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperClaw — Leadership Team</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --bg2: #0f0f1a; --bg3: #13131f;
+    --accent: #6366f1; --accent2: #818cf8; --accent3: #a5b4fc;
+    --text: #f8fafc; --text2: #94a3b8; --text3: #64748b;
+    --border: rgba(99,102,241,0.15); --border2: rgba(255,255,255,0.06);
+    --green: #10b981; --purple: #a855f7; --yellow: #f59e0b;
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+  .page { max-width: 960px; margin: 0 auto; padding: 56px 40px; }
+  .header { margin-bottom: 40px; padding-bottom: 28px; border-bottom: 1px solid var(--border); }
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .badge { background: rgba(99,102,241,0.1); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.1em; }
+  .badge-line { height: 1px; flex: 1; background: var(--border); }
+  h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(135deg, #fff 30%, var(--accent3) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 10px; }
+  .subtitle { font-size: 14px; color: var(--text2); line-height: 1.65; }
+  .section-label { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.12em; margin: 36px 0 16px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  p { font-size: 14px; color: var(--text2); line-height: 1.75; margin-bottom: 14px; }
+  p strong { color: var(--text); }
+
+  /* Profile Card */
+  .founder-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 16px; padding: 36px; margin-bottom: 28px; display: grid; grid-template-columns: 180px 1fr; gap: 36px; position: relative; overflow: hidden; }
+  .founder-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .founder-card.cto::before { background: linear-gradient(90deg, var(--purple), var(--accent)); }
+
+  .avatar-block { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .avatar-circle { width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--purple)); display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 800; color: white; flex-shrink: 0; }
+  .cto .avatar-circle { background: linear-gradient(135deg, var(--purple), #7c3aed); }
+  .role-badge { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; padding: 4px 10px; border-radius: 4px; background: rgba(99,102,241,0.1); border: 1px solid var(--border); color: var(--accent2); text-align: center; }
+  .cto .role-badge { background: rgba(168,85,247,0.1); border-color: rgba(168,85,247,0.3); color: #c084fc; }
+
+  .founder-info {}
+  .founder-name { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 4px; }
+  .founder-title { font-size: 14px; color: var(--accent2); font-weight: 600; margin-bottom: 16px; }
+  .cto .founder-title { color: #c084fc; }
+  .founder-bio { font-size: 13px; color: var(--text3); line-height: 1.75; margin-bottom: 20px; }
+  .founder-bio strong { color: var(--text2); }
+
+  .credentials { display: flex; flex-direction: column; gap: 8px; }
+  .cred-item { display: flex; gap: 10px; align-items: flex-start; }
+  .cred-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .cred-text { font-size: 12px; color: var(--text3); line-height: 1.5; }
+  .cred-text strong { color: var(--text2); }
+
+  /* Career timeline */
+  .timeline { margin-bottom: 32px; }
+  .tl-item { display: flex; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border2); }
+  .tl-item:last-child { border-bottom: none; }
+  .tl-year { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent2); min-width: 80px; padding-top: 2px; }
+  .tl-content .tl-role { font-size: 13px; font-weight: 600; color: var(--text); }
+  .tl-content .tl-company { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+  /* Why this team */
+  .why-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 32px; }
+  .why-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 18px; }
+  .why-card .w-icon { font-size: 22px; margin-bottom: 10px; display: block; }
+  .why-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .why-card p { font-size: 12px; color: var(--text3); margin-bottom: 0; line-height: 1.6; }
+
+  .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border2); font-size: 12px; color: var(--text3); }
+  .footer .brand { font-family: 'JetBrains Mono', monospace; color: var(--accent2); }
+  @media print { html,body{background:#0a0a0f!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .page{padding:32px;} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="eyebrow"><span class="badge">Team</span><span class="badge-line"></span><span class="badge">Confidential</span></div>
+    <h1>Leadership Team</h1>
+    <p class="subtitle">HyperClaw is led by a founder pairing of deep enterprise operator experience and AI infrastructure engineering expertise — the combination required to build and sell production AI systems at scale.</p>
+  </div>
+
+  <div class="section-label">Co-Founders</div>
+
+  <div class="founder-card">
+    <div class="avatar-block">
+      <div class="avatar-circle">VD</div>
+      <div class="role-badge">Founder & CEO</div>
+    </div>
+    <div class="founder-info">
+      <div class="founder-name">Vaughn Davis</div>
+      <div class="founder-title">Founder & Chief Executive Officer</div>
+      <p class="founder-bio">
+        Vaughn Davis brings <strong>15+ years of luxury lifestyle hospitality and Industry 4.0 leadership</strong> to HyperClaw. As former Managing Director of Dream Hollywood and CEO of both Hyper Nimbus and Hyper Talent (separate ventures), Vaughn has spent his career at the intersection of high-touch human service and cutting-edge technology adoption.
+      </p>
+      <p class="founder-bio">
+        He pioneered AI-driven guest experience systems and robotic concierge deployments at scale. His track record at Hyper Nimbus — 210 LOIs, $7.5M+ ACV in a separate hospitality AI venture — proves he can open doors and close enterprise deals. That commercial execution capability is what HyperClaw's go-to-market is built on.
+      </p>
+      <div class="credentials">
+        <div class="cred-item">
+          <span class="cred-icon">🏨</span>
+          <span class="cred-text"><strong>Former Managing Director</strong> — Dream Hollywood Hotel, Dream Hotel Group</span>
+        </div>
+        <div class="cred-item">
+          <span class="cred-icon">🚀</span>
+          <span class="cred-text"><strong>CEO, Hyper Nimbus</strong> — AI-powered hospitality management platform (separate venture, launched Feb 2024). As Founder & CEO, Vaughn has signed 210 LOIs representing $7.5M+ ACV in the hospitality AI market — demonstrating his ability to execute enterprise sales at scale.</span>
+        </div>
+        <div class="cred-item">
+          <span class="cred-icon">⚡</span>
+          <span class="cred-text"><strong>CEO, Hyper Talent</strong> — Sports & entertainment AI platform (separate venture, post-revenue)</span>
+        </div>
+        <div class="cred-item">
+          <span class="cred-icon">🏛️</span>
+          <span class="cred-text"><strong>Board Member</strong> — Hollywood Chamber of Commerce, The Hollywood Partnership</span>
+        </div>
+        <div class="cred-item">
+          <span class="cred-icon">🎓</span>
+          <span class="cred-text"><strong>Hofstra University</strong> — Political Science; career spanning Gansevoort, Hyatt, Dream Hotel Group, Two Roads Hospitality</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="founder-card cto">
+    <div class="avatar-block">
+      <div class="avatar-circle">AZ</div>
+      <div class="role-badge">Co-Founder & CTO</div>
+    </div>
+    <div class="founder-info">
+      <div class="founder-name">Andy Zhang</div>
+      <div class="founder-title">Co-Founder & Chief Technology Officer</div>
+      <p class="founder-bio">
+        Andy Zhang is a seasoned AI infrastructure engineer and serial technical co-founder. He previously co-founded <strong>Fairsplit</strong>, a fintech product built around equitable financial splitting algorithms, and <strong>Cogniscale</strong>, an AI infrastructure company focused on scalable model deployment. His background spans the full stack from ML systems to product architecture.
+      </p>
+      <p class="founder-bio">
+        At HyperClaw, Andy designed and built the four-pillar architecture — HyperState, HyperRouter, HyperMemory, HyperShield — and the PROMETHEUS recursive intelligence layer. The 377-test codebase under MIT license reflects his engineering rigor. He is the reason HyperClaw ships production-ready systems, not research prototypes.
+      </p>
+      <div class="credentials">
+        <div class="cred-item">
+          <span class="cred-icon">🏗️</span>
+          <span class="cred-text"><strong>Co-Founder, Cogniscale</strong> — AI infrastructure for scalable model deployment</span>
+        </div>
+        <div class="cred-item">
+          <span class="cred-icon">💸</span>
+          <span class="cred-text"><strong>Co-Founder, Fairsplit</strong> — Fintech platform, equitable financial splitting</span>
+        </div>
+        <div class="cred-item">
+          <span class="cred-icon">⚙️</span>
+          <span class="cred-text"><strong>AI Infrastructure Specialist</strong> — multi-model orchestration, vector databases, agentic systems</span>
+        </div>
+        <div class="cred-item">
+          <span class="cred-icon">🔬</span>
+          <span class="cred-text"><strong>HyperClaw Architect</strong> — designed HyperState, HyperRouter (UCB1), HyperMemory, HyperShield, PROMETHEUS</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">Why This Team Wins</div>
+
+  <div class="why-grid">
+    <div class="why-card">
+      <span class="w-icon">🤝</span>
+      <h4>Operator + Engineer</h4>
+      <p>The rarest pairing in enterprise AI: a CEO who has deployed AI in production at scale, and a CTO who builds the systems from scratch. No gap between vision and execution.</p>
+    </div>
+    <div class="why-card">
+      <span class="w-icon">🏢</span>
+      <h4>Enterprise Access</h4>
+      <p>Vaughn's network spans luxury hospitality, LA commerce, and Industry 4.0 — opening doors to early enterprise adopters that most AI startups cannot reach in their first year.</p>
+    </div>
+    <div class="why-card">
+      <span class="w-icon">🔬</span>
+      <h4>Technical Credibility</h4>
+      <p>Andy's track record at Cogniscale and Fairsplit, combined with 377 passing tests and a production-grade architecture, signals to enterprise buyers that HyperClaw ships real software.</p>
+    </div>
+    <div class="why-card">
+      <span class="w-icon">🌐</span>
+      <h4>Cross-Industry Vision</h4>
+      <p>HyperClaw's agent domains span Personal, Business, Scientific, Creative, and Recursive — a breadth of vision that reflects a founding team that understands AI's horizontal potential.</p>
+    </div>
+    <div class="why-card">
+      <span class="w-icon">⚡</span>
+      <h4>Execution Velocity</h4>
+      <p>v0.1.0-alpha shipped with Supabase backend live, 377 tests, and MIT license — in a short window. This team ships.</p>
+    </div>
+    <div class="why-card">
+      <span class="w-icon">📐</span>
+      <h4>Complementary DNA</h4>
+      <p>Vaughn handles go-to-market, enterprise relationships, and vision. Andy owns architecture, engineering quality, and technical roadmap. Clean ownership, no overlap, no gaps.</p>
+    </div>
+  </div>
+
+  <p>HyperClaw is raising its pre-seed round with this two-person founding team. The raise will fund the first three engineering hires, enterprise sales infrastructure, and the GTM push into the Vaughn's existing enterprise network.</p>
+
+  <div class="footer">
+    <p><span class="brand">HYPERCLAW</span> · Leadership Team · Confidential · Q1 2026</p>
+    <p>github.com/mentatalbans/hyperclaw</p>
+  </div>
+
+</div>
+</body>
+</html>

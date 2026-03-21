@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperClaw — Financial Model</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --bg2: #0f0f1a; --bg3: #13131f;
+    --accent: #6366f1; --accent2: #818cf8; --accent3: #a5b4fc;
+    --text: #f8fafc; --text2: #94a3b8; --text3: #64748b;
+    --border: rgba(99,102,241,0.15); --border2: rgba(255,255,255,0.06);
+    --green: #10b981; --red: #ef4444; --yellow: #f59e0b;
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+  .page { max-width: 1000px; margin: 0 auto; padding: 56px 40px; }
+  .header { margin-bottom: 44px; padding-bottom: 32px; border-bottom: 1px solid var(--border); }
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .badge { background: rgba(99,102,241,0.1); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.1em; }
+  .badge-line { height: 1px; flex: 1; background: var(--border); }
+  h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(135deg, #fff 30%, var(--accent3) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 10px; }
+  .subtitle { font-size: 14px; color: var(--text2); line-height: 1.6; }
+  .section-label { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.12em; margin: 36px 0 16px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--border2); border-radius: 10px; overflow: hidden; margin-bottom: 28px; }
+  thead th { background: var(--bg3); padding: 11px 14px; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--border2); text-align: right; }
+  thead th:first-child { text-align: left; }
+  tbody td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border2); color: var(--text2); text-align: right; }
+  tbody td:first-child { text-align: left; color: var(--text3); font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  tbody tr:last-child td { border-bottom: none; }
+  .total td { background: rgba(99,102,241,0.06); font-weight: 700; color: var(--accent2) !important; border-top: 1px solid var(--border); }
+  .highlight-row td { color: var(--accent3) !important; }
+  .green { color: var(--green) !important; }
+  .yellow { color: var(--yellow) !important; }
+  .red { color: var(--red) !important; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 28px; }
+  .kpi-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 16px; text-align: center; }
+  .kpi-card .v { font-size: 22px; font-weight: 800; color: var(--accent2); display: block; margin-bottom: 4px; }
+  .kpi-card .k { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+  .note { font-size: 12px; color: var(--text3); font-style: italic; margin-top: 8px; line-height: 1.6; padding: 12px; background: var(--bg2); border-radius: 6px; border-left: 2px solid var(--border); }
+  .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border2); font-size: 12px; color: var(--text3); }
+  .footer .brand { font-family: 'JetBrains Mono', monospace; color: var(--accent2); }
+  @media print { html,body{background:#0a0a0f!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .page{padding:32px;} }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="eyebrow"><span class="badge">Financial Model</span><span class="badge-line"></span><span class="badge">Confidential</span></div>
+    <h1>HyperClaw Financial Model<br>2026 – 2030</h1>
+    <p class="subtitle">5-year revenue projections, ARR build-up, unit economics, and profitability targets. All figures in USD. Projections based on open-core enterprise SaaS model with $499–$9,999/month pricing tiers.</p>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card"><span class="v">$500K</span><span class="k">2026 ARR</span></div>
+    <div class="kpi-card"><span class="v">$3M</span><span class="k">2027 ARR</span></div>
+    <div class="kpi-card"><span class="v">$12M</span><span class="k">2028 ARR</span></div>
+    <div class="kpi-card"><span class="v">$50M</span><span class="k">2030 ARR</span></div>
+    <div class="kpi-card"><span class="v">75%+</span><span class="k">Gross Margin</span></div>
+  </div>
+
+  <div class="section-label">ARR Build — 5 Year Plan</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Metric</th>
+        <th>2026</th>
+        <th>2027</th>
+        <th>2028</th>
+        <th>2029</th>
+        <th>2030</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="highlight-row"><td>ARR (Total)</td><td>$500,000</td><td>$3,000,000</td><td>$12,000,000</td><td>$28,000,000</td><td>$50,000,000</td></tr>
+      <tr><td>YoY ARR Growth</td><td>—</td><td class="green">+500%</td><td class="green">+300%</td><td class="green">+133%</td><td class="green">+79%</td></tr>
+      <tr><td>Total Customers (EOM)</td><td>25</td><td>120</td><td>400</td><td>900</td><td>1,500</td></tr>
+      <tr><td>Net New Customers</td><td>25</td><td>95</td><td>280</td><td>500</td><td>600</td></tr>
+      <tr><td>Avg ARR per Customer</td><td>$20,000</td><td>$25,000</td><td>$30,000</td><td>$31,111</td><td>$33,333</td></tr>
+      <tr><td>Monthly Recurring Revenue</td><td>$41,667</td><td>$250,000</td><td>$1,000,000</td><td>$2,333,333</td><td>$4,166,667</td></tr>
+    </tbody>
+  </table>
+
+  <div class="section-label">Customer Mix by Tier</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Tier</th>
+        <th>Price/mo</th>
+        <th>2026 Custs</th>
+        <th>2027 Custs</th>
+        <th>2028 Custs</th>
+        <th>2029 Custs</th>
+        <th>2030 Custs</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Starter ($499/mo)</td><td>$499</td><td>12</td><td>55</td><td>180</td><td>400</td><td>650</td></tr>
+      <tr><td>Pro ($1,999/mo)</td><td>$1,999</td><td>10</td><td>45</td><td>150</td><td>340</td><td>550</td></tr>
+      <tr><td>Enterprise ($9,999/mo)</td><td>$9,999</td><td>3</td><td>18</td><td>60</td><td>140</td><td>260</td></tr>
+      <tr><td>Sovereign (Custom)</td><td>$25,000+</td><td>0</td><td>2</td><td>10</td><td>20</td><td>40</td></tr>
+      <tr class="total"><td>Total Customers</td><td>—</td><td>25</td><td>120</td><td>400</td><td>900</td><td>1,500</td></tr>
+    </tbody>
+  </table>
+
+  <div class="section-label">P&L Summary (USD)</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Line Item</th>
+        <th>2026</th>
+        <th>2027</th>
+        <th>2028</th>
+        <th>2029</th>
+        <th>2030</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="highlight-row"><td>Revenue</td><td>$500,000</td><td>$3,000,000</td><td>$12,000,000</td><td>$28,000,000</td><td>$50,000,000</td></tr>
+      <tr><td>Gross Profit (75%)</td><td>$375,000</td><td>$2,250,000</td><td>$9,000,000</td><td>$21,000,000</td><td>$37,500,000</td></tr>
+      <tr><td>Gross Margin %</td><td>75%</td><td>75%</td><td>75%</td><td>75%</td><td>75%</td></tr>
+      <tr><td>R&D Expenses</td><td>($1,200,000)</td><td>($2,400,000)</td><td>($5,000,000)</td><td>($8,000,000)</td><td>($12,000,000)</td></tr>
+      <tr><td>Sales & Marketing</td><td>($400,000)</td><td>($1,200,000)</td><td>($3,500,000)</td><td>($7,000,000)</td><td>($11,000,000)</td></tr>
+      <tr><td>G&A Expenses</td><td>($300,000)</td><td>($600,000)</td><td>($1,200,000)</td><td>($2,200,000)</td><td>($3,500,000)</td></tr>
+      <tr class="total"><td>EBITDA</td><td class="red">($1,525,000)</td><td class="red">($1,950,000)</td><td class="yellow">($700,000)</td><td class="green">$3,800,000</td><td class="green">$11,000,000</td></tr>
+      <tr><td>EBITDA Margin</td><td class="red">-305%</td><td class="red">-65%</td><td class="yellow">-6%</td><td class="green">+14%</td><td class="green">+22%</td></tr>
+    </tbody>
+  </table>
+
+  <div class="section-label">Unit Economics</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Metric</th>
+        <th>Starter</th>
+        <th>Pro</th>
+        <th>Enterprise</th>
+        <th>Blended</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>MRR per Customer</td><td>$499</td><td>$1,999</td><td>$9,999</td><td>~$1,400</td></tr>
+      <tr><td>ACV (Annual)</td><td>$5,988</td><td>$23,988</td><td>$119,988</td><td>~$16,800</td></tr>
+      <tr><td>Estimated CAC</td><td>$2,500</td><td>$5,000</td><td>$15,000</td><td>~$5,500</td></tr>
+      <tr><td>Payback Period</td><td>5 mo</td><td>2.5 mo</td><td>1.5 mo</td><td>~4 mo</td></tr>
+      <tr><td>Est. LTV (3yr, 90% ret.)</td><td>$16,200</td><td>$64,800</td><td>$324,000</td><td>~$45,000</td></tr>
+      <tr class="total"><td>LTV:CAC Ratio</td><td>6.5x</td><td>13x</td><td>22x</td><td class="green">~8x</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">⚠ Forward-looking statements: All projections are estimates based on comparable open-core SaaS companies (HashiCorp, Elastic, dbt Labs) and management assumptions. Actual results may differ materially. These figures are for illustrative purposes only and do not constitute a guarantee of future performance.</div>
+
+  <div class="footer"><p class="brand">HYPERCLAW</p><p>Financial Model · Confidential · v0.1.0-alpha · © 2026</p></div>
+</div>
+</body>
+</html>

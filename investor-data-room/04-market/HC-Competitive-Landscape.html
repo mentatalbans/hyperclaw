@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperClaw — Competitive Landscape</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --bg2: #0f0f1a; --bg3: #13131f;
+    --accent: #6366f1; --accent2: #818cf8; --accent3: #a5b4fc;
+    --text: #f8fafc; --text2: #94a3b8; --text3: #64748b;
+    --border: rgba(99,102,241,0.15); --border2: rgba(255,255,255,0.06);
+    --green: #10b981; --red: #ef4444; --yellow: #f59e0b; --purple: #a855f7;
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+  .page { max-width: 960px; margin: 0 auto; padding: 56px 40px; }
+  .header { margin-bottom: 40px; padding-bottom: 28px; border-bottom: 1px solid var(--border); }
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .badge { background: rgba(99,102,241,0.1); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.1em; }
+  .badge-line { height: 1px; flex: 1; background: var(--border); }
+  h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(135deg, #fff 30%, var(--accent3) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 10px; }
+  .subtitle { font-size: 14px; color: var(--text2); line-height: 1.65; }
+  .section-label { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.12em; margin: 36px 0 16px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  p { font-size: 14px; color: var(--text2); line-height: 1.75; margin-bottom: 14px; }
+  p strong { color: var(--text); }
+
+  /* Feature Matrix */
+  .matrix-wrap { overflow-x: auto; margin-bottom: 32px; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--border2); border-radius: 10px; overflow: hidden; }
+  thead th { background: var(--bg3); padding: 12px 16px; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--border2); text-align: left; }
+  thead th:first-child { min-width: 200px; }
+  thead th.hc-col { color: var(--accent2); background: rgba(99,102,241,0.08); }
+  tbody td { padding: 11px 16px; font-size: 13px; border-bottom: 1px solid var(--border2); color: var(--text2); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody td.hc-col { background: rgba(99,102,241,0.04); font-weight: 600; color: var(--text); }
+  tbody td.feature-name { color: var(--text); font-weight: 500; font-size: 13px; }
+  .check { color: var(--green); font-size: 16px; }
+  .cross { color: var(--red); font-size: 16px; }
+  .partial { color: var(--yellow); font-size: 13px; }
+  .win-badge { display: inline-block; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: var(--green); border-radius: 4px; padding: 2px 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; margin-left: 6px; }
+
+  /* Advantage cards */
+  .adv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+  .adv-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 20px; position: relative; overflow: hidden; }
+  .adv-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .adv-card .tag { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+  .adv-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  .adv-card p { font-size: 12px; color: var(--text3); line-height: 1.6; margin-bottom: 0; }
+
+  /* Pricing table */
+  .price-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 32px; }
+  .price-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 18px; text-align: center; }
+  .price-card.hc-card { border-color: var(--accent); background: rgba(99,102,241,0.06); }
+  .price-card .company { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .price-card.hc-card .company { color: var(--accent2); }
+  .price-card .price { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+  .price-card .per { font-size: 11px; color: var(--text3); margin-bottom: 12px; }
+  .price-card ul { list-style: none; text-align: left; }
+  .price-card ul li { font-size: 11px; color: var(--text3); padding: 3px 0; display: flex; gap: 6px; }
+  .price-card ul li::before { content: '▸'; color: var(--accent2); flex-shrink: 0; }
+
+  /* Stars chart */
+  .stars-chart { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 24px; margin-bottom: 32px; }
+  .stars-chart h3 { font-size: 14px; font-weight: 600; margin-bottom: 20px; color: var(--text); }
+  .star-row { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .star-label { width: 100px; font-size: 12px; color: var(--text2); font-family: 'JetBrains Mono', monospace; flex-shrink: 0; }
+  .star-bar-track { flex: 1; height: 24px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+  .star-bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 10px; font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.9); }
+  .star-count { width: 80px; font-size: 12px; color: var(--text3); font-family: 'JetBrains Mono', monospace; text-align: right; }
+  .fill-hc { background: linear-gradient(90deg, var(--accent), var(--accent2)); width: 5%; }
+  .fill-lc { background: linear-gradient(90deg, #f59e0b, #fbbf24); width: 90%; }
+  .fill-ag { background: linear-gradient(90deg, #6b7280, #9ca3af); width: 40%; }
+  .fill-cr { background: linear-gradient(90deg, #8b5cf6, #a78bfa); width: 30%; }
+  .star-note { font-size: 11px; color: var(--text3); margin-top: 12px; font-style: italic; }
+
+  /* Enterprise readiness */
+  .er-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 32px; }
+  .er-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 16px; }
+  .er-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .er-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border2); }
+  .er-item:last-child { border-bottom: none; }
+  .er-item span { font-size: 11px; color: var(--text3); }
+
+  .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border2); font-size: 12px; color: var(--text3); }
+  .footer .brand { font-family: 'JetBrains Mono', monospace; color: var(--accent2); }
+  @media print { html,body{background:#0a0a0f!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .page{padding:32px;} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="eyebrow"><span class="badge">Market</span><span class="badge-line"></span><span class="badge">Confidential</span></div>
+    <h1>Competitive Landscape</h1>
+    <p class="subtitle">HyperClaw enters a rapidly growing AI orchestration market against open-source frameworks that were built for research, not enterprise. We are the first platform designed for production-grade multi-agent workflows from day one.</p>
+  </div>
+
+  <div class="section-label">Feature Matrix</div>
+
+  <div class="matrix-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th class="hc-col">HyperClaw</th>
+          <th>LangChain</th>
+          <th>AutoGen</th>
+          <th>CrewAI</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="feature-name">Intelligent Agent Routing</td>
+          <td class="hc-col">UCB1 Bandit <span class="win-badge">WIN</span></td>
+          <td><span class="partial">Manual chains</span></td>
+          <td><span class="partial">Round-robin</span></td>
+          <td><span class="partial">Role-based</span></td>
+        </tr>
+        <tr>
+          <td class="feature-name">Memory Architecture</td>
+          <td class="hc-col">HyperMemory Causal Graph <span class="win-badge">WIN</span></td>
+          <td><span class="partial">Buffer / vector</span></td>
+          <td><span class="partial">Conversation buffer</span></td>
+          <td><span class="cross">✗</span> Limited</td>
+        </tr>
+        <tr>
+          <td class="feature-name">Policy / Safety Engine</td>
+          <td class="hc-col">HyperShield <span class="win-badge">WIN</span></td>
+          <td><span class="cross">✗</span></td>
+          <td><span class="partial">Basic guardrails</span></td>
+          <td><span class="cross">✗</span></td>
+        </tr>
+        <tr>
+          <td class="feature-name">Specialist Agents OOTB</td>
+          <td class="hc-col">50+ agents (5 domains) <span class="win-badge">WIN</span></td>
+          <td><span class="partial">Templates only</span></td>
+          <td><span class="partial">~6 examples</span></td>
+          <td><span class="partial">Role templates</span></td>
+        </tr>
+        <tr>
+          <td class="feature-name">State Management</td>
+          <td class="hc-col">HyperState (Pydantic v2)</td>
+          <td><span class="partial">Partial</span></td>
+          <td><span class="check">✓</span> Basic</td>
+          <td><span class="partial">Partial</span></td>
+        </tr>
+        <tr>
+          <td class="feature-name">Enterprise Auth / SSO</td>
+          <td class="hc-col"><span class="check">✓</span> Roadmap Q2 2026</td>
+          <td><span class="cross">✗</span></td>
+          <td><span class="cross">✗</span></td>
+          <td><span class="cross">✗</span></td>
+        </tr>
+        <tr>
+          <td class="feature-name">Multi-Model Routing</td>
+          <td class="hc-col"><span class="check">✓</span> Native</td>
+          <td><span class="check">✓</span> Via LLMs</td>
+          <td><span class="check">✓</span> Yes</td>
+          <td><span class="partial">Limited</span></td>
+        </tr>
+        <tr>
+          <td class="feature-name">Recursive / Meta-Agents</td>
+          <td class="hc-col"><span class="check">✓</span> PROMETHEUS + SOLOMON <span class="win-badge">WIN</span></td>
+          <td><span class="cross">✗</span></td>
+          <td><span class="partial">Nested agents</span></td>
+          <td><span class="cross">✗</span></td>
+        </tr>
+        <tr>
+          <td class="feature-name">Self-Expanding Agents</td>
+          <td class="hc-col"><span class="check">✓</span> GENESIS Protocol <span class="win-badge">WIN</span></td>
+          <td><span class="cross">✗</span></td>
+          <td><span class="cross">✗</span></td>
+          <td><span class="cross">✗</span></td>
+        </tr>
+        <tr>
+          <td class="feature-name">Civilization Knowledge Base</td>
+          <td class="hc-col"><span class="check">✓</span> SOPs, Org Charts, JDs <span class="win-badge">WIN</span></td>
+          <td><span class="cross">✗</span></td>
+          <td><span class="cross">✗</span></td>
+          <td><span class="cross">✗</span></td>
+        </tr>
+        <tr>
+          <td class="feature-name">Three Human Gates</td>
+          <td class="hc-col"><span class="check">✓</span> Ethical, Auth, Uncertainty <span class="win-badge">WIN</span></td>
+          <td><span class="cross">✗</span></td>
+          <td><span class="partial">Partial</span></td>
+          <td><span class="cross">✗</span></td>
+        </tr>
+        <tr>
+          <td class="feature-name">30+ Platform Connectors</td>
+          <td class="hc-col"><span class="check">✓</span> HyperClaw Gateway <span class="win-badge">WIN</span></td>
+          <td><span class="partial">Via LangSmith</span></td>
+          <td><span class="partial">Limited</span></td>
+          <td><span class="partial">Limited</span></td>
+        </tr>
+        <tr>
+          <td class="feature-name">Managed Cloud Offering</td>
+          <td class="hc-col"><span class="check">✓</span> Supabase-backed</td>
+          <td><span class="partial">LangSmith (paid)</span></td>
+          <td><span class="cross">✗</span></td>
+          <td><span class="cross">✗</span></td>
+        </tr>
+        <tr>
+          <td class="feature-name">Test Coverage</td>
+          <td class="hc-col">377 passing <span class="win-badge">WIN</span></td>
+          <td><span class="partial">Varies</span></td>
+          <td><span class="partial">Varies</span></td>
+          <td><span class="partial">Partial</span></td>
+        </tr>
+        <tr>
+          <td class="feature-name">License</td>
+          <td class="hc-col">MIT (open core)</td>
+          <td>MIT</td>
+          <td>MIT/CC</td>
+          <td>MIT</td>
+        </tr>
+        <tr>
+          <td class="feature-name">Enterprise SLA</td>
+          <td class="hc-col"><span class="check">✓</span> Available</td>
+          <td><span class="cross">✗</span></td>
+          <td><span class="cross">✗</span></td>
+          <td><span class="cross">✗</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-label">Our Six Unfair Advantages</div>
+
+  <div class="adv-grid">
+    <div class="adv-card">
+      <div class="tag">Routing</div>
+      <h3>UCB1 HyperRouter — Self-Improving</h3>
+      <p>HyperRouter uses Upper Confidence Bound (UCB1) bandit algorithms to learn optimal model-to-task assignment. Gets smarter with every interaction. Formula: ucb1_score = mean_reward + C × √(ln(total) / attempts). No competitor has this.</p>
+    </div>
+    <div class="adv-card">
+      <div class="tag">Memory</div>
+      <h3>Three-Tier Civilizational Memory</h3>
+      <p>Session, Domain, and Civilizational Graph (pgvector) — permanent, growing memory. Causal relationships preserved across tiers. LangChain's buffer and CrewAI's lack of persistent memory are no match.</p>
+    </div>
+    <div class="adv-card">
+      <div class="tag">Safety</div>
+      <h3>HyperShield + Three Human Gates</h3>
+      <p>Zero-trust, hot-reload YAML policies. Three Human Gates baked in: Ethical, Authorization, and Uncertainty (&lt;60% confidence escalates to human review). No competitor ships a dedicated policy engine.</p>
+    </div>
+    <div class="adv-card">
+      <div class="tag">Agents</div>
+      <h3>50+ Specialist Agents OOTB</h3>
+      <p>Across 5 domains, HyperClaw ships production-ready specialist agents managed by SOLOMON overmind. Competitors ship templates and examples — customers must build everything themselves.</p>
+    </div>
+    <div class="adv-card">
+      <div class="tag">Self-Expansion</div>
+      <h3>GENESIS Protocol — Unique in Market</h3>
+      <p>SOLOMON automatically detects capability gaps and creates new specialist agents via the GENESIS Protocol. The agent network grows with the organization. No other platform has self-expanding agents — period.</p>
+    </div>
+    <div class="adv-card">
+      <div class="tag">Knowledge</div>
+      <h3>Civilization Knowledge Base</h3>
+      <p>Ingests SOPs, org charts, job descriptions, client profiles, runbooks, and policies. Procedural chunker preserves step order. Interview agent extracts tacit knowledge. OrgGraph traversal provides role-aware context injection to every agent.</p>
+    </div>
+  </div>
+
+  <div class="section-label">Pricing Comparison</div>
+
+  <div class="price-grid">
+    <div class="price-card hc-card">
+      <div class="company">HyperClaw</div>
+      <div class="price">$499</div>
+      <div class="per">/ mo — Starter</div>
+      <ul>
+        <li>50+ agents included</li>
+        <li>HyperShield policy</li>
+        <li>UCB1 routing</li>
+        <li>Supabase cloud</li>
+        <li>Enterprise SLA</li>
+      </ul>
+    </div>
+    <div class="price-card">
+      <div class="company">LangChain</div>
+      <div class="price">$0</div>
+      <div class="per">OSS + LangSmith $39+/mo</div>
+      <ul>
+        <li>Framework only</li>
+        <li>No agents OOTB</li>
+        <li>No policy engine</li>
+        <li>LangSmith for obs.</li>
+        <li>No enterprise SLA</li>
+      </ul>
+    </div>
+    <div class="price-card">
+      <div class="company">AutoGen</div>
+      <div class="price">$0</div>
+      <div class="per">OSS (Microsoft)</div>
+      <ul>
+        <li>Research focus</li>
+        <li>~6 agent examples</li>
+        <li>Basic guardrails</li>
+        <li>No cloud offering</li>
+        <li>No SLA</li>
+      </ul>
+    </div>
+    <div class="price-card">
+      <div class="company">CrewAI</div>
+      <div class="price">$0</div>
+      <div class="per">OSS + paid tiers</div>
+      <ul>
+        <li>Role templates</li>
+        <li>No memory graph</li>
+        <li>No policy engine</li>
+        <li>Enterprise: custom</li>
+        <li>Growing ecosystem</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section-label">GitHub Stars Trajectory</div>
+
+  <div class="stars-chart">
+    <h3>GitHub Stars (Approximate — as of Q1 2026)</h3>
+    <div class="star-row">
+      <span class="star-label">LangChain</span>
+      <div class="star-bar-track"><div class="star-bar-fill fill-lc">90k+</div></div>
+      <span class="star-count">~90,000 ⭐</span>
+    </div>
+    <div class="star-row">
+      <span class="star-label">AutoGen</span>
+      <div class="star-bar-track"><div class="star-bar-fill fill-ag">35k+</div></div>
+      <span class="star-count">~35,000 ⭐</span>
+    </div>
+    <div class="star-row">
+      <span class="star-label">CrewAI</span>
+      <div class="star-bar-track"><div class="star-bar-fill fill-cr">25k+</div></div>
+      <span class="star-count">~25,000 ⭐</span>
+    </div>
+    <div class="star-row">
+      <span class="star-label">HyperClaw</span>
+      <div class="star-bar-track"><div class="star-bar-fill fill-hc">Early</div></div>
+      <span class="star-count">v0.1 Alpha 🚀</span>
+    </div>
+    <p class="star-note">HyperClaw launched in alpha (Q1 2026). LangChain, AutoGen, and CrewAI had multi-year head starts. HyperClaw's differentiation is enterprise architecture, not star count — the same position Snowflake held vs. Hadoop in 2012.</p>
+  </div>
+
+  <div class="section-label">Enterprise Readiness</div>
+
+  <div class="er-grid">
+    <div class="er-card">
+      <h4>HyperClaw</h4>
+      <div class="er-item"><span>Policy Engine</span><span class="check">✓</span></div>
+      <div class="er-item"><span>Audit Logging</span><span class="check">✓</span></div>
+      <div class="er-item"><span>Enterprise SLA</span><span class="check">✓</span></div>
+      <div class="er-item"><span>SSO (Q2 2026)</span><span class="partial">Roadmap</span></div>
+      <div class="er-item"><span>Dedicated Support</span><span class="check">✓</span></div>
+      <div class="er-item"><span>Custom Deployment</span><span class="check">✓</span></div>
+    </div>
+    <div class="er-card">
+      <h4>LangChain</h4>
+      <div class="er-item"><span>Policy Engine</span><span class="cross">✗</span></div>
+      <div class="er-item"><span>Audit Logging</span><span class="partial">LangSmith only</span></div>
+      <div class="er-item"><span>Enterprise SLA</span><span class="cross">✗</span></div>
+      <div class="er-item"><span>SSO</span><span class="cross">✗</span></div>
+      <div class="er-item"><span>Dedicated Support</span><span class="partial">Paid plans</span></div>
+      <div class="er-item"><span>Custom Deployment</span><span class="partial">DIY</span></div>
+    </div>
+    <div class="er-card">
+      <h4>AutoGen / CrewAI</h4>
+      <div class="er-item"><span>Policy Engine</span><span class="cross">✗</span></div>
+      <div class="er-item"><span>Audit Logging</span><span class="cross">✗</span></div>
+      <div class="er-item"><span>Enterprise SLA</span><span class="cross">✗</span></div>
+      <div class="er-item"><span>SSO</span><span class="cross">✗</span></div>
+      <div class="er-item"><span>Dedicated Support</span><span class="cross">✗</span></div>
+      <div class="er-item"><span>Custom Deployment</span><span class="partial">DIY</span></div>
+    </div>
+  </div>
+
+  <p>The competitive landscape reveals a clear gap: every major framework was built for developers experimenting with agents, not enterprises deploying them at scale. HyperClaw fills this gap with a production-first architecture, enterprise SLAs, and a policy engine that compliance teams can actually trust.</p>
+
+  <div class="footer">
+    <p><span class="brand">HYPERCLAW</span> · Competitive Analysis · Confidential · Q1 2026</p>
+    <p>github.com/mentatalbans/hyperclaw</p>
+  </div>
+
+</div>
+</body>
+</html>

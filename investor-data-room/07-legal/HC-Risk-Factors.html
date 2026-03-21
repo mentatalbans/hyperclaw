@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperClaw — Risk Factors</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --bg2: #0f0f1a; --bg3: #13131f;
+    --accent: #6366f1; --accent2: #818cf8; --accent3: #a5b4fc;
+    --text: #f8fafc; --text2: #94a3b8; --text3: #64748b;
+    --border: rgba(99,102,241,0.15); --border2: rgba(255,255,255,0.06);
+    --green: #10b981; --red: #ef4444; --yellow: #f59e0b; --orange: #f97316;
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+  .page { max-width: 960px; margin: 0 auto; padding: 56px 40px; }
+  .header { margin-bottom: 40px; padding-bottom: 28px; border-bottom: 1px solid var(--border); }
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .badge { background: rgba(99,102,241,0.1); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.1em; }
+  .badge-line { height: 1px; flex: 1; background: var(--border); }
+  h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(135deg, #fff 30%, var(--accent3) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 10px; }
+  .subtitle { font-size: 14px; color: var(--text2); line-height: 1.65; }
+  .section-label { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.12em; margin: 36px 0 16px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  p { font-size: 14px; color: var(--text2); line-height: 1.75; margin-bottom: 14px; }
+  p strong { color: var(--text); }
+
+  .disclaimer { background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; padding: 16px 20px; margin-bottom: 32px; }
+  .disclaimer p { font-size: 12px; color: var(--text3); margin-bottom: 0; line-height: 1.65; }
+
+  /* Risk Cards */
+  .risk-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px; padding: 28px; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  .risk-card .risk-side { }
+  .risk-card .risk-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .risk-card .risk-num { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 700; color: rgba(239,68,68,0.4); }
+  .risk-card .risk-label { font-size: 11px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.1em; }
+  .risk-label.high { color: var(--red); }
+  .risk-label.medium { color: var(--orange); }
+  .risk-label.low { color: var(--yellow); }
+  .risk-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+  .risk-card .risk-desc { font-size: 13px; color: var(--text3); line-height: 1.7; margin-bottom: 0; }
+  .risk-card .divider { width: 1px; background: var(--border2); }
+  .mitigant-side {}
+  .mitigant-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .mitigant-header .m-icon { font-size: 14px; }
+  .mitigant-header .m-label { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--green); text-transform: uppercase; letter-spacing: 0.1em; }
+  .mitigant-side h4 { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--text); }
+  .mitigant-list { list-style: none; }
+  .mitigant-list li { font-size: 12px; color: var(--text3); padding: 4px 0; display: flex; gap: 8px; line-height: 1.5; }
+  .mitigant-list li::before { content: '✓'; color: var(--green); flex-shrink: 0; margin-top: 1px; }
+
+  /* Risk level summary */
+  .risk-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 32px; }
+  .rs-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 16px; text-align: center; }
+  .rs-card .level { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .rs-card.high .level { color: var(--red); }
+  .rs-card.medium .level { color: var(--orange); }
+  .rs-card.low .level { color: var(--yellow); }
+  .rs-card .count { font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 900; }
+  .rs-card.high .count { color: var(--red); }
+  .rs-card.medium .count { color: var(--orange); }
+  .rs-card.low .count { color: var(--yellow); }
+  .rs-card .label { font-size: 10px; color: var(--text3); margin-top: 4px; }
+
+  .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border2); font-size: 12px; color: var(--text3); }
+  .footer .brand { font-family: 'JetBrains Mono', monospace; color: var(--accent2); }
+  @media print { html,body{background:#0a0a0f!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .page{padding:32px;} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="eyebrow"><span class="badge">Legal</span><span class="badge-line"></span><span class="badge">Confidential</span></div>
+    <h1>Risk Factors</h1>
+    <p class="subtitle">Investing in early-stage companies involves significant risk. The following risk factors are material to an investment decision in HyperClaw and should be considered carefully alongside the company's financial projections and strategic plan.</p>
+  </div>
+
+  <div class="disclaimer">
+    <p><strong>Disclosure Notice:</strong> This document contains forward-looking statements and risk disclosures for informational purposes. It does not constitute an offer to sell securities. All projections are estimates based on current assumptions and are subject to change. Past performance of related ventures is not indicative of future results. Investors should consult qualified legal and financial counsel before making investment decisions.</p>
+  </div>
+
+  <div class="section-label">Risk Summary</div>
+
+  <div class="risk-summary">
+    <div class="rs-card high">
+      <div class="level">HIGH</div>
+      <div class="count">2</div>
+      <div class="label">Risk factors</div>
+    </div>
+    <div class="rs-card medium">
+      <div class="level">MEDIUM</div>
+      <div class="count">3</div>
+      <div class="label">Risk factors</div>
+    </div>
+    <div class="rs-card low">
+      <div class="level">LOW</div>
+      <div class="count">2</div>
+      <div class="label">Risk factors</div>
+    </div>
+    <div class="rs-card">
+      <div class="level" style="color:var(--accent2)">TOTAL</div>
+      <div class="count" style="color:var(--accent2)">7</div>
+      <div class="label">Risk factors disclosed</div>
+    </div>
+  </div>
+
+  <div class="section-label">Risk Factors &amp; Mitigants</div>
+
+  <!-- Risk 1 -->
+  <div class="risk-card">
+    <div class="risk-side">
+      <div class="risk-header">
+        <span class="risk-num">01</span>
+        <span class="risk-label high">HIGH · Market Risk</span>
+      </div>
+      <h3>Open-Source Competition</h3>
+      <p class="risk-desc">LangChain, AutoGen, and CrewAI are well-funded, widely adopted open-source frameworks with large communities and brand recognition. Their gravitational pull on developers is significant. Microsoft backs AutoGen; Sequoia has invested in LangChain. A sustained push by any of these to add enterprise features could compress HyperClaw's differentiation window.</p>
+    </div>
+    <div class="mitigant-side">
+      <div class="mitigant-header"><span class="m-icon">🛡️</span><span class="m-label">Mitigants</span></div>
+      <h4>Enterprise Architecture Gap</h4>
+      <ul class="mitigant-list">
+        <li>HyperShield policy engine requires 12–18 months of enterprise feedback to replicate properly — not a 2-week sprint</li>
+        <li>UCB1 routing is architecturally baked in, not a plugin — migration cost is high for incumbents</li>
+        <li>HyperClaw targets enterprise buyers, not developer communities — different motion, different moat</li>
+        <li>MIT core means HyperClaw can become the standard layer on top of any framework</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Risk 2 -->
+  <div class="risk-card">
+    <div class="risk-side">
+      <div class="risk-header">
+        <span class="risk-num">02</span>
+        <span class="risk-label high">HIGH · GTM Risk</span>
+      </div>
+      <h3>Enterprise Sales Cycle</h3>
+      <p class="risk-desc">Enterprise software procurement cycles typically run 6–18 months for initial contracts. Procurement reviews, security assessments, legal review, and champion approvals all create pipeline lag. A small team burning through a $2M raise could face cash constraints before deals close, particularly if early enterprise bets require significant customization.</p>
+    </div>
+    <div class="mitigant-side">
+      <div class="mitigant-header"><span class="m-icon">🛡️</span><span class="m-label">Mitigants</span></div>
+      <h4>Warm Network GTM</h4>
+      <ul class="mitigant-list">
+        <li>Vaughn's existing network in luxury hospitality and LA enterprise cuts procurement time via champion relationships</li>
+        <li>$499/mo Starter tier enables bottom-up land-and-expand — no 12-month procurement needed to start</li>
+        <li>Open-source core allows IT teams to evaluate HyperClaw before procurement gets involved</li>
+        <li>18-month runway on $2M raise provides cushion through longer deal cycles</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Risk 3 -->
+  <div class="risk-card">
+    <div class="risk-side">
+      <div class="risk-header">
+        <span class="risk-num">03</span>
+        <span class="risk-label medium">MEDIUM · Operational Risk</span>
+      </div>
+      <h3>Key Person Risk</h3>
+      <p class="risk-desc">With a two-person founding team, HyperClaw is exposed to key person concentration risk. Loss, incapacitation, or departure of either Vaughn (GTM) or Andy (engineering) would significantly impact company operations. The codebase and customer relationships are both concentrated in the founders at this stage.</p>
+    </div>
+    <div class="mitigant-side">
+      <div class="mitigant-header"><span class="m-icon">🛡️</span><span class="m-label">Mitigants</span></div>
+      <h4>Hiring &amp; Documentation Plan</h4>
+      <ul class="mitigant-list">
+        <li>Pre-seed capital is earmarked for 3 engineering hires — distributing technical concentration</li>
+        <li>MIT-licensed codebase with 377 tests is highly documented and transferable</li>
+        <li>Vesting schedules and standard founder protections being established at raise</li>
+        <li>Key-person insurance to be established post-raise</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Risk 4 -->
+  <div class="risk-card">
+    <div class="risk-side">
+      <div class="risk-header">
+        <span class="risk-num">04</span>
+        <span class="risk-label medium">MEDIUM · Market Risk</span>
+      </div>
+      <h3>Market Timing</h3>
+      <p class="risk-desc">The AI agent market is evolving rapidly. A contraction in enterprise AI spending (driven by economic conditions, AI disillusionment, or a major AI incident causing regulatory backlash) could slow adoption. Alternatively, the market could move faster than projected, favoring better-funded competitors who can scale GTM more aggressively.</p>
+    </div>
+    <div class="mitigant-side">
+      <div class="mitigant-header"><span class="m-icon">🛡️</span><span class="m-label">Mitigants</span></div>
+      <h4>Durable Positioning</h4>
+      <ul class="mitigant-list">
+        <li>Enterprise AI adoption is a 10-year structural shift, not a single-year cycle</li>
+        <li>HyperShield is more valuable in a regulated environment — regulatory risk is a tailwind</li>
+        <li>Open-source core creates organic adoption independent of sales cycles</li>
+        <li>Revenue model includes low-entry Starter tier to capture spend even in conservative cycles</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Risk 5 -->
+  <div class="risk-card">
+    <div class="risk-side">
+      <div class="risk-header">
+        <span class="risk-num">05</span>
+        <span class="risk-label medium">MEDIUM · Technical Risk</span>
+      </div>
+      <h3>LLM Provider Dependency</h3>
+      <p class="risk-desc">HyperClaw relies on OpenAI, Anthropic, and Google LLM APIs for agent reasoning. Pricing changes, API deprecations, rate limits, or service outages at any provider could impact reliability and unit economics. Concentration in any single provider creates vulnerability.</p>
+    </div>
+    <div class="mitigant-side">
+      <div class="mitigant-header"><span class="m-icon">🛡️</span><span class="m-label">Mitigants</span></div>
+      <h4>Multi-Model Architecture</h4>
+      <ul class="mitigant-list">
+        <li>HyperRouter's multi-model design allows instant failover between providers</li>
+        <li>No hard dependency on any single provider — swappable via configuration</li>
+        <li>Open-source LLM support (Llama, Mistral) on roadmap for on-prem sovereignty tier</li>
+        <li>Sovereign tier explicitly designed for air-gapped, self-hosted model deployment</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Risk 6 -->
+  <div class="risk-card">
+    <div class="risk-side">
+      <div class="risk-header">
+        <span class="risk-num">06</span>
+        <span class="risk-label low">LOW · Financial Risk</span>
+      </div>
+      <h3>Runway &amp; Capital Efficiency</h3>
+      <p class="risk-desc">$2M at a $10M pre-money valuation provides approximately 18 months of runway at projected burn. If ARR targets are not met or the Series A market tightens, HyperClaw could face a bridge financing gap. Engineering hiring (planned 3 hires) will accelerate burn.</p>
+    </div>
+    <div class="mitigant-side">
+      <div class="mitigant-header"><span class="m-icon">🛡️</span><span class="m-label">Mitigants</span></div>
+      <h4>Capital Discipline</h4>
+      <ul class="mitigant-list">
+        <li>Supabase backend eliminates significant infrastructure spend at early stage</li>
+        <li>Open-source community creates free distribution and reduces marketing spend</li>
+        <li>Revenue model activates at Starter ($499/mo) — low bar to first revenue</li>
+        <li>Hiring plan tied to ARR milestones, not calendar — spend scales with revenue</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Risk 7 -->
+  <div class="risk-card">
+    <div class="risk-side">
+      <div class="risk-header">
+        <span class="risk-num">07</span>
+        <span class="risk-label low">LOW · Legal / Regulatory Risk</span>
+      </div>
+      <h3>AI Regulatory Environment</h3>
+      <p class="risk-desc">The EU AI Act, potential US federal AI regulation, and state-level AI laws could impose compliance requirements on AI orchestration platforms. Evolving definitions of "high-risk AI" could require additional certification, documentation, or human oversight requirements that add operational cost.</p>
+    </div>
+    <div class="mitigant-side">
+      <div class="mitigant-header"><span class="m-icon">🛡️</span><span class="m-label">Mitigants</span></div>
+      <h4>Compliance-First Design</h4>
+      <ul class="mitigant-list">
+        <li>HyperShield policy engine is explicitly designed for compliance requirements — regulation is a product tailwind</li>
+        <li>Audit logging built into HyperState from day one</li>
+        <li>MIT license and open architecture make third-party compliance audits straightforward</li>
+        <li>Sovereign tier designed for highest-compliance environments (government, defense)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p><span class="brand">HYPERCLAW</span> · Risk Factors · Confidential · Q1 2026</p>
+    <p>This document does not constitute an offer to sell securities. For informational purposes only.</p>
+  </div>
+
+</div>
+</body>
+</html>

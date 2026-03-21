@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperClaw — Cap Table</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --bg2: #0f0f1a; --bg3: #13131f;
+    --accent: #6366f1; --accent2: #818cf8; --accent3: #a5b4fc;
+    --text: #f8fafc; --text2: #94a3b8; --text3: #64748b;
+    --border: rgba(99,102,241,0.15); --border2: rgba(255,255,255,0.06);
+    --green: #10b981;
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+  .page { max-width: 900px; margin: 0 auto; padding: 56px 40px; }
+  .header { margin-bottom: 40px; padding-bottom: 28px; border-bottom: 1px solid var(--border); }
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .badge { background: rgba(99,102,241,0.1); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.1em; }
+  .badge-line { height: 1px; flex: 1; background: var(--border); }
+  h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(135deg, #fff 30%, var(--accent3) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 10px; }
+  .subtitle { font-size: 14px; color: var(--text2); line-height: 1.65; }
+  .section-label { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.12em; margin: 36px 0 16px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--border2); border-radius: 10px; overflow: hidden; margin-bottom: 28px; }
+  thead th { background: var(--bg3); padding: 11px 16px; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--border2); text-align: right; }
+  thead th:first-child { text-align: left; }
+  tbody td { padding: 11px 16px; font-size: 13px; border-bottom: 1px solid var(--border2); color: var(--text2); text-align: right; }
+  tbody td:first-child { text-align: left; font-weight: 500; color: var(--text); }
+  tbody td.mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text3); }
+  tbody tr:last-child td { border-bottom: none; }
+  .total-row td { background: rgba(99,102,241,0.07); font-weight: 700; border-top: 1px solid var(--border); }
+  .total-row td:first-child { color: var(--accent3) !important; }
+  .pct-bar { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+  .mini-bar { height: 6px; border-radius: 3px; background: var(--accent); min-width: 4px; }
+
+  .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 32px; }
+  .s-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 16px; text-align: center; }
+  .s-card .v { font-size: 20px; font-weight: 800; color: var(--accent2); display: block; margin-bottom: 4px; }
+  .s-card .k { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .note { font-size: 12px; color: var(--text3); font-style: italic; margin-top: 8px; line-height: 1.6; padding: 14px 16px; background: var(--bg2); border-radius: 6px; border-left: 2px solid var(--border); }
+  .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border2); font-size: 12px; color: var(--text3); }
+  .footer .brand { font-family: 'JetBrains Mono', monospace; color: var(--accent2); }
+  @media print { html,body{background:#0a0a0f!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .page{padding:32px;} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="eyebrow"><span class="badge">Cap Table</span><span class="badge-line"></span><span class="badge">Confidential</span></div>
+    <h1>HyperClaw<br>Capitalization Table</h1>
+    <p class="subtitle">Pre-seed capitalization structure. Illustrative cap table showing founder ownership, employee option pool, and pre-seed investor allocation. Actual legal structure subject to definitive documentation.</p>
+  </div>
+
+  <div class="summary-cards">
+    <div class="s-card"><span class="v">$10M</span><span class="k">Pre-Money</span></div>
+    <div class="s-card"><span class="v">$12M</span><span class="k">Post-Money</span></div>
+    <div class="s-card"><span class="v">10M</span><span class="k">Total Shares</span></div>
+    <div class="s-card"><span class="v">20%</span><span class="k">Investor Pool</span></div>
+  </div>
+
+  <div class="section-label">Pre-Seed Cap Table (Post-Close)</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Shareholder</th>
+        <th>Type</th>
+        <th>Shares</th>
+        <th>Ownership %</th>
+        <th>Value (Post-$)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Vaughn Davis (Founder/CEO)</td>
+        <td>Common — Founder</td>
+        <td>4,500,000</td>
+        <td>
+          <div class="pct-bar"><span>45.0%</span><div class="mini-bar" style="width:90px;background:var(--accent);"></div></div>
+        </td>
+        <td>$5,400,000</td>
+      </tr>
+      <tr>
+        <td>Andy Zhang (CTO)</td>
+        <td>Common — Founder</td>
+        <td>3,500,000</td>
+        <td>
+          <div class="pct-bar"><span>35.0%</span><div class="mini-bar" style="width:70px;background:var(--accent);"></div></div>
+        </td>
+        <td>$4,200,000</td>
+      </tr>
+      <tr>
+        <td>Employee Option Pool (ESOP)</td>
+        <td>Options — Reserved</td>
+        <td>0 issued / 1,000,000 reserved</td>
+        <td>
+          <div class="pct-bar"><span>10.0%</span><div class="mini-bar" style="width:20px;background:#a855f7;"></div></div>
+        </td>
+        <td>$1,200,000</td>
+      </tr>
+      <tr>
+        <td>Pre-Seed Investors</td>
+        <td>Preferred — Series PS</td>
+        <td>2,000,000</td>
+        <td>
+          <div class="pct-bar"><span>20.0%</span><div class="mini-bar" style="width:40px;background:#10b981;"></div></div>
+        </td>
+        <td>$2,400,000</td>
+      </tr>
+      <tr class="total-row">
+        <td>TOTAL (Fully Diluted)</td>
+        <td>—</td>
+        <td>10,000,000</td>
+        <td>100.0%</td>
+        <td>$12,000,000</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="section-label">Founder Vesting Schedule</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Founder</th>
+        <th>Total Shares</th>
+        <th>Cliff</th>
+        <th>Vesting Period</th>
+        <th>Schedule</th>
+        <th>Acceleration</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Vaughn Davis</td>
+        <td>4,500,000</td>
+        <td>12 months</td>
+        <td>48 months</td>
+        <td>Monthly post-cliff</td>
+        <td>Double-trigger</td>
+      </tr>
+      <tr>
+        <td>Andy Zhang</td>
+        <td>3,500,000</td>
+        <td>12 months</td>
+        <td>48 months</td>
+        <td>Monthly post-cliff</td>
+        <td>Double-trigger</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="section-label">Pre-Seed Preferred Stock Terms</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Term</th>
+        <th>Detail</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Security Type</td><td>Series PS Preferred Stock (or SAFE/Convertible Note per legal counsel)</td></tr>
+      <tr><td>Round Size</td><td>$2,000,000 total</td></tr>
+      <tr><td>Pre-Money Valuation</td><td>$10,000,000</td></tr>
+      <tr><td>Price Per Share</td><td>$1.00 (illustrative)</td></tr>
+      <tr><td>Liquidation Preference</td><td>1x non-participating</td></tr>
+      <tr><td>Anti-Dilution</td><td>Broad-based weighted average</td></tr>
+      <tr><td>Pro-Rata Rights</td><td>Yes — up to 5% of next round</td></tr>
+      <tr><td>Information Rights</td><td>Quarterly financials, annual audited (at $5M+ ARR)</td></tr>
+      <tr><td>Board Seats</td><td>1 observer seat for lead investor</td></tr>
+      <tr><td>Dividends</td><td>Non-cumulative, at board discretion</td></tr>
+    </tbody>
+  </table>
+
+  <div class="section-label">Post-Round Dilution Waterfall (Illustrative)</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Round</th>
+        <th>Amount</th>
+        <th>Pre-$</th>
+        <th>Vaughn %</th>
+        <th>Andy %</th>
+        <th>Investors %</th>
+        <th>ESOP %</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Founding</td><td>—</td><td>—</td><td>56.3%</td><td>43.7%</td><td>0%</td><td>0%</td></tr>
+      <tr><td>Pre-Seed (now)</td><td>$2M</td><td>$10M</td><td>45%</td><td>35%</td><td>20%</td><td>10%*</td></tr>
+      <tr><td>Seed (projected)</td><td>$8M</td><td>$30M</td><td>~36%</td><td>~28%</td><td>~28%</td><td>~8%</td></tr>
+      <tr><td>Series A (projected)</td><td>$20M</td><td>$80M</td><td>~28%</td><td>~22%</td><td>~38%</td><td>~12%</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:11px;color:var(--text3);margin-top:-18px;margin-bottom:28px;">* ESOP reserved but unissued at close. Counted on fully-diluted basis.</p>
+
+  <div class="note">⚠ This cap table is illustrative only and is not a legally binding document. Actual ownership percentages, share classes, and rights are subject to definitive legal documentation, board approvals, and applicable securities law. This document should not be relied upon as a substitute for legal or financial advice.</div>
+
+  <div class="footer"><p class="brand">HYPERCLAW</p><p>Cap Table · Confidential · Pre-Seed · © 2026</p></div>
+</div>
+</body>
+</html>

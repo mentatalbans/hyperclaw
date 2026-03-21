@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperClaw — Executive Summary</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --bg2: #0f0f1a; --bg3: #13131f;
+    --accent: #6366f1; --accent2: #818cf8; --accent3: #a5b4fc;
+    --text: #f8fafc; --text2: #94a3b8; --text3: #64748b;
+    --border: rgba(99,102,241,0.15); --border2: rgba(255,255,255,0.06);
+    --green: #10b981; --yellow: #f59e0b; --red: #ef4444;
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+  body { padding: 0; }
+  .page { max-width: 960px; margin: 0 auto; padding: 60px 40px; }
+
+  .header { margin-bottom: 48px; padding-bottom: 36px; border-bottom: 1px solid var(--border); }
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .eyebrow-badge { background: rgba(99,102,241,0.1); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.1em; }
+  .eyebrow-line { height: 1px; flex: 1; background: var(--border); }
+  h1 { font-size: 40px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(135deg, #fff 30%, var(--accent3) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1.15; margin-bottom: 14px; }
+  .tagline { font-size: 17px; color: var(--text2); max-width: 620px; line-height: 1.65; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 48px; }
+  .stat-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 20px 18px; text-align: center; }
+  .stat-card .n { font-size: 28px; font-weight: 800; color: var(--accent2); letter-spacing: -0.02em; display: block; margin-bottom: 4px; }
+  .stat-card .l { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; font-family: 'JetBrains Mono', monospace; }
+
+  .section { margin-bottom: 40px; }
+  .section-label { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  h2 { font-size: 22px; font-weight: 700; margin-bottom: 14px; letter-spacing: -0.02em; }
+  p { font-size: 14px; color: var(--text2); line-height: 1.75; margin-bottom: 14px; }
+  p strong { color: var(--text); }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+  .card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 22px; }
+  .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--accent3); }
+
+  .check-list { list-style: none; }
+  .check-list li { font-size: 13px; color: var(--text2); padding: 6px 0; border-bottom: 1px solid var(--border2); display: flex; gap: 10px; }
+  .check-list li:last-child { border-bottom: none; }
+  .check-list li::before { content: '✓'; color: var(--green); font-weight: 700; flex-shrink: 0; }
+
+  .arch-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .arch-item { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+  .arch-item .icon { font-size: 22px; margin-bottom: 8px; display: block; }
+  .arch-item .name { font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--accent2); font-weight: 500; margin-bottom: 4px; }
+  .arch-item .desc { font-size: 11px; color: var(--text3); line-height: 1.5; }
+
+  .revenue-table { width: 100%; border-collapse: collapse; }
+  .revenue-table th { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 14px; border-bottom: 1px solid var(--border); text-align: left; }
+  .revenue-table td { font-size: 13px; padding: 10px 14px; border-bottom: 1px solid var(--border2); color: var(--text2); }
+  .revenue-table td:first-child { font-family: 'JetBrains Mono', monospace; color: var(--text3); }
+  .revenue-table td.highlight { color: var(--accent2); font-weight: 600; }
+  .revenue-table tr:last-child td { border-bottom: none; }
+
+  .team-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .team-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 20px; display: flex; gap: 14px; align-items: flex-start; }
+  .avatar { width: 44px; height: 44px; background: linear-gradient(135deg, var(--accent), #a855f7); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .team-info .name { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+  .team-info .role { font-size: 12px; color: var(--accent2); font-family: 'JetBrains Mono', monospace; margin-bottom: 8px; }
+  .team-info .bio { font-size: 12px; color: var(--text3); line-height: 1.6; }
+
+  .raise-box { background: linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(168,85,247,0.08) 100%); border: 1px solid var(--border); border-radius: 12px; padding: 28px; text-align: center; }
+  .raise-box .amount { font-size: 52px; font-weight: 800; color: var(--accent2); letter-spacing: -0.03em; display: block; margin-bottom: 6px; }
+  .raise-box .sub { font-size: 14px; color: var(--text2); margin-bottom: 20px; }
+  .raise-details { display: flex; justify-content: center; gap: 32px; flex-wrap: wrap; }
+  .raise-detail { text-align: center; }
+  .raise-detail .v { font-size: 18px; font-weight: 700; color: var(--text); }
+  .raise-detail .k { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 3px; }
+
+  .footer { text-align: center; margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--border2); }
+  .footer p { font-size: 12px; color: var(--text3); }
+  .footer .brand { font-family: 'JetBrains Mono', monospace; color: var(--accent2); font-weight: 500; }
+
+  @media print {
+    html, body { background: #0a0a0f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { padding: 32px; }
+    .two-col, .arch-row, .stats-row { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="eyebrow"><span class="eyebrow-badge">Executive Summary</span><span class="eyebrow-line"></span><span class="eyebrow-badge">Confidential</span></div>
+    <h1>Open-Source Multi-Agent AI<br>Orchestration — at Scale.</h1>
+    <p class="tagline">HyperClaw is the infrastructure layer for enterprise AI agents. We deliver intelligent multi-agent routing, causal memory, and built-in security in a single MIT-licensed platform.</p>
+    <p class="tagline" style="margin-top:10px; font-size:13px; color:var(--text3);"><strong style="color:var(--text2);">OpenClaw</strong> — our personal AI platform — serves as the consumer distribution of the HyperClaw technology stack, validating the architecture at individual scale before enterprise deployment. OpenClaw users are HyperClaw's most natural enterprise prospects: they already understand agent-based AI and are ready to scale.</p>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card"><span class="n">50+</span><span class="l">Specialist Agents</span></div>
+    <div class="stat-card"><span class="n">377</span><span class="l">Tests Passing</span></div>
+    <div class="stat-card"><span class="n">30+</span><span class="l">Connectors</span></div>
+    <div class="stat-card"><span class="n">MIT</span><span class="l">Open Source</span></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">The Problem</div>
+    <div class="two-col">
+      <div>
+        <h2>AI Agents Are Broken in Production</h2>
+        <p>Enterprise teams deploying AI agents face fragmented tooling, unreliable routing, no memory persistence, and zero security guardrails. Existing frameworks like LangChain and AutoGen were built for demos — not production workloads.</p>
+        <p>The result: <strong>$40B+ wasted annually</strong> on AI agents that fail to deliver ROI, fail in production, or get abandoned within 90 days of deployment.</p>
+      </div>
+      <div class="card">
+        <h3>What's Missing Today</h3>
+        <ul class="check-list" style="list-style:none;">
+          <li style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border2);font-size:13px;color:var(--text2);"><span style="color:#ef4444;font-weight:700;">✗</span> Intelligent agent routing (round-robin is dumb)</li>
+          <li style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border2);font-size:13px;color:var(--text2);"><span style="color:#ef4444;font-weight:700;">✗</span> Persistent causal memory across sessions</li>
+          <li style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border2);font-size:13px;color:var(--text2);"><span style="color:#ef4444;font-weight:700;">✗</span> Enterprise-grade security policy engine</li>
+          <li style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border2);font-size:13px;color:var(--text2);"><span style="color:#ef4444;font-weight:700;">✗</span> Specialized domain agents (not generic LLM calls)</li>
+          <li style="display:flex;gap:10px;padding:6px 0;font-size:13px;color:var(--text2);"><span style="color:#ef4444;font-weight:700;">✗</span> Observable, auditable agent decisions</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">The Solution</div>
+    <h2>PROMETHEUS + SOLOMON + GENESIS — HyperClaw's Intelligence System</h2>
+    <p>HyperClaw ships 50+ specialist AI agents managed by <strong>SOLOMON</strong> (overmind — always on, always watching), powered by <strong>PROMETHEUS</strong> intelligence layer. The <strong>GENESIS Protocol</strong> self-expands the agent network. Civilization Knowledge Base ingests SOPs, org charts, and runbooks. Three Human Gates baked in. 30+ connectors via HyperClaw Gateway.</p>
+    <div class="arch-row" style="margin-top:20px;">
+      <div class="arch-item"><span class="icon">🧠</span><span class="name">PROMETHEUS</span><span class="desc">Intelligence layer. Recursive decision engine for all orchestration</span></div>
+      <div class="arch-item"><span class="icon">👁️</span><span class="name">SOLOMON</span><span class="desc">Overmind agent. Always on, manages 50+ specialists, triggers GENESIS</span></div>
+      <div class="arch-item"><span class="icon">⚡</span><span class="name">GENESIS Protocol</span><span class="desc">Self-expanding: creates new specialists when gaps detected</span></div>
+      <div class="arch-item"><span class="icon">📚</span><span class="name">Civilization KB</span><span class="desc">SOPs, org charts, JDs, client profiles. OrgGraph context injection</span></div>
+      <div class="arch-item"><span class="icon">🛡️</span><span class="name">HyperShield</span><span class="desc">Zero-trust + Three Human Gates: Ethical, Auth, Uncertainty &lt;60%</span></div>
+      <div class="arch-item"><span class="icon">🔀</span><span class="name">UCB1 HyperRouter</span><span class="desc">Self-improving model routing. Learns optimal task assignment</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Business Model</div>
+    <div class="two-col">
+      <div>
+        <h2>Open-Core → Enterprise</h2>
+        <p>MIT-licensed open source drives developer adoption at zero CAC. Enterprise commercial layer monetizes teams that need SLAs, compliance, advanced memory, and custom deployments.</p>
+        <ul class="check-list">
+          <li>Open-source core — free forever, MIT license</li>
+          <li>Starter — $499/mo (teams up to 10)</li>
+          <li>Pro — $1,999/mo (teams up to 50)</li>
+          <li>Enterprise — $9,999/mo (unlimited)</li>
+          <li>Sovereign — Custom pricing, on-prem</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>ARR Trajectory</h3>
+        <table class="revenue-table">
+          <thead><tr><th>Year</th><th>ARR Target</th><th>Growth</th></tr></thead>
+          <tbody>
+            <tr><td>2026</td><td class="highlight">$500K</td><td>—</td></tr>
+            <tr><td>2027</td><td class="highlight">$3M</td><td>+500%</td></tr>
+            <tr><td>2028</td><td class="highlight">$12M</td><td>+300%</td></tr>
+            <tr><td>2029</td><td class="highlight">$28M</td><td>+133%</td></tr>
+            <tr><td>2030</td><td class="highlight">$50M</td><td>+79%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Team</div>
+    <div class="team-row">
+      <div class="team-card">
+        <div class="avatar">V</div>
+        <div class="team-info">
+          <div class="name">Vaughn Davis</div>
+          <div class="role">Founder & CEO</div>
+          <div class="bio">15+ years luxury hospitality. Former MD & GM, Dream Hollywood Hotel. CEO, Hyper Nimbus (AI hospitality platform, separate venture — validates his enterprise sales track record). CEO, Hyper Talent (sports/entertainment AI, post-revenue). Board: Hollywood Chamber, Hollywood Partnership, LA Tourism Board DEI.</div>
+        </div>
+      </div>
+      <div class="team-card">
+        <div class="avatar">A</div>
+        <div class="team-info">
+          <div class="name">Andy Zhang</div>
+          <div class="role">CTO</div>
+          <div class="bio">Co-Founder Fairsplit. Co-Founder Cogniscale. AI infrastructure specialist. Architected PROMETHEUS intelligence layer, SOLOMON overmind, GENESIS Protocol, UCB1 HyperRouter, and all four subsystems. Leads engineering culture and technical strategy.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">The Ask</div>
+    <div class="raise-box">
+      <span class="amount">$2,000,000</span>
+      <p class="sub">Pre-Seed Round — $10M Pre-Money Valuation</p>
+      <div class="raise-details">
+        <div class="raise-detail"><div class="v">$10M</div><div class="k">Pre-Money</div></div>
+        <div class="raise-detail"><div class="v">20%</div><div class="k">Dilution</div></div>
+        <div class="raise-detail"><div class="v">18 mo</div><div class="k">Runway</div></div>
+        <div class="raise-detail"><div class="v">v1.0</div><div class="k">Milestone</div></div>
+        <div class="raise-detail"><div class="v">$500K</div><div class="k">2026 ARR</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p class="brand">HYPERCLAW</p>
+    <p>github.com/mentatalbans/hyperclaw · MIT License · v0.1.0-alpha · Confidential</p>
+  </div>
+
+</div>
+</body>
+</html>

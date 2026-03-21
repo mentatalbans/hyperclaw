@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperClaw — Use of Funds</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --bg2: #0f0f1a; --bg3: #13131f;
+    --accent: #6366f1; --accent2: #818cf8; --accent3: #a5b4fc;
+    --text: #f8fafc; --text2: #94a3b8; --text3: #64748b;
+    --border: rgba(99,102,241,0.15); --border2: rgba(255,255,255,0.06);
+    --green: #10b981;
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+  .page { max-width: 900px; margin: 0 auto; padding: 56px 40px; }
+  .header { margin-bottom: 40px; padding-bottom: 28px; border-bottom: 1px solid var(--border); }
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .badge { background: rgba(99,102,241,0.1); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.1em; }
+  .badge-line { height: 1px; flex: 1; background: var(--border); }
+  h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(135deg, #fff 30%, var(--accent3) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 10px; }
+  .subtitle { font-size: 14px; color: var(--text2); line-height: 1.65; }
+  .section-label { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.12em; margin: 36px 0 16px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .total-raise { text-align: center; background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.08)); border: 1px solid var(--border); border-radius: 14px; padding: 36px; margin-bottom: 40px; }
+  .total-raise .amount { font-size: 64px; font-weight: 900; letter-spacing: -0.04em; color: var(--accent2); display: block; margin-bottom: 8px; }
+  .total-raise .sub { font-size: 16px; color: var(--text2); margin-bottom: 24px; }
+  .raise-meta { display: flex; justify-content: center; gap: 40px; }
+  .raise-meta .item { text-align: center; }
+  .raise-meta .v { font-size: 20px; font-weight: 700; color: var(--text); }
+  .raise-meta .k { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 3px; }
+
+  .alloc-grid { display: grid; gap: 16px; margin-bottom: 32px; }
+  .alloc-item { background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px; padding: 24px; display: grid; grid-template-columns: 100px 1fr auto; gap: 20px; align-items: start; }
+  .alloc-pct { font-size: 44px; font-weight: 900; color: var(--accent2); line-height: 1; }
+  .alloc-info h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .alloc-info p { font-size: 13px; color: var(--text2); line-height: 1.7; }
+  .alloc-info ul { list-style: none; margin-top: 10px; }
+  .alloc-info ul li { font-size: 12px; color: var(--text3); padding: 3px 0; display: flex; gap: 8px; }
+  .alloc-info ul li::before { content: '▸'; color: var(--accent2); }
+  .alloc-amount { text-align: right; }
+  .alloc-amount .dollar { font-size: 20px; font-weight: 800; color: var(--accent3); font-family: 'JetBrains Mono', monospace; }
+  .alloc-amount .mo { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+  .bar-viz { margin-bottom: 32px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px; padding: 24px; }
+  .bar-viz h3 { font-size: 13px; font-family: 'JetBrains Mono', monospace; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px; }
+  .bar-track { height: 40px; background: var(--bg3); border-radius: 8px; overflow: hidden; display: flex; margin-bottom: 12px; }
+  .bar-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: white; }
+  .seg-eng { background: var(--accent); width: 60%; }
+  .seg-gtm { background: #a855f7; width: 20%; }
+  .seg-ops { background: #06b6d4; width: 12%; }
+  .seg-res { background: #10b981; width: 8%; }
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  .milestones { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 32px; }
+  .milestone { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 18px; }
+  .milestone .phase { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .milestone h4 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .milestone ul { list-style: none; }
+  .milestone ul li { font-size: 12px; color: var(--text3); padding: 3px 0; display: flex; gap: 7px; }
+  .milestone ul li::before { content: '→'; color: var(--accent2); font-size: 10px; }
+
+  .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border2); font-size: 12px; color: var(--text3); }
+  .footer .brand { font-family: 'JetBrains Mono', monospace; color: var(--accent2); }
+  @media print { html,body{background:#0a0a0f!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .page{padding:32px;} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="eyebrow"><span class="badge">Use of Funds</span><span class="badge-line"></span><span class="badge">Confidential</span></div>
+    <h1>$2M Pre-Seed —<br>Use of Funds</h1>
+    <p class="subtitle">Allocation of the $2,000,000 pre-seed raise across 18 months of runway. Designed to reach v1.0 GA, $500K ARR, and seed-round readiness by Q4 2026.</p>
+  </div>
+
+  <div class="total-raise">
+    <span class="amount">$2,000,000</span>
+    <p class="sub">Total Pre-Seed Raise · 18-Month Runway</p>
+    <div class="raise-meta">
+      <div class="item"><div class="v">$10M</div><div class="k">Pre-Money Val.</div></div>
+      <div class="item"><div class="v">20%</div><div class="k">Investor Equity</div></div>
+      <div class="item"><div class="v">18 mo</div><div class="k">Target Runway</div></div>
+      <div class="item"><div class="v">Q4 2026</div><div class="k">Seed-Ready</div></div>
+    </div>
+  </div>
+
+  <div class="section-label">Allocation Breakdown</div>
+
+  <div class="alloc-grid">
+    <div class="alloc-item">
+      <div class="alloc-pct">60%</div>
+      <div class="alloc-info">
+        <h3>Engineering & Infrastructure</h3>
+        <p>Core team expansion and platform development. Scale from 2 to 6 engineers. Deliver v1.0 GA, enterprise SDK, and production infrastructure.</p>
+        <ul>
+          <li>4 engineering hires (FTE, 18-month contracts)</li>
+          <li>Infrastructure: Supabase scale, CDN, monitoring</li>
+          <li>v1.0 GA development and enterprise features</li>
+          <li>Developer documentation and SDK</li>
+        </ul>
+      </div>
+      <div class="alloc-amount">
+        <div class="dollar">$1,200,000</div>
+        <div class="mo">~$66,667/mo</div>
+      </div>
+    </div>
+
+    <div class="alloc-item">
+      <div class="alloc-pct">20%</div>
+      <div class="alloc-info">
+        <h3>GTM & Community</h3>
+        <p>Developer community growth, DevRel, early enterprise sales motion, and market presence. Drive GitHub adoption and first paying customers.</p>
+        <ul>
+          <li>DevRel hire — developer advocacy and community</li>
+          <li>Conference sponsorships (KubeCon, PyCon, etc.)</li>
+          <li>Content marketing, technical blog, YouTube</li>
+          <li>Enterprise sales outreach and pipeline</li>
+        </ul>
+      </div>
+      <div class="alloc-amount">
+        <div class="dollar">$400,000</div>
+        <div class="mo">~$22,222/mo</div>
+      </div>
+    </div>
+
+    <div class="alloc-item">
+      <div class="alloc-pct">12%</div>
+      <div class="alloc-info">
+        <h3>Operations & Legal</h3>
+        <p>Company setup, IP protection, compliance, finance, and HR. Build the operational foundation for a properly structured company.</p>
+        <ul>
+          <li>Delaware C-Corp formation and legal fees</li>
+          <li>IP / patent counsel for PROMETHEUS architecture</li>
+          <li>Finance, accounting, and HR tooling</li>
+          <li>Compliance and security certifications (SOC 2)</li>
+        </ul>
+      </div>
+      <div class="alloc-amount">
+        <div class="dollar">$240,000</div>
+        <div class="mo">~$13,333/mo</div>
+      </div>
+    </div>
+
+    <div class="alloc-item">
+      <div class="alloc-pct">8%</div>
+      <div class="alloc-info">
+        <h3>Strategic Reserve</h3>
+        <p>Buffer for unexpected opportunities, key strategic hires, market response, or runway extension if seed round takes longer than planned.</p>
+        <ul>
+          <li>Strategic hire opportunity fund</li>
+          <li>Runway buffer (±3 months extension)</li>
+          <li>Market opportunity response (M&A, partnerships)</li>
+        </ul>
+      </div>
+      <div class="alloc-amount">
+        <div class="dollar">$160,000</div>
+        <div class="mo">Emergency</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bar-viz">
+    <h3>Visual Allocation</h3>
+    <div class="bar-track">
+      <div class="bar-seg seg-eng">60% Eng</div>
+      <div class="bar-seg seg-gtm">20% GTM</div>
+      <div class="bar-seg seg-ops">12% Ops</div>
+      <div class="bar-seg seg-res">8%</div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--accent);"></div>Engineering $1.2M</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a855f7;"></div>GTM $400K</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#06b6d4;"></div>Ops & Legal $240K</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#10b981;"></div>Reserve $160K</div>
+    </div>
+  </div>
+
+  <div class="section-label">Milestone Roadmap</div>
+  <div class="milestones">
+    <div class="milestone">
+      <div class="phase">Phase 1 · Months 1–6</div>
+      <h4>Foundation</h4>
+      <ul>
+        <li>Complete engineering hires</li>
+        <li>v0.2 SDK release</li>
+        <li>Enterprise design partners (5)</li>
+        <li>DevRel program launch</li>
+        <li>Legal entity finalized</li>
+      </ul>
+    </div>
+    <div class="milestone">
+      <div class="phase">Phase 2 · Months 7–12</div>
+      <h4>Product-Market Fit</h4>
+      <ul>
+        <li>v1.0 GA launch</li>
+        <li>10 paying customers</li>
+        <li>500+ GitHub stars</li>
+        <li>SOC 2 Type I initiated</li>
+        <li>Series A prep begins</li>
+      </ul>
+    </div>
+    <div class="milestone">
+      <div class="phase">Phase 3 · Months 13–18</div>
+      <h4>Seed Ready</h4>
+      <ul>
+        <li>$500K ARR achieved</li>
+        <li>25 paying customers</li>
+        <li>1,000+ GitHub stars</li>
+        <li>Seed round closed</li>
+        <li>Enterprise sales hire</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer"><p class="brand">HYPERCLAW</p><p>Use of Funds · Confidential · Pre-Seed $2M · © 2026</p></div>
+</div>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperClaw — Technology Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --bg2: #0f0f1a; --bg3: #13131f;
+    --accent: #6366f1; --accent2: #818cf8; --accent3: #a5b4fc;
+    --text: #f8fafc; --text2: #94a3b8; --text3: #64748b;
+    --border: rgba(99,102,241,0.15); --border2: rgba(255,255,255,0.06);
+    --green: #10b981; --purple: #a855f7; --yellow: #f59e0b; --teal: #14b8a6; --red: #ef4444;
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+  .page { max-width: 960px; margin: 0 auto; padding: 56px 40px; }
+  .header { margin-bottom: 40px; padding-bottom: 28px; border-bottom: 1px solid var(--border); }
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .badge { background: rgba(99,102,241,0.1); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.1em; }
+  .badge-line { height: 1px; flex: 1; background: var(--border); }
+  h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(135deg, #fff 30%, var(--accent3) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 10px; }
+  .subtitle { font-size: 14px; color: var(--text2); line-height: 1.65; }
+  .section-label { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.12em; margin: 36px 0 16px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  p { font-size: 14px; color: var(--text2); line-height: 1.75; margin-bottom: 14px; }
+  p strong { color: var(--text); }
+
+  /* Architecture Stack Diagram */
+  .arch-stack { margin-bottom: 32px; }
+  .arch-layer { border-radius: 10px; padding: 16px 24px; margin-bottom: 6px; display: flex; align-items: center; gap: 16px; position: relative; }
+  .arch-layer.prometheus { background: linear-gradient(135deg, rgba(168,85,247,0.2), rgba(99,102,241,0.15)); border: 1px solid rgba(168,85,247,0.4); }
+  .arch-layer.hypershield { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); }
+  .arch-layer.hyperrouter { background: rgba(99,102,241,0.08); border: 1px solid var(--border); }
+  .arch-layer.hypermemory { background: rgba(20,184,166,0.08); border: 1px solid rgba(20,184,166,0.2); }
+  .arch-layer.hyperstate { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); }
+  .arch-layer.infra { background: var(--bg3); border: 1px solid var(--border2); }
+  .arch-layer .layer-name { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; min-width: 140px; }
+  .arch-layer.prometheus .layer-name { color: #c084fc; }
+  .arch-layer.hypershield .layer-name { color: #f87171; }
+  .arch-layer.hyperrouter .layer-name { color: var(--accent2); }
+  .arch-layer.hypermemory .layer-name { color: var(--teal); }
+  .arch-layer.hyperstate .layer-name { color: var(--green); }
+  .arch-layer.infra .layer-name { color: var(--text3); }
+  .arch-layer .layer-desc { font-size: 12px; color: var(--text3); line-height: 1.5; flex: 1; }
+  .arch-layer .layer-tech { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text3); text-align: right; min-width: 160px; }
+  .arch-connector { text-align: center; color: var(--text3); font-size: 16px; margin: 2px 0; }
+
+  /* Component deep-dives */
+  .comp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+  .comp-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px; padding: 22px; }
+  .comp-card .c-tag { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+  .comp-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+  .comp-card p { font-size: 12px; color: var(--text3); margin-bottom: 10px; line-height: 1.6; }
+  .comp-card .code-block { background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent3); line-height: 1.7; }
+  .comp-card.state .c-tag { color: var(--green); }
+  .comp-card.router .c-tag { color: var(--accent2); }
+  .comp-card.memory .c-tag { color: var(--teal); }
+  .comp-card.shield .c-tag { color: #f87171; }
+
+  /* Test stats */
+  .test-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 32px; }
+  .t-stat { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 16px; text-align: center; }
+  .t-stat .v { font-size: 30px; font-weight: 900; color: var(--accent2); display: block; margin-bottom: 4px; font-family: 'JetBrains Mono', monospace; }
+  .t-stat .k { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+  .t-stat.green .v { color: var(--green); }
+  .t-stat.purple .v { color: var(--purple); }
+
+  /* PROMETHEUS section */
+  .prometheus-block { background: linear-gradient(135deg, rgba(168,85,247,0.08), rgba(99,102,241,0.05)); border: 1px solid rgba(168,85,247,0.25); border-radius: 12px; padding: 28px; margin-bottom: 32px; }
+  .prometheus-block .p-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .prometheus-block .p-icon { font-size: 32px; }
+  .prometheus-block .p-title { font-size: 20px; font-weight: 800; background: linear-gradient(135deg, #c084fc, var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .prometheus-block .p-sub { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--purple); text-transform: uppercase; letter-spacing: 0.1em; }
+  .prometheus-block p { font-size: 13px; color: var(--text3); line-height: 1.7; margin-bottom: 10px; }
+
+  /* Tech stack table */
+  table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--border2); border-radius: 10px; overflow: hidden; margin-bottom: 28px; }
+  thead th { background: var(--bg3); padding: 11px 14px; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--border2); text-align: left; }
+  tbody td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border2); color: var(--text2); }
+  tbody tr:last-child td { border-bottom: none; }
+  .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent2); }
+
+  .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border2); font-size: 12px; color: var(--text3); }
+  .footer .brand { font-family: 'JetBrains Mono', monospace; color: var(--accent2); }
+  @media print { html,body{background:#0a0a0f!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .page{padding:32px;} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="eyebrow"><span class="badge">Product</span><span class="badge-line"></span><span class="badge">Confidential</span></div>
+    <h1>Technology Architecture</h1>
+    <p class="subtitle">HyperClaw is built on PROMETHEUS intelligence layer, SOLOMON overmind, GENESIS self-expansion protocol, and four production-grade subsystems. Civilization Knowledge Base. Three Human Gates. 30+ platform connectors. 377 tests. MIT core. Zero compromises.</p>
+  </div>
+
+  <div class="section-label">System Architecture — Layered Stack</div>
+
+  <div class="arch-stack">
+    <div class="arch-layer prometheus">
+      <span class="layer-name">PROMETHEUS</span>
+      <span class="layer-desc">Intelligence layer. The recursive decision engine coordinating all agents and subsystems. Powers SOLOMON's orchestration decisions and GENESIS expansion logic.</span>
+      <span class="layer-tech">Intelligence layer · Recursive orchestration</span>
+    </div>
+    <div class="arch-connector">↑ SOLOMON (Overmind — always on, always watching) ↓</div>
+    <div class="arch-layer prometheus" style="background:linear-gradient(135deg,rgba(99,102,241,0.2),rgba(168,85,247,0.12));border-color:rgba(99,102,241,0.5);">
+      <span class="layer-name" style="color:var(--accent2);">SOLOMON</span>
+      <span class="layer-desc">Overmind agent. Always on, always watching. Routes tasks to 50+ domain specialists, triggers GENESIS when gaps are detected, enforces Three Human Gates.</span>
+      <span class="layer-tech">Overmind · 50+ specialists · Three Human Gates</span>
+    </div>
+    <div class="arch-connector">↕ GENESIS Protocol (self-expanding) ↕</div>
+    <div class="arch-layer" style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);">
+      <span class="layer-name" style="color:var(--yellow);">GENESIS Protocol</span>
+      <span class="layer-desc">Self-expanding: SOLOMON creates new specialist agents when it detects a capability gap. No other platform does this. Agents grow with the organization.</span>
+      <span class="layer-tech">Self-expansion · Gap detection · Agent creation</span>
+    </div>
+    <div class="arch-connector">↕</div>
+    <div class="arch-layer" style="background:rgba(20,184,166,0.08);border:1px solid rgba(20,184,166,0.25);">
+      <span class="layer-name" style="color:var(--teal);">Civilization Knowledge Base</span>
+      <span class="layer-desc">Ingests SOPs, job descriptions, org charts, client profiles, checklists, runbooks, workflows, policies. Procedural chunker preserves step order. OrgGraph = role-aware context injection.</span>
+      <span class="layer-tech">SOPs · OrgGraph · Procedural chunker · Interview agent</span>
+    </div>
+    <div class="arch-connector">↕</div>
+    <div class="arch-layer hypershield">
+      <span class="layer-name">HyperShield</span>
+      <span class="layer-desc">Zero-trust security with hot-reload YAML policies. Three Human Gates: Ethical, Authorization, Uncertainty (&lt;60% confidence). Full audit trail. Pre-execution enforcement.</span>
+      <span class="layer-tech">Zero-trust · Hot-reload YAML · Three Human Gates</span>
+    </div>
+    <div class="arch-connector">↕</div>
+    <div class="arch-layer hyperrouter">
+      <span class="layer-name">UCB1 HyperRouter</span>
+      <span class="layer-desc">Self-improving model routing. Learns optimal model-to-task assignment via UCB1 bandit algorithm. Formula: ucb1_score = mean_reward + C × √(ln(total_attempts) / attempts)</span>
+      <span class="layer-tech">UCB1 bandit · Self-improving · Multi-model</span>
+    </div>
+    <div class="arch-connector">↕</div>
+    <div class="arch-layer hypermemory">
+      <span class="layer-name">Three-Tier Memory</span>
+      <span class="layer-desc">Session (fast, in-context) · Domain (persistent per-specialist) · Civilizational Graph (permanent, growing — pgvector). Causal relationships preserved across all tiers.</span>
+      <span class="layer-tech">pgvector · Causal graph · Civilizational Graph</span>
+    </div>
+    <div class="arch-connector">↕</div>
+    <div class="arch-layer hyperstate">
+      <span class="layer-name">HyperState</span>
+      <span class="layer-desc">Typed, validated, immutable state management. Built on Pydantic v2. Every interaction serializable, auditable, and reproducible.</span>
+      <span class="layer-tech">Pydantic v2 · Event sourcing · Supabase</span>
+    </div>
+    <div class="arch-connector">↕</div>
+    <div class="arch-layer" style="background:rgba(99,102,241,0.06);border:1px solid var(--border);">
+      <span class="layer-name" style="color:var(--accent2);">HyperClaw Gateway</span>
+      <span class="layer-desc">30+ platform connectors: Telegram, Slack, Discord, WhatsApp, Teams, Signal, Gmail, Google Workspace, MS 365, Notion, Salesforce, HubSpot, Jira, GitHub, Stripe, and more.</span>
+      <span class="layer-tech">30+ connectors · Multi-platform · Enterprise integrations</span>
+    </div>
+    <div class="arch-connector">↕</div>
+    <div class="arch-layer infra">
+      <span class="layer-name">Infrastructure</span>
+      <span class="layer-desc">Supabase (Postgres + pgvector + Auth), Python 3.11+, asyncio, OpenAI/Anthropic/Gemini SDKs, Redis (optional caching)</span>
+      <span class="layer-tech">Supabase · Python 3.11+ · asyncio</span>
+    </div>
+  </div>
+
+  <div class="section-label">Core Subsystem Deep Dives</div>
+
+  <div class="comp-grid">
+    <div class="comp-card state">
+      <div class="c-tag">HyperState</div>
+      <h3>Typed State Management</h3>
+      <p>Every agent interaction is represented as a fully typed, Pydantic v2 validated state object. State transitions are atomic, logged, and replayable. No silent mutations — the system fails loudly if state integrity is violated.</p>
+      <div class="code-block">class AgentState(BaseModel):<br>&nbsp;&nbsp;task_id: UUID<br>&nbsp;&nbsp;agent_id: str<br>&nbsp;&nbsp;status: StateStatus<br>&nbsp;&nbsp;context: dict[str, Any]<br>&nbsp;&nbsp;created_at: datetime<br>&nbsp;&nbsp;checksum: str</div>
+    </div>
+    <div class="comp-card router">
+      <div class="c-tag">HyperRouter — UCB1</div>
+      <h3>Intelligent Bandit Routing</h3>
+      <p>UCB1 (Upper Confidence Bound) is a provably optimal exploration/exploitation algorithm from reinforcement learning. HyperRouter tracks success rates per agent per task type, automatically routing to the highest expected performer while still exploring alternatives.</p>
+      <div class="code-block">UCB1 score = x̄ᵢ + √(2 ln(n) / nᵢ)<br><br>x̄ᵢ = avg reward for agent i<br>n  = total tasks dispatched<br>nᵢ = tasks sent to agent i</div>
+    </div>
+    <div class="comp-card memory">
+      <div class="c-tag">HyperMemory</div>
+      <h3>Causal Graph Memory</h3>
+      <p>Most vector memory systems store "what happened." HyperMemory stores why — causal edges between memory nodes let agents reason about dependencies, timelines, and consequences. Powered by pgvector for sub-millisecond semantic retrieval at scale.</p>
+      <div class="code-block">Memory node schema:<br>{ id, embedding: vector(1536),<br>&nbsp;&nbsp;content, timestamp, agent_id,<br>&nbsp;&nbsp;causal_parents: [id...],<br>&nbsp;&nbsp;causal_children: [id...] }</div>
+    </div>
+    <div class="comp-card shield">
+      <div class="c-tag">HyperShield</div>
+      <h3>Policy Engine</h3>
+      <p>Before any agent executes an action, HyperShield evaluates it against a configurable policy ruleset. Rules can restrict data access, cap API spend, enforce content guidelines, or require human-in-the-loop approval. Full audit log for every decision.</p>
+      <div class="code-block">@shield.policy("no_pii_export")<br>async def validate(action: Action):<br>&nbsp;&nbsp;if action.contains_pii():<br>&nbsp;&nbsp;&nbsp;&nbsp;raise PolicyViolation(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"PII export blocked")</div>
+    </div>
+  </div>
+
+  <div class="section-label">PROMETHEUS + SOLOMON + GENESIS — Intelligence System</div>
+
+  <div class="prometheus-block">
+    <div class="p-header">
+      <span class="p-icon">⚡</span>
+      <div>
+        <div class="p-title">PROMETHEUS Intelligence Layer</div>
+        <div class="p-sub">Intelligence Layer · SOLOMON Overmind · GENESIS Protocol · HyperClaw Exclusive</div>
+      </div>
+    </div>
+    <p><strong>PROMETHEUS</strong> is HyperClaw's intelligence layer — the recursive decision engine that powers all high-level reasoning. It coordinates SOLOMON's orchestration decisions, drives GENESIS expansion logic, and manages multi-agent workflows with causal awareness.</p>
+    <p><strong>SOLOMON</strong> is the overmind agent — always on, always watching. It monitors all 50+ domain specialists, routes tasks via UCB1 HyperRouter, enforces Three Human Gates (Ethical, Authorization, Uncertainty &lt;60%), and triggers GENESIS when new capability gaps are detected.</p>
+    <p><strong>GENESIS Protocol</strong> is HyperClaw's self-expansion engine. SOLOMON detects when no existing specialist can adequately handle a task — and automatically creates a new domain-specific agent to fill that gap. The agent network grows with the organization. No other platform has this capability.</p>
+    <p><strong>Three Human Gates</strong> — baked into every workflow: (1) Ethical gate: flags potential policy violations before execution, (2) Authorization gate: role-based access control via OrgGraph, (3) Uncertainty gate: escalates to human review when confidence &lt;60%. Enterprise-grade guardrails that compliance teams can actually approve.</p>
+  </div>
+
+  <div class="section-label">Quality & Test Coverage</div>
+
+  <div class="test-strip">
+    <div class="t-stat green">
+      <span class="v">377</span>
+      <span class="k">Tests Passing</span>
+    </div>
+    <div class="t-stat">
+      <span class="v">0</span>
+      <span class="k">Known Failures</span>
+    </div>
+    <div class="t-stat purple">
+      <span class="v">MIT</span>
+      <span class="k">Core License</span>
+    </div>
+    <div class="t-stat">
+      <span class="v">v0.1.0</span>
+      <span class="k">Alpha Release</span>
+    </div>
+  </div>
+
+  <div class="section-label">Full Technology Stack</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Layer</th>
+        <th>Technology</th>
+        <th>Purpose</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Runtime</td>
+        <td class="mono">Python 3.11+</td>
+        <td>Core language</td>
+        <td>asyncio-native throughout</td>
+      </tr>
+      <tr>
+        <td>State Validation</td>
+        <td class="mono">Pydantic v2</td>
+        <td>HyperState typing</td>
+        <td>Full type safety, JSON schema export</td>
+      </tr>
+      <tr>
+        <td>Database</td>
+        <td class="mono">Supabase / Postgres</td>
+        <td>Persistence layer</td>
+        <td>Row-level security, real-time subscriptions</td>
+      </tr>
+      <tr>
+        <td>Vector Memory</td>
+        <td class="mono">pgvector</td>
+        <td>HyperMemory embeddings</td>
+        <td>1536-dim vectors, HNSW index</td>
+      </tr>
+      <tr>
+        <td>LLM Providers</td>
+        <td class="mono">OpenAI / Anthropic / Gemini</td>
+        <td>Agent reasoning</td>
+        <td>Multi-model via HyperRouter</td>
+      </tr>
+      <tr>
+        <td>Caching</td>
+        <td class="mono">Redis (optional)</td>
+        <td>Response caching</td>
+        <td>Reduces LLM cost on repeated tasks</td>
+      </tr>
+      <tr>
+        <td>Testing</td>
+        <td class="mono">pytest + asyncio</td>
+        <td>377 passing tests</td>
+        <td>Unit + integration coverage</td>
+      </tr>
+      <tr>
+        <td>Packaging</td>
+        <td class="mono">PyPI</td>
+        <td>Distribution</td>
+        <td>pip install hyperclaw</td>
+      </tr>
+      <tr>
+        <td>Connectors</td>
+        <td class="mono">HyperClaw Gateway</td>
+        <td>Platform integrations</td>
+        <td>30+ connectors: Slack, Teams, Notion, GitHub, Stripe, and more</td>
+      </tr>
+      <tr>
+        <td>Source</td>
+        <td class="mono">GitHub</td>
+        <td>Open source core</td>
+        <td>github.com/mentatalbans/hyperclaw</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <p><span class="brand">HYPERCLAW</span> · Technology Architecture · Confidential · Q1 2026</p>
+    <p>377 tests passing · MIT Licensed · github.com/mentatalbans/hyperclaw</p>
+  </div>
+
+</div>
+</body>
+</html>

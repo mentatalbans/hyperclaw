@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperClaw — Product Overview</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --bg2: #0f0f1a; --bg3: #13131f;
+    --accent: #6366f1; --accent2: #818cf8; --accent3: #a5b4fc;
+    --text: #f8fafc; --text2: #94a3b8; --text3: #64748b;
+    --border: rgba(99,102,241,0.15); --border2: rgba(255,255,255,0.06);
+    --green: #10b981; --purple: #a855f7; --yellow: #f59e0b; --teal: #14b8a6;
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+  .page { max-width: 960px; margin: 0 auto; padding: 56px 40px; }
+  .header { margin-bottom: 40px; padding-bottom: 28px; border-bottom: 1px solid var(--border); }
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .badge { background: rgba(99,102,241,0.1); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.1em; }
+  .badge-line { height: 1px; flex: 1; background: var(--border); }
+  h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(135deg, #fff 30%, var(--accent3) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 10px; }
+  .subtitle { font-size: 14px; color: var(--text2); line-height: 1.65; }
+  .section-label { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.12em; margin: 36px 0 16px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  p { font-size: 14px; color: var(--text2); line-height: 1.75; margin-bottom: 14px; }
+  p strong { color: var(--text); }
+
+  /* Agent Domain Grid */
+  .domain-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 32px; }
+  .domain-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 16px; text-align: center; }
+  .domain-card.personal { border-top: 2px solid var(--green); }
+  .domain-card.business { border-top: 2px solid var(--accent); }
+  .domain-card.scientific { border-top: 2px solid var(--teal); }
+  .domain-card.creative { border-top: 2px solid var(--purple); }
+  .domain-card.recursive { border-top: 2px solid var(--yellow); }
+  .domain-icon { font-size: 24px; margin-bottom: 8px; display: block; }
+  .domain-name { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .domain-count { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text3); margin-bottom: 10px; }
+  .agent-list { list-style: none; text-align: left; }
+  .agent-list li { font-size: 10px; color: var(--text3); padding: 2px 0; display: flex; gap: 5px; }
+  .agent-list li::before { content: '▸'; flex-shrink: 0; }
+  .personal .agent-list li::before { color: var(--green); }
+  .business .agent-list li::before { color: var(--accent2); }
+  .scientific .agent-list li::before { color: var(--teal); }
+  .creative .agent-list li::before { color: var(--purple); }
+  .recursive .agent-list li::before { color: var(--yellow); }
+
+  /* Architecture Pillars */
+  .pillar-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+  .pillar { background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px; padding: 24px; position: relative; overflow: hidden; }
+  .pillar::after { content: attr(data-num); position: absolute; right: 20px; top: 20px; font-size: 48px; font-weight: 900; font-family: 'JetBrains Mono', monospace; color: rgba(99,102,241,0.08); line-height: 1; }
+  .pillar .p-tag { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+  .pillar h3 { font-size: 18px; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, #fff 30%, var(--accent3) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .pillar p { font-size: 13px; color: var(--text3); margin-bottom: 12px; line-height: 1.6; }
+  .pillar .tech { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); background: rgba(99,102,241,0.08); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; display: inline-block; }
+
+  /* Pricing Tiers */
+  .tier-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 32px; }
+  .tier { background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px; padding: 22px; }
+  .tier.featured { border-color: var(--accent); background: rgba(99,102,241,0.06); }
+  .tier .t-name { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+  .tier.featured .t-name { color: var(--accent2); }
+  .tier .t-price { font-size: 28px; font-weight: 900; color: var(--text); line-height: 1; margin-bottom: 4px; }
+  .tier .t-price span { font-size: 14px; font-weight: 400; color: var(--text3); }
+  .tier .t-desc { font-size: 12px; color: var(--text3); margin: 10px 0 14px; line-height: 1.5; }
+  .tier hr { border: none; border-top: 1px solid var(--border2); margin-bottom: 14px; }
+  .tier ul { list-style: none; }
+  .tier ul li { font-size: 12px; color: var(--text3); padding: 4px 0; display: flex; gap: 7px; align-items: flex-start; }
+  .tier ul li::before { content: '✓'; color: var(--green); font-size: 11px; flex-shrink: 0; margin-top: 1px; }
+  .tier.featured ul li::before { color: var(--accent2); }
+
+  /* Use cases */
+  .uc-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 32px; }
+  .uc-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 18px; }
+  .uc-card .icon { font-size: 20px; margin-bottom: 8px; }
+  .uc-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .uc-card p { font-size: 11px; color: var(--text3); margin-bottom: 0; line-height: 1.6; }
+
+  .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border2); font-size: 12px; color: var(--text3); }
+  .footer .brand { font-family: 'JetBrains Mono', monospace; color: var(--accent2); }
+  @media print { html,body{background:#0a0a0f!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .page{padding:32px;} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="eyebrow"><span class="badge">Product</span><span class="badge-line"></span><span class="badge">Confidential</span></div>
+    <h1>Product Overview</h1>
+    <p class="subtitle">HyperClaw is a production-grade multi-agent AI orchestration platform. 50+ specialist agents. SOLOMON overmind. GENESIS self-expansion protocol. One enterprise-ready system built for real-world deployment from day one.</p>
+  </div>
+
+  <div class="section-label">50+ Specialist Agents Across 5 Domains</div>
+
+  <div class="domain-grid">
+    <div class="domain-card personal">
+      <span class="domain-icon">👤</span>
+      <div class="domain-name">Personal</div>
+      <div class="domain-count">5 agents</div>
+      <ul class="agent-list">
+        <li>LifeCoach</li>
+        <li>HealthAdvisor</li>
+        <li>FinanceAdvisor</li>
+        <li>TravelPlanner</li>
+        <li>LegalAdvisor</li>
+      </ul>
+    </div>
+    <div class="domain-card business">
+      <span class="domain-icon">💼</span>
+      <div class="domain-name">Business</div>
+      <div class="domain-count">6 agents</div>
+      <ul class="agent-list">
+        <li>SalesIntelligence</li>
+        <li>MarketingStrategist</li>
+        <li>OperationsOptimizer</li>
+        <li>CustomerSuccess</li>
+        <li>HRAdvisor</li>
+        <li>ExecutiveAssistant</li>
+      </ul>
+    </div>
+    <div class="domain-card scientific">
+      <span class="domain-icon">🔬</span>
+      <div class="domain-name">Scientific</div>
+      <div class="domain-count">4 agents</div>
+      <ul class="agent-list">
+        <li>ResearchAnalyst</li>
+        <li>DataScientist</li>
+        <li>BioinformaticsAgt</li>
+        <li>ClimateModeler</li>
+      </ul>
+    </div>
+    <div class="domain-card creative">
+      <span class="domain-icon">🎨</span>
+      <div class="domain-name">Creative</div>
+      <div class="domain-count">4 agents</div>
+      <ul class="agent-list">
+        <li>ContentStrategist</li>
+        <li>NarrativeWriter</li>
+        <li>BrandVoice</li>
+        <li>MediaProducer</li>
+      </ul>
+    </div>
+    <div class="domain-card recursive">
+      <span class="domain-icon">⚡</span>
+      <div class="domain-name">Recursive</div>
+      <div class="domain-count">3+ agents</div>
+      <ul class="agent-list">
+        <li>SOLOMON (Overmind)</li>
+        <li>GENESIS Builder</li>
+        <li>OrchestrationMgr</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section-label">4 Architecture Pillars</div>
+
+  <div class="pillar-grid">
+    <div class="pillar" data-num="01">
+      <div class="p-tag">State Management</div>
+      <h3>HyperState</h3>
+      <p>Typed, validated, immutable state management built on Pydantic v2. Every agent interaction is fully serializable, auditable, and reproducible. No silent failures, no mysterious state mutations.</p>
+      <span class="tech">Pydantic v2 · Supabase · Event sourcing</span>
+    </div>
+    <div class="pillar" data-num="02">
+      <div class="p-tag">Intelligent Routing</div>
+      <h3>HyperRouter</h3>
+      <p>UCB1 multi-armed bandit algorithm routes tasks to the highest-performing agent based on historical success rates. Gets smarter over time — no manual chain configuration required.</p>
+      <span class="tech">UCB1 bandit · Performance tracking · Auto-optimization</span>
+    </div>
+    <div class="pillar" data-num="03">
+      <div class="p-tag">Persistent Memory</div>
+      <h3>HyperMemory</h3>
+      <p>Causal graph memory layer powered by pgvector. Agents remember not just facts, but causal relationships — enabling temporal reasoning across multi-session, multi-agent workflows.</p>
+      <span class="tech">pgvector · Causal graphs · Semantic search</span>
+    </div>
+    <div class="pillar" data-num="04">
+      <div class="p-tag">Safety & Policy</div>
+      <h3>HyperShield</h3>
+      <p>Pre-execution policy enforcement engine. Every agent action is validated against configurable rules before it executes. Designed for compliance teams and enterprise security requirements.</p>
+      <span class="tech">Policy rules · Audit trail · Compliance-ready</span>
+    </div>
+  </div>
+
+  <div class="section-label">PROMETHEUS + SOLOMON + GENESIS — Intelligence Layer</div>
+
+  <p><strong>PROMETHEUS</strong> is HyperClaw's intelligence layer — the recursive decision-making engine that coordinates all agents and subsystems. At the apex sits <strong>SOLOMON</strong>, the overmind agent: always on, always watching, always orchestrating the full agent network. The <strong>GENESIS Protocol</strong> makes HyperClaw self-expanding — SOLOMON automatically detects capability gaps and creates new specialist agents to fill them. No other platform does this.</p>
+  <p>Three Human Gates are baked into every workflow: Ethical, Authorization, and Uncertainty (confidence &lt; 60%). Enterprise-grade guardrails that compliance teams can actually trust. The Civilization Knowledge Base ingests SOPs, org charts, job descriptions, and runbooks — giving every agent role-aware context via OrgGraph traversal.</p>
+
+  <div class="section-label">Enterprise Pricing Tiers</div>
+
+  <div class="tier-grid">
+    <div class="tier">
+      <div class="t-name">Starter</div>
+      <div class="t-price">$499<span>/mo</span></div>
+      <div class="t-desc">For teams exploring AI automation. Full platform access, limited scale.</div>
+      <hr>
+      <ul>
+        <li>All 50+ agents</li>
+        <li>HyperShield basic</li>
+        <li>5 concurrent workflows</li>
+        <li>Community support</li>
+        <li>Supabase cloud backend</li>
+      </ul>
+    </div>
+    <div class="tier featured">
+      <div class="t-name">Pro</div>
+      <div class="t-price">$1,999<span>/mo</span></div>
+      <div class="t-desc">For growing enterprises deploying AI at scale across departments.</div>
+      <hr>
+      <ul>
+        <li>All Starter features</li>
+        <li>25 concurrent workflows</li>
+        <li>HyperShield advanced</li>
+        <li>SOLOMON + GENESIS access</li>
+        <li>Priority support + SLA</li>
+        <li>Custom agent config</li>
+      </ul>
+    </div>
+    <div class="tier">
+      <div class="t-name">Enterprise</div>
+      <div class="t-price">$9,999<span>/mo</span></div>
+      <div class="t-desc">For large organizations with compliance, audit, and security requirements.</div>
+      <hr>
+      <ul>
+        <li>All Pro features</li>
+        <li>Unlimited workflows</li>
+        <li>SSO / SAML (Q2 2026)</li>
+        <li>Custom policy engine</li>
+        <li>Dedicated CSM</li>
+        <li>On-prem deployment</li>
+      </ul>
+    </div>
+    <div class="tier">
+      <div class="t-name">Sovereign</div>
+      <div class="t-price">Custom</div>
+      <div class="t-desc">Air-gapped, sovereign deployments for government and defense clients.</div>
+      <hr>
+      <ul>
+        <li>Air-gapped deployment</li>
+        <li>Custom model hosting</li>
+        <li>Full source access</li>
+        <li>Embedded team support</li>
+        <li>Classified workloads</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section-label">Primary Use Cases</div>
+
+  <div class="uc-grid">
+    <div class="uc-card">
+      <div class="icon">🏢</div>
+      <h4>Enterprise Automation</h4>
+      <p>Deploy specialized agent pipelines for sales intelligence, HR workflows, operations optimization, and customer success — all with policy-enforced guardrails.</p>
+    </div>
+    <div class="uc-card">
+      <div class="icon">🔬</div>
+      <h4>Research & Analysis</h4>
+      <p>Scientific and data science agents perform literature reviews, dataset analysis, and hypothesis generation with causal memory across sessions.</p>
+    </div>
+    <div class="uc-card">
+      <div class="icon">⚡</div>
+      <h4>Recursive Orchestration</h4>
+      <p>PROMETHEUS enables self-organizing agent networks that can decompose complex goals into sub-tasks, spawn specialist agents, and synthesize results autonomously.</p>
+    </div>
+    <div class="uc-card">
+      <div class="icon">🛡️</div>
+      <h4>Compliance-Critical AI</h4>
+      <p>HyperShield makes HyperClaw the first AI orchestration platform that compliance officers can actually approve — with full audit trails and configurable policy rules.</p>
+    </div>
+    <div class="uc-card">
+      <div class="icon">🎨</div>
+      <h4>Content at Scale</h4>
+      <p>Creative domain agents handle brand-consistent content strategy, narrative writing, and media production workflows at enterprise volume.</p>
+    </div>
+    <div class="uc-card">
+      <div class="icon">🔗</div>
+      <h4>Multi-Model Workflows</h4>
+      <p>HyperRouter intelligently selects the right LLM for each subtask — GPT-4o for reasoning, Claude for writing, Gemini for multimodal — optimizing cost and quality automatically.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p><span class="brand">HYPERCLAW</span> · Product Overview · Confidential · Q1 2026</p>
+    <p>github.com/mentatalbans/hyperclaw · MIT Licensed Core · 50+ Agents · SOLOMON · GENESIS</p>
+  </div>
+
+</div>
+</body>
+</html>

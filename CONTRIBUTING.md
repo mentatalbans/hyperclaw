@@ -5,7 +5,7 @@ HyperClaw is MIT-licensed and open for contributions. Here's how to get involved
 ## Getting Started
 
 ```bash
-git clone https://github.com/hyperclawai/hyperclaw.git
+git clone https://github.com/mentatalbans/hyperclaw.git
 cd hyperclaw
 pip install -e ".[dev]"
 pytest tests/ -v  # confirm 184/184 passing
@@ -49,4 +49,4 @@ pytest tests/ -v  # confirm 184/184 passing
 
 ## Questions?
 
-Open a [GitHub Discussion](https://github.com/hyperclawai/hyperclaw/discussions) — that's the best place for ideas, questions, and showcasing what you've built with HyperClaw.
+Open a [GitHub Discussion](https://github.com/mentatalbans/hyperclaw/discussions) — that's the best place for ideas, questions, and showcasing what you've built with HyperClaw.
