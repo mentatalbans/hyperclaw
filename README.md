@@ -5,10 +5,10 @@
 [![Tests](https://img.shields.io/badge/tests-377%20passing-brightgreen)](tests/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-v0.1.0--alpha-orange)](https://github.com/hyperclawai/hyperclaw/releases)
+[![Version](https://img.shields.io/badge/version-v0.1.0--alpha-orange)](https://github.com/mentatalbans/hyperclaw/releases)
 [![Agents](https://img.shields.io/badge/agents-50%2B-purple)](swarm/)
 [![Connectors](https://img.shields.io/badge/connectors-30%2B-blue)](integrations/)
-[![GitHub Stars](https://img.shields.io/github/stars/hyperclawai/hyperclaw?style=social)](https://github.com/hyperclawai/hyperclaw)
+[![GitHub Stars](https://img.shields.io/github/stars/mentatalbans/hyperclaw?style=social)](https://github.com/mentatalbans/hyperclaw)
 
 HyperClaw is an open-source, self-hosted multi-agent AI orchestration platform. One system. Every domain. Whether you're running a company, planning your week, managing your health, or building something new — HyperClaw brings intelligent automation to whatever matters to you.
 
@@ -18,16 +18,28 @@ HyperClaw is an open-source, self-hosted multi-agent AI orchestration platform. 
 
 ## Coming from OpenClaw?
 
-If you're running OpenClaw as your personal AI — HyperClaw is what it grows into.
+Your memory comes with you. Zero context lost. Pick up exactly where you left off.
 
-OpenClaw handles your personal life with a single intelligent agent: your calendar, communications, research, and daily operations — all in one conversational interface. HyperClaw runs your *organization* with 50+ specialists, a self-expanding swarm under the SOLOMON overmind, a GENESIS Protocol that creates new agents on demand, and a Civilization Knowledge Base that learns how your business actually works.
+One command migrates everything:
 
-The architecture is the same. The scale is not.
+```bash
+hyperclaw migrate --from openclaw
+```
+
+That's it. HyperClaw scans your OpenClaw workspace — `MEMORY.md`, `TOOLS.md`, `TASKS.md`, `CONTEXT.md`, and every daily note in `memory/` — and ingests it all into the Civilization Knowledge Base. SOLOMON already knows who you are before you type a single command. Your agent configurations carry over. Your conversation history comes with you. Your preferences, your workflows, your context — all of it.
+
+This works for vanilla OpenClaw and any OpenClaw fork or clone. If it stores memory in the standard workspace layout, HyperClaw picks it up.
+
+**What migrates automatically:**
+- Long-term memory (`MEMORY.md` → Civilization KB)
+- Daily notes (`memory/YYYY-MM-DD.md` → Civilization KB, chronologically indexed)
+- Agent tools & config (`TOOLS.md`, `CONTEXT.md` → personal context layer)
+- Open tasks (`TASKS.md` → SOLOMON's active task awareness)
+
+When you boot HyperClaw after migration, SOLOMON doesn't introduce itself as if you're new. It opens with your context already loaded — your projects, your people, your open threads. You're not starting over. You're scaling up.
 
 **OpenClaw → personal AI OS.** One agent. Your life.  
-**HyperClaw → enterprise AI orchestration.** 50+ agents. Your organization.
-
-One command still gets you started.
+**HyperClaw → enterprise AI orchestration.** 50+ agents. Your organization. Your memory intact.
 
 ---
 
@@ -40,7 +52,7 @@ pip install hyperclaw
 Or from source:
 
 ```bash
-git clone https://github.com/hyperclawai/hyperclaw.git
+git clone https://github.com/mentatalbans/hyperclaw.git
 cd hyperclaw
 pip install -e ".[dev]"
 ```
@@ -352,7 +364,7 @@ hyperclaw impact                      # Impact summary by domain
 MIT-licensed and open for contributions.
 
 ```bash
-git clone https://github.com/hyperclawai/hyperclaw.git
+git clone https://github.com/mentatalbans/hyperclaw.git
 cd hyperclaw
 pip install -e ".[dev]"
 python3 -m pytest tests/ -v
