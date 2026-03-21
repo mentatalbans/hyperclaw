@@ -16,6 +16,21 @@ HyperClaw is an open-source, self-hosted multi-agent AI orchestration platform. 
 
 ---
 
+## Coming from OpenClaw?
+
+If you're running OpenClaw as your personal AI — HyperClaw is what it grows into.
+
+OpenClaw handles your personal life with a single intelligent agent: your calendar, communications, research, and daily operations — all in one conversational interface. HyperClaw runs your *organization* with 50+ specialists, a self-expanding swarm under the SOLOMON overmind, a GENESIS Protocol that creates new agents on demand, and a Civilization Knowledge Base that learns how your business actually works.
+
+The architecture is the same. The scale is not.
+
+**OpenClaw → personal AI OS.** One agent. Your life.  
+**HyperClaw → enterprise AI orchestration.** 50+ agents. Your organization.
+
+One command still gets you started.
+
+---
+
 ## Install
 
 ```bash
