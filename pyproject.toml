@@ -20,6 +20,8 @@ dependencies = [
     "anthropic>=0.28",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
+    "fastapi>=0.109",
+    "uvicorn[standard]>=0.27",
 ]
 
 [project.optional-dependencies]
