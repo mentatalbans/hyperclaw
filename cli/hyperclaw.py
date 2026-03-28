@@ -87,8 +87,18 @@ def _get_store():
 def init(
     db_url: str = typer.Option("", "--db-url", envvar="DATABASE_URL",
                                 help="PostgreSQL connection string (or set DATABASE_URL env var)"),
+    quick: bool = typer.Option(False, "--quick", "-q", help="Skip interactive onboarding"),
 ) -> None:
-    """Initialize HyperClaw: create DB tables and default config."""
+    """Initialize HyperClaw: guided setup for first-time users."""
+    # Run interactive onboarding for first-time users
+    if not quick and not Path(".env").exists():
+        try:
+            from cli.onboarding import run_onboarding
+            run_onboarding()
+            return
+        except Exception:
+            pass  # Fall through to standard init
+
     console.print("[bold cyan]⚡ HyperClaw Init[/bold cyan]")
 
     # Write default config if not present

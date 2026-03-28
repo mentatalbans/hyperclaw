@@ -1,0 +1,23 @@
+# Render Blueprint
+# Deploy: https://render.com/deploy?repo=https://github.com/mentatalbans/hyperclaw
+
+services:
+  - type: web
+    name: hyperclaw
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: PORT
+        value: 8000
+    healthCheckPath: /health
+    autoDeploy: true
+
+databases:
+  - name: hyperclaw-db
+    plan: starter
+    postgresPlan: starter
+    ipAllowList: []
