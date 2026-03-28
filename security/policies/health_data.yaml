@@ -1,0 +1,26 @@
+profile: health_data
+network:
+  egress_allowlist: []
+  block_all_other_egress: true
+filesystem:
+  sandbox_root: "/hyperclaw/sandbox/health"
+  tmp_dir: "/tmp/hyperclaw/health"
+  block_host_reads: true
+logging:
+  log_all_inference_calls: true
+  log_file_access: true
+  log_network_requests: true
+  output: "hypermemory"
+agents:
+  VITALS:
+    egress_allowlist: []
+    require_explicit_consent: true
+    network_mode: "isolated"
+  MEDICUS:
+    egress_allowlist: []
+    require_explicit_consent: true
+    network_mode: "isolated"
+  default:
+    egress_allowlist: []
+    require_explicit_consent: true
+    network_mode: "isolated"

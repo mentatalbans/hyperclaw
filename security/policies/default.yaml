@@ -1,0 +1,43 @@
+profile: default
+network:
+  egress_allowlist:
+    - "api.anthropic.com"
+    - "chatjimmy.ai"
+    - "supabase.co"
+  block_all_other_egress: true
+filesystem:
+  sandbox_root: "/hyperclaw/sandbox"
+  tmp_dir: "/tmp/hyperclaw"
+  block_host_reads: true
+logging:
+  log_all_inference_calls: true
+  log_file_access: true
+  log_network_requests: true
+  output: "hypermemory"
+agents:
+  VITALS:
+    egress_allowlist: []
+    require_explicit_consent: true
+    network_mode: "isolated"
+  MEDICUS:
+    egress_allowlist: []
+    require_explicit_consent: true
+    network_mode: "isolated"
+  MIDAS:
+    egress_allowlist: []
+    strip_pii_from_logs: true
+    network_mode: "isolated"
+  LEDGER:
+    egress_allowlist: []
+    strip_pii_from_logs: true
+    network_mode: "isolated"
+  SCOUT:
+    egress_allowlist:
+      - "arxiv.org"
+      - "pubmed.ncbi.nlm.nih.gov"
+      - "api.github.com"
+      - "news.ycombinator.com"
+    network_mode: "read_only"
+  ALCHEMIST:
+    egress_allowlist: []
+    network_mode: "isolated"

@@ -1,0 +1,26 @@
+profile: financial_data
+network:
+  egress_allowlist: []
+  block_all_other_egress: true
+filesystem:
+  sandbox_root: "/hyperclaw/sandbox/finance"
+  tmp_dir: "/tmp/hyperclaw/finance"
+  block_host_reads: true
+logging:
+  log_all_inference_calls: true
+  log_file_access: true
+  log_network_requests: true
+  output: "hypermemory"
+agents:
+  MIDAS:
+    egress_allowlist: []
+    strip_pii_from_logs: true
+    network_mode: "isolated"
+  LEDGER:
+    egress_allowlist: []
+    strip_pii_from_logs: true
+    network_mode: "isolated"
+  default:
+    egress_allowlist: []
+    strip_pii_from_logs: true
+    network_mode: "isolated"
