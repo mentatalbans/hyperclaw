@@ -1,7 +1,6 @@
 """
-AgentRegistry — Full 50-Agent HyperSwarm Registry
-All agents carry the Assistant AGI Framework: proactive, resourceful, opinionated, memory-aware.
-Last updated: 2026-03-28
+AgentRegistry — HyperSwarm Registry
+Specialist AI agents with shared dependencies.
 """
 from __future__ import annotations
 
@@ -54,16 +53,10 @@ class AgentRegistry:
         hyper_shield: "HyperShield",
     ) -> "AgentRegistry":
         """
-        Instantiate and register all 50 specialist agents with shared dependencies.
-        AGI Framework applied to all agents via BaseAgent.
+        Instantiate and register all specialist agents with shared dependencies.
         """
         registry = cls()
         deps = (model_router, state_manager, causal_graph, hyper_shield)
-
-        # ── EXECUTIVE TIER (3) ───────────────────────────────────────────────
-        from swarm.agents.executive.gil import GilAgent
-        from swarm.agents.executive.solomon import SolomonAgent
-        from swarm.agents.executive.genesis import GenesisAgent
 
         # ── PERSONAL (6) ─────────────────────────────────────────────────────
         from swarm.agents.personal.atlas import AtlasAgent
@@ -91,11 +84,6 @@ class AgentRegistry:
         from swarm.agents.comms.envoy import EnvoyAgent
         from swarm.agents.comms.cipher import CipherAgent
         from swarm.agents.comms.herald_scheduler import HeraldSchedulerAgent
-
-        # ── INTELLIGENCE (3) ─────────────────────────────────────────────────
-        from swarm.agents.intelligence.prophet import ProphetAgent
-        from swarm.agents.intelligence.arbiter import ArbiterAgent
-        from swarm.agents.intelligence.sentinel import SentinelAgent
 
         # ── SCIENTIFIC (5) ───────────────────────────────────────────────────
         from swarm.agents.scientific.medicus import MedicusAgent
@@ -125,10 +113,6 @@ class AgentRegistry:
         from swarm.agents.talent.stage import StageAgent
 
         all_agents = [
-            # Executive (3)
-            GilAgent(*deps),
-            SolomonAgent(*deps),
-            GenesisAgent(*deps),
             # Personal (6)
             AtlasAgent(*deps),
             MidasAgent(*deps),
@@ -153,10 +137,6 @@ class AgentRegistry:
             EnvoyAgent(*deps),
             CipherAgent(*deps),
             HeraldSchedulerAgent(*deps),
-            # Intelligence (3)
-            ProphetAgent(*deps),
-            ArbiterAgent(*deps),
-            SentinelAgent(*deps),
             # Scientific (5)
             MedicusAgent(*deps),
             CosmosAgent(*deps),
