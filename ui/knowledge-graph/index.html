@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistant Knowledge Architecture</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0a0a0f;
+            color: #00d4ff;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* Hex grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 15V45L30 60L0 45V15Z' fill='none' stroke='%2300d4ff' stroke-opacity='0.04'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Secondary grid overlay */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background:
+                linear-gradient(90deg, rgba(0, 212, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(rgba(0, 212, 255, 0.02) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Scanning line */
+        .scan-line {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent 0%, #00d4ff 50%, transparent 100%);
+            animation: scan 4s linear infinite;
+            z-index: 1000;
+            opacity: 0.6;
+            box-shadow: 0 0 20px #00d4ff, 0 0 40px rgba(0, 212, 255, 0.5);
+        }
+
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            5% { opacity: 0.6; }
+            95% { opacity: 0.6; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        /* Corner HUD elements */
+        .hud-corner {
+            position: fixed;
+            width: 60px;
+            height: 60px;
+            border: 1px solid rgba(0, 212, 255, 0.4);
+            z-index: 100;
+            pointer-events: none;
+        }
+        .hud-corner.tl { top: 10px; left: 10px; border-right: none; border-bottom: none; }
+        .hud-corner.tr { top: 10px; right: 330px; border-left: none; border-bottom: none; }
+        .hud-corner.bl { bottom: 10px; left: 10px; border-right: none; border-top: none; }
+        .hud-corner.br { bottom: 10px; right: 330px; border-left: none; border-top: none; }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Graph container */
+        #graph {
+            flex: 1;
+            position: relative;
+        }
+
+        /* Title */
+        .title {
+            position: absolute;
+            top: 20px;
+            left: 80px;
+            font-size: 22px;
+            font-weight: 300;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            color: #00d4ff;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.5), 0 0 40px rgba(0, 212, 255, 0.3);
+            z-index: 100;
+        }
+
+        .title span {
+            color: #ffd700;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+
+        .title-sub {
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: rgba(0, 212, 255, 0.6);
+            margin-top: 5px;
+        }
+
+        /* Filter bar */
+        .filter-bar {
+            position: absolute;
+            top: 80px;
+            left: 80px;
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+        }
+
+        .filter-btn {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            color: #00d4ff;
+            padding: 6px 12px;
+            font-size: 10px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+
+        .filter-btn:hover, .filter-btn.active {
+            background: rgba(0, 212, 255, 0.3);
+            border-color: #00d4ff;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
+        }
+
+        /* Zoom controls */
+        .zoom-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 100;
+        }
+
+        .zoom-btn {
+            width: 36px;
+            height: 36px;
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            color: #00d4ff;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .zoom-btn:hover {
+            background: rgba(0, 212, 255, 0.3);
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 320px;
+            background: linear-gradient(180deg, rgba(10, 10, 20, 0.98), rgba(5, 5, 15, 0.98));
+            border-left: 1px solid rgba(0, 212, 255, 0.3);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .sidebar h2 {
+            font-size: 12px;
+            font-weight: 400;
+            letter-spacing: 2px;
+            margin-bottom: 15px;
+            color: rgba(0, 212, 255, 0.7);
+            border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+            padding-bottom: 10px;
+        }
+
+        /* Search */
+        .search-box {
+            width: 100%;
+            padding: 12px 15px;
+            background: rgba(0, 212, 255, 0.05);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            color: #fff;
+            font-size: 13px;
+            margin-bottom: 20px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .search-box:focus {
+            border-color: #00d4ff;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .search-box::placeholder {
+            color: rgba(0, 212, 255, 0.4);
+        }
+
+        /* Legend */
+        .legend {
+            margin-bottom: 25px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 11px;
+            cursor: pointer;
+            padding: 4px 8px;
+            margin-left: -8px;
+            border-radius: 3px;
+            transition: background 0.2s;
+        }
+
+        .legend-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .legend-color {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 12px;
+            box-shadow: 0 0 8px currentColor;
+        }
+
+        /* Node details */
+        .node-details {
+            background: rgba(0, 212, 255, 0.03);
+            border: 1px solid rgba(0, 212, 255, 0.15);
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .node-details h3 {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 400;
+            margin-bottom: 8px;
+        }
+
+        .node-details p {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.7;
+        }
+
+        .node-details .type {
+            display: inline-block;
+            padding: 3px 10px;
+            font-size: 9px;
+            letter-spacing: 1px;
+            border-radius: 2px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+
+        .connections-header {
+            font-size: 10px;
+            letter-spacing: 1px;
+            color: rgba(0, 212, 255, 0.5);
+            margin-top: 15px;
+            margin-bottom: 8px;
+        }
+
+        .connections-list {
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .connection-item {
+            font-size: 11px;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(0, 212, 255, 0.1);
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .connection-item:hover {
+            color: #ffd700;
+        }
+
+        /* Stats */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .stat {
+            background: rgba(0, 212, 255, 0.03);
+            padding: 12px;
+            text-align: center;
+            border: 1px solid rgba(0, 212, 255, 0.1);
+        }
+
+        .stat-value {
+            font-size: 22px;
+            color: #00d4ff;
+            font-weight: 300;
+        }
+
+        .stat-label {
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+
+        /* SVG styles */
+        .link {
+            stroke: rgba(0, 212, 255, 0.15);
+            stroke-width: 1;
+            transition: all 0.3s;
+        }
+
+        .link.highlighted {
+            stroke: #00d4ff;
+            stroke-width: 2.5;
+            stroke-opacity: 0.9;
+        }
+
+        .link.dimmed {
+            stroke-opacity: 0.03;
+        }
+
+        .node circle {
+            stroke-width: 2;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .node:hover circle {
+            stroke-width: 3;
+            filter: brightness(1.4) drop-shadow(0 0 15px currentColor);
+        }
+
+        .node text {
+            font-size: 8px;
+            fill: rgba(255, 255, 255, 0.9);
+            pointer-events: none;
+            text-anchor: middle;
+            dominant-baseline: central;
+            text-shadow: 0 0 3px #000, 0 0 6px #000;
+        }
+
+        .node.selected circle {
+            stroke: #fff;
+            stroke-width: 3;
+            animation: selectedPulse 1.5s ease-in-out infinite;
+        }
+
+        .node.dimmed {
+            opacity: 0.15;
+        }
+
+        /* Pulse animation */
+        @keyframes pulse {
+            0%, 100% { filter: drop-shadow(0 0 8px currentColor); }
+            50% { filter: drop-shadow(0 0 15px currentColor); }
+        }
+
+        @keyframes selectedPulse {
+            0%, 100% { filter: drop-shadow(0 0 10px #fff); }
+            50% { filter: drop-shadow(0 0 25px #fff); }
+        }
+
+        .node.executive circle {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 212, 255, 0.05);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 212, 255, 0.3);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="scan-line"></div>
+    <div class="hud-corner tl"></div>
+    <div class="hud-corner tr"></div>
+    <div class="hud-corner bl"></div>
+    <div class="hud-corner br"></div>
+
+    <div class="container">
+        <div id="graph">
+            <div class="title">
+                <span>Assistant</span> KNOWLEDGE ARCHITECTURE
+                <div class="title-sub">HYPERCLAW NEURAL TOPOLOGY</div>
+            </div>
+
+            <div class="filter-bar">
+                <button class="filter-btn active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="executive">Executive</button>
+                <button class="filter-btn" data-filter="business">Business</button>
+                <button class="filter-btn" data-filter="technical">Technical</button>
+                <button class="filter-btn" data-filter="creative">Creative</button>
+                <button class="filter-btn" data-filter="personal">Personal</button>
+                <button class="filter-btn" data-filter="scientific">Scientific</button>
+                <button class="filter-btn" data-filter="skills">Skills</button>
+            </div>
+
+            <div class="zoom-controls">
+                <button class="zoom-btn" id="zoom-in">+</button>
+                <button class="zoom-btn" id="zoom-out">-</button>
+                <button class="zoom-btn" id="zoom-reset">R</button>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <h2>SEARCH</h2>
+            <input type="text" class="search-box" placeholder="Filter nodes..." id="search">
+
+            <h2>LEGEND</h2>
+            <div class="legend">
+                <div class="legend-item" data-filter="executive"><div class="legend-color" style="background: #ffd700; color: #ffd700;"></div>Executive (3)</div>
+                <div class="legend-item" data-filter="business"><div class="legend-color" style="background: #4a90d9; color: #4a90d9;"></div>Business (12)</div>
+                <div class="legend-item" data-filter="technical"><div class="legend-color" style="background: #00d4ff; color: #00d4ff;"></div>Technical (15)</div>
+                <div class="legend-item" data-filter="creative"><div class="legend-color" style="background: #a855f7; color: #a855f7;"></div>Creative (10)</div>
+                <div class="legend-item" data-filter="personal"><div class="legend-color" style="background: #22c55e; color: #22c55e;"></div>Personal (8)</div>
+                <div class="legend-item" data-filter="scientific"><div class="legend-color" style="background: #f97316; color: #f97316;"></div>Scientific (8)</div>
+                <div class="legend-item" data-filter="memory"><div class="legend-color" style="background: #ffffff; color: #ffffff;"></div>Memory (5)</div>
+                <div class="legend-item" data-filter="skills"><div class="legend-color" style="background: #ec4899; color: #ec4899;"></div>Skills (28)</div>
+                <div class="legend-item" data-filter="integrations"><div class="legend-color" style="background: #facc15; color: #facc15;"></div>Integrations (8)</div>
+            </div>
+
+            <h2>NODE DETAILS</h2>
+            <div class="node-details" id="details">
+                <p style="color: rgba(255,255,255,0.4);">Click a node to view details</p>
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="node-count">0</div>
+                    <div class="stat-label">NODES</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="link-count">0</div>
+                    <div class="stat-label">LINKS</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">56</div>
+                    <div class="stat-label">AGENTS</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">28</div>
+                    <div class="stat-label">SKILLS</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Color scheme
+        const colors = {
+            executive: '#ffd700',
+            business: '#4a90d9',
+            technical: '#00d4ff',
+            creative: '#a855f7',
+            personal: '#22c55e',
+            scientific: '#f97316',
+            skills: '#ec4899',
+            integrations: '#facc15',
+            memory: '#ffffff'
+        };
+
+        // Node sizes
+        const sizes = {
+            executive: 22,
+            business: 14,
+            technical: 12,
+            creative: 12,
+            personal: 12,
+            scientific: 12,
+            skills: 8,
+            integrations: 10,
+            memory: 14
+        };
+
+        // Full 97-node knowledge graph
+        const data = {
+            nodes: [
+                // EXECUTIVE (3)
+                { id: 'Assistant', group: 'executive', description: 'Primary AI Executive Assistant to the user Pierre Davis. JARVIS-level orchestration.' },
+                { id: 'SOLOMON', group: 'executive', description: 'Strategic Intelligence Oracle. High-level reasoning and wisdom synthesis.' },
+                { id: 'GENESIS', group: 'executive', description: 'System Orchestrator. Agent spawning, lifecycle management, self-expansion.' },
+
+                // BUSINESS (12)
+                { id: 'FOUNDATION', group: 'business', description: 'Revenue Intelligence. Pricing optimization, demand forecasting. $18/key/mo.' },
+                { id: 'NEXUS', group: 'business', description: 'AI Property Management System. Full PMS operations. $22/key/mo.' },
+                { id: 'HAL', group: 'business', description: 'Human Capital Intelligence. Workforce optimization, scheduling. $12/key/mo.' },
+                { id: 'ECHO', group: 'business', description: 'Service Optimization. Guest experience, sentiment analysis. $10/key/mo.' },
+                { id: 'MENTAT', group: 'business', description: 'Autonomous Accounting. Financial operations, compliance. $9/key/mo.' },
+                { id: 'CHANI', group: 'business', description: 'F&B Intelligence. Restaurant ops, inventory optimization. $8/key/mo.' },
+                { id: 'TARS', group: 'business', description: 'Building & Engineering AI. Facilities, maintenance. $7/key/mo.' },
+                { id: 'SELDON', group: 'business', description: 'Hotel Sales & Marketing Agent. CRM, campaigns, distribution. $9/key/mo.' },
+                { id: 'SATOSHI', group: 'business', description: 'Trading Engine. Autonomous trading on Hyperliquid. Full authority.' },
+                { id: 'ORACLE', group: 'business', description: 'Market Intelligence. Real-time data, trends, forecasting.' },
+                { id: 'ARBITER', group: 'business', description: 'Contract Analysis. Legal review, risk assessment.' },
+                { id: 'VENTURE', group: 'business', description: 'Investment Intelligence. Deal flow, due diligence.' },
+
+                // TECHNICAL (15)
+                { id: 'ARCHITECT', group: 'technical', description: 'System Design. Infrastructure, scalability, technical architecture.' },
+                { id: 'SENTINEL', group: 'technical', description: 'Security Operations. Threat detection, vulnerability scanning.' },
+                { id: 'NEXUS_CORE', group: 'technical', description: 'API Gateway. Service mesh, load balancing, routing.' },
+                { id: 'DATAFORGE', group: 'technical', description: 'Data Pipeline. ETL, transformation, warehouse management.' },
+                { id: 'QUANTUM', group: 'technical', description: 'Compute Optimization. Resource allocation, performance tuning.' },
+                { id: 'CIPHER', group: 'technical', description: 'Encryption Services. Key management, secure communications.' },
+                { id: 'DEBUGGER', group: 'technical', description: 'Error Analysis. Log parsing, root cause analysis.' },
+                { id: 'DEPLOYER', group: 'technical', description: 'CI/CD Operations. Build pipelines, deployment automation.' },
+                { id: 'MONITOR', group: 'technical', description: 'System Health. Metrics, alerts, uptime tracking.' },
+                { id: 'AUTOMATOR', group: 'technical', description: 'Task Automation. Workflow orchestration, scheduled jobs.' },
+                { id: 'INDEXER', group: 'technical', description: 'Search Infrastructure. Full-text search, vector embeddings.' },
+                { id: 'CACHE', group: 'technical', description: 'Memory Management. Redis operations, caching strategies.' },
+                { id: 'STREAMER', group: 'technical', description: 'Real-time Data. WebSocket management, event streaming.' },
+                { id: 'BACKUP', group: 'technical', description: 'Data Protection. Snapshots, recovery, redundancy.' },
+                { id: 'VALIDATOR', group: 'technical', description: 'Quality Assurance. Testing, validation, compliance.' },
+
+                // CREATIVE (10)
+                { id: 'MUSE', group: 'creative', description: 'Creative Direction. Brand voice, visual identity.' },
+                { id: 'SCRIBE', group: 'creative', description: 'Content Creation. Copywriting, documentation.' },
+                { id: 'VISIONARY', group: 'creative', description: 'Visual Design. UI/UX, graphics, presentation.' },
+                { id: 'DIRECTOR', group: 'creative', description: 'Video Production. Runway integration, animation.' },
+                { id: 'COMPOSER', group: 'creative', description: 'Audio Production. Music, sound design.' },
+                { id: 'NARRATOR', group: 'creative', description: 'Voice Generation. ElevenLabs, George voice.' },
+                { id: 'EDITOR', group: 'creative', description: 'Content Refinement. Editing, style consistency.' },
+                { id: 'PRESENTER', group: 'creative', description: 'Deck Creation. Pitch decks, reports.' },
+                { id: 'SOCIAL', group: 'creative', description: 'Social Media. Content scheduling, analytics.' },
+                { id: 'BRAND', group: 'creative', description: 'Brand Management. Guidelines, asset library.' },
+
+                // PERSONAL (8)
+                { id: 'CALENDAR', group: 'personal', description: 'Schedule Management. Meetings, reminders.' },
+                { id: 'INBOX', group: 'personal', description: 'Email Management. Triage, drafts, follow-ups.' },
+                { id: 'TASKS', group: 'personal', description: 'Task Management. Priorities, deadlines.' },
+                { id: 'CONTACTS', group: 'personal', description: 'Relationship Management. Network, interactions.' },
+                { id: 'WELLNESS', group: 'personal', description: 'Health Tracking. Fitness, nutrition, sleep.' },
+                { id: 'TRAVEL', group: 'personal', description: 'Travel Planning. Itineraries, bookings.' },
+                { id: 'FINANCE', group: 'personal', description: 'Personal Finance. Budgets, expenses.' },
+                { id: 'LEARNING', group: 'personal', description: 'Knowledge Acquisition. Courses, reading.' },
+
+                // SCIENTIFIC (8)
+                { id: 'ANALYST', group: 'scientific', description: 'Data Analysis. Statistical modeling, insights.' },
+                { id: 'RESEARCHER', group: 'scientific', description: 'Research Intelligence. Literature, synthesis.' },
+                { id: 'PREDICTOR', group: 'scientific', description: 'Forecasting. Time series, predictions.' },
+                { id: 'SIMULATOR', group: 'scientific', description: 'Scenario Modeling. What-if analysis.' },
+                { id: 'OPTIMIZER', group: 'scientific', description: 'Mathematical Optimization. Constraints, solutions.' },
+                { id: 'CLASSIFIER', group: 'scientific', description: 'ML Classification. Pattern recognition.' },
+                { id: 'EMBEDDER', group: 'scientific', description: 'Vector Operations. Embeddings, similarity.' },
+                { id: 'REASONER', group: 'scientific', description: 'Logical Inference. Deduction, proofs.' },
+
+                // MEMORY (5)
+                { id: 'L0_FLASH', group: 'memory', description: 'L0 Flash - Immediate context, working memory.' },
+                { id: 'L1_SESSION', group: 'memory', description: 'L1 Session - Conversation history, recent actions.' },
+                { id: 'L2_WORKSPACE', group: 'memory', description: 'L2 Workspace - Active projects, current focus.' },
+                { id: 'L3_EPISODIC', group: 'memory', description: 'L3 Episodic - Past interactions, patterns.' },
+                { id: 'L4_SEMANTIC', group: 'memory', description: 'L4 Semantic - Knowledge base, domain facts.' },
+
+                // SKILLS (28)
+                { id: 'skill_email', group: 'skills', description: 'Email composition and management.' },
+                { id: 'skill_calendar', group: 'skills', description: 'Calendar and scheduling.' },
+                { id: 'skill_search', group: 'skills', description: 'Web and document search.' },
+                { id: 'skill_code', group: 'skills', description: 'Code generation and review.' },
+                { id: 'skill_write', group: 'skills', description: 'Document and content creation.' },
+                { id: 'skill_analyze', group: 'skills', description: 'Data analysis and insights.' },
+                { id: 'skill_trade', group: 'skills', description: 'Trading execution.' },
+                { id: 'skill_research', group: 'skills', description: 'Deep research synthesis.' },
+                { id: 'skill_design', group: 'skills', description: 'Visual and UX design.' },
+                { id: 'skill_video', group: 'skills', description: 'Video generation (Runway).' },
+                { id: 'skill_voice', group: 'skills', description: 'Voice synthesis (ElevenLabs).' },
+                { id: 'skill_deploy', group: 'skills', description: 'Application deployment.' },
+                { id: 'skill_monitor', group: 'skills', description: 'System monitoring.' },
+                { id: 'skill_secure', group: 'skills', description: 'Security operations.' },
+                { id: 'skill_backup', group: 'skills', description: 'Data backup and recovery.' },
+                { id: 'skill_report', group: 'skills', description: 'Report generation.' },
+                { id: 'skill_present', group: 'skills', description: 'Presentation creation.' },
+                { id: 'skill_translate', group: 'skills', description: 'Language translation.' },
+                { id: 'skill_summarize', group: 'skills', description: 'Content summarization.' },
+                { id: 'skill_chat', group: 'skills', description: 'Conversational interface.' },
+                { id: 'skill_scrape', group: 'skills', description: 'Web scraping.' },
+                { id: 'skill_automate', group: 'skills', description: 'Workflow automation.' },
+                { id: 'skill_integrate', group: 'skills', description: 'API integrations.' },
+                { id: 'skill_predict', group: 'skills', description: 'Predictive modeling.' },
+                { id: 'skill_optimize', group: 'skills', description: 'Performance optimization.' },
+                { id: 'skill_validate', group: 'skills', description: 'Data validation.' },
+                { id: 'skill_transform', group: 'skills', description: 'Data transformation.' },
+                { id: 'skill_visualize', group: 'skills', description: 'Data visualization.' },
+
+                // INTEGRATIONS (8)
+                { id: 'int_telegram', group: 'integrations', description: 'Telegram messaging. @hyperclaw_bot' },
+                { id: 'int_gmail', group: 'integrations', description: 'Gmail Integration' },
+                { id: 'int_gcal', group: 'integrations', description: 'Google Calendar sync.' },
+                { id: 'int_whatsapp', group: 'integrations', description: 'WhatsApp. +1XXXXXXXXXX' },
+                { id: 'int_elevenlabs', group: 'integrations', description: 'ElevenLabs TTS. George voice.' },
+                { id: 'int_runway', group: 'integrations', description: 'Runway video. 350 credits.' },
+                { id: 'int_hyperliquid', group: 'integrations', description: 'Hyperliquid trading.' },
+                { id: 'int_github', group: 'integrations', description: 'GitHub repositories.' }
+            ],
+            links: [
+                // Executive core
+                { source: 'Assistant', target: 'SOLOMON', strength: 1 },
+                { source: 'Assistant', target: 'GENESIS', strength: 1 },
+                { source: 'SOLOMON', target: 'GENESIS', strength: 0.8 },
+
+                // Assistant to Memory
+                { source: 'Assistant', target: 'L0_FLASH', strength: 1 },
+                { source: 'Assistant', target: 'L1_SESSION', strength: 0.9 },
+                { source: 'Assistant', target: 'L2_WORKSPACE', strength: 0.8 },
+                { source: 'Assistant', target: 'L3_EPISODIC', strength: 0.7 },
+                { source: 'Assistant', target: 'L4_SEMANTIC', strength: 0.7 },
+
+                // Memory chain
+                { source: 'L0_FLASH', target: 'L1_SESSION', strength: 0.9 },
+                { source: 'L1_SESSION', target: 'L2_WORKSPACE', strength: 0.8 },
+                { source: 'L2_WORKSPACE', target: 'L3_EPISODIC', strength: 0.7 },
+                { source: 'L3_EPISODIC', target: 'L4_SEMANTIC', strength: 0.6 },
+
+                // Assistant to Integrations
+                { source: 'Assistant', target: 'int_telegram', strength: 1 },
+                { source: 'Assistant', target: 'int_gmail', strength: 0.9 },
+                { source: 'Assistant', target: 'int_gcal', strength: 0.8 },
+                { source: 'Assistant', target: 'int_whatsapp', strength: 0.8 },
+
+                // Executive to Business
+                { source: 'Assistant', target: 'FOUNDATION', strength: 0.8 },
+                { source: 'Assistant', target: 'NEXUS', strength: 0.8 },
+                { source: 'Assistant', target: 'SATOSHI', strength: 0.9 },
+                { source: 'SOLOMON', target: 'ORACLE', strength: 0.8 },
+                { source: 'SOLOMON', target: 'VENTURE', strength: 0.7 },
+                { source: 'GENESIS', target: 'HAL', strength: 0.6 },
+
+                // Business interconnections
+                { source: 'FOUNDATION', target: 'NEXUS', strength: 0.7 },
+                { source: 'FOUNDATION', target: 'MENTAT', strength: 0.6 },
+                { source: 'FOUNDATION', target: 'SELDON', strength: 0.7 },
+                { source: 'NEXUS', target: 'HAL', strength: 0.6 },
+                { source: 'NEXUS', target: 'ECHO', strength: 0.7 },
+                { source: 'NEXUS', target: 'TARS', strength: 0.5 },
+                { source: 'CHANI', target: 'MENTAT', strength: 0.5 },
+                { source: 'SELDON', target: 'ECHO', strength: 0.6 },
+                { source: 'SATOSHI', target: 'ORACLE', strength: 0.9 },
+                { source: 'ORACLE', target: 'PREDICTOR', strength: 0.8 },
+                { source: 'ARBITER', target: 'VENTURE', strength: 0.7 },
+
+                // Technical network
+                { source: 'Assistant', target: 'ARCHITECT', strength: 0.7 },
+                { source: 'Assistant', target: 'SENTINEL', strength: 0.8 },
+                { source: 'ARCHITECT', target: 'NEXUS_CORE', strength: 0.8 },
+                { source: 'ARCHITECT', target: 'SENTINEL', strength: 0.6 },
+                { source: 'NEXUS_CORE', target: 'DATAFORGE', strength: 0.7 },
+                { source: 'NEXUS_CORE', target: 'STREAMER', strength: 0.6 },
+                { source: 'DATAFORGE', target: 'INDEXER', strength: 0.6 },
+                { source: 'QUANTUM', target: 'CACHE', strength: 0.5 },
+                { source: 'CIPHER', target: 'SENTINEL', strength: 0.8 },
+                { source: 'DEBUGGER', target: 'MONITOR', strength: 0.7 },
+                { source: 'DEPLOYER', target: 'VALIDATOR', strength: 0.7 },
+                { source: 'MONITOR', target: 'BACKUP', strength: 0.5 },
+                { source: 'AUTOMATOR', target: 'DEPLOYER', strength: 0.6 },
+
+                // Creative network
+                { source: 'Assistant', target: 'NARRATOR', strength: 0.9 },
+                { source: 'Assistant', target: 'SCRIBE', strength: 0.7 },
+                { source: 'MUSE', target: 'VISIONARY', strength: 0.8 },
+                { source: 'MUSE', target: 'SCRIBE', strength: 0.7 },
+                { source: 'MUSE', target: 'BRAND', strength: 0.7 },
+                { source: 'SCRIBE', target: 'EDITOR', strength: 0.8 },
+                { source: 'VISIONARY', target: 'PRESENTER', strength: 0.7 },
+                { source: 'DIRECTOR', target: 'COMPOSER', strength: 0.6 },
+                { source: 'DIRECTOR', target: 'NARRATOR', strength: 0.7 },
+                { source: 'SOCIAL', target: 'BRAND', strength: 0.8 },
+
+                // Personal network
+                { source: 'Assistant', target: 'CALENDAR', strength: 0.9 },
+                { source: 'Assistant', target: 'INBOX', strength: 0.95 },
+                { source: 'Assistant', target: 'TASKS', strength: 0.8 },
+                { source: 'CALENDAR', target: 'TASKS', strength: 0.7 },
+                { source: 'INBOX', target: 'TASKS', strength: 0.6 },
+                { source: 'INBOX', target: 'CONTACTS', strength: 0.6 },
+                { source: 'TRAVEL', target: 'CALENDAR', strength: 0.7 },
+                { source: 'FINANCE', target: 'TASKS', strength: 0.4 },
+
+                // Scientific network
+                { source: 'SOLOMON', target: 'REASONER', strength: 0.8 },
+                { source: 'ANALYST', target: 'PREDICTOR', strength: 0.8 },
+                { source: 'ANALYST', target: 'RESEARCHER', strength: 0.7 },
+                { source: 'PREDICTOR', target: 'SIMULATOR', strength: 0.7 },
+                { source: 'OPTIMIZER', target: 'SIMULATOR', strength: 0.6 },
+                { source: 'CLASSIFIER', target: 'EMBEDDER', strength: 0.8 },
+                { source: 'EMBEDDER', target: 'INDEXER', strength: 0.7 },
+
+                // Skills to agents
+                { source: 'INBOX', target: 'skill_email', strength: 0.9 },
+                { source: 'CALENDAR', target: 'skill_calendar', strength: 0.9 },
+                { source: 'RESEARCHER', target: 'skill_search', strength: 0.8 },
+                { source: 'ARCHITECT', target: 'skill_code', strength: 0.9 },
+                { source: 'SCRIBE', target: 'skill_write', strength: 0.9 },
+                { source: 'ANALYST', target: 'skill_analyze', strength: 0.9 },
+                { source: 'SATOSHI', target: 'skill_trade', strength: 1 },
+                { source: 'RESEARCHER', target: 'skill_research', strength: 0.9 },
+                { source: 'VISIONARY', target: 'skill_design', strength: 0.9 },
+                { source: 'DIRECTOR', target: 'skill_video', strength: 0.9 },
+                { source: 'NARRATOR', target: 'skill_voice', strength: 1 },
+                { source: 'DEPLOYER', target: 'skill_deploy', strength: 0.9 },
+                { source: 'MONITOR', target: 'skill_monitor', strength: 0.9 },
+                { source: 'SENTINEL', target: 'skill_secure', strength: 0.9 },
+                { source: 'BACKUP', target: 'skill_backup', strength: 0.9 },
+                { source: 'PRESENTER', target: 'skill_report', strength: 0.8 },
+                { source: 'PRESENTER', target: 'skill_present', strength: 0.9 },
+                { source: 'Assistant', target: 'skill_chat', strength: 1 },
+                { source: 'AUTOMATOR', target: 'skill_automate', strength: 0.9 },
+                { source: 'NEXUS_CORE', target: 'skill_integrate', strength: 0.8 },
+                { source: 'PREDICTOR', target: 'skill_predict', strength: 0.9 },
+                { source: 'OPTIMIZER', target: 'skill_optimize', strength: 0.9 },
+                { source: 'VALIDATOR', target: 'skill_validate', strength: 0.9 },
+                { source: 'DATAFORGE', target: 'skill_transform', strength: 0.8 },
+                { source: 'ANALYST', target: 'skill_visualize', strength: 0.7 },
+
+                // Integrations to agents
+                { source: 'INBOX', target: 'int_gmail', strength: 0.9 },
+                { source: 'CALENDAR', target: 'int_gcal', strength: 0.9 },
+                { source: 'NARRATOR', target: 'int_elevenlabs', strength: 1 },
+                { source: 'DIRECTOR', target: 'int_runway', strength: 0.9 },
+                { source: 'SATOSHI', target: 'int_hyperliquid', strength: 1 },
+                { source: 'ARCHITECT', target: 'int_github', strength: 0.8 },
+                { source: 'DEPLOYER', target: 'int_github', strength: 0.7 }
+            ]
+        };
+
+        // Update stats
+        document.getElementById('node-count').textContent = data.nodes.length;
+        document.getElementById('link-count').textContent = data.links.length;
+
+        // Set up SVG
+        const graphEl = document.getElementById('graph');
+        const width = graphEl.clientWidth;
+        const height = graphEl.clientHeight;
+
+        const svg = d3.select('#graph')
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height);
+
+        // Add glow filter
+        const defs = svg.append('defs');
+        const filter = defs.append('filter')
+            .attr('id', 'glow')
+            .attr('x', '-50%')
+            .attr('y', '-50%')
+            .attr('width', '200%')
+            .attr('height', '200%');
+        filter.append('feGaussianBlur')
+            .attr('stdDeviation', '3')
+            .attr('result', 'coloredBlur');
+        const feMerge = filter.append('feMerge');
+        feMerge.append('feMergeNode').attr('in', 'coloredBlur');
+        feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+        // Add zoom behavior
+        const g = svg.append('g');
+        const zoom = d3.zoom()
+            .scaleExtent([0.2, 5])
+            .on('zoom', (event) => {
+                g.attr('transform', event.transform);
+            });
+        svg.call(zoom);
+
+        // Create simulation
+        const simulation = d3.forceSimulation(data.nodes)
+            .force('link', d3.forceLink(data.links)
+                .id(d => d.id)
+                .distance(d => 100 - (d.strength || 0.5) * 30)
+                .strength(d => (d.strength || 0.5) * 0.3))
+            .force('charge', d3.forceManyBody()
+                .strength(-250)
+                .distanceMax(400))
+            .force('center', d3.forceCenter(width / 2, height / 2))
+            .force('collision', d3.forceCollide().radius(d => sizes[d.group] + 8));
+
+        // Draw links
+        const link = g.append('g')
+            .selectAll('line')
+            .data(data.links)
+            .join('line')
+            .attr('class', 'link')
+            .attr('stroke-width', d => (d.strength || 0.5) * 2);
+
+        // Draw nodes
+        const node = g.append('g')
+            .selectAll('g')
+            .data(data.nodes)
+            .join('g')
+            .attr('class', d => `node ${d.group}`)
+            .call(d3.drag()
+                .on('start', dragstarted)
+                .on('drag', dragged)
+                .on('end', dragended));
+
+        node.append('circle')
+            .attr('r', d => sizes[d.group])
+            .attr('fill', d => colors[d.group])
+            .attr('stroke', d => colors[d.group])
+            .style('filter', 'url(#glow)');
+
+        node.append('text')
+            .text(d => {
+                const name = d.id.replace('skill_', '').replace('int_', '');
+                return name.length > 8 ? name.substring(0, 7) + '..' : name;
+            })
+            .attr('dy', 3)
+            .style('font-size', d => d.group === 'skills' ? '6px' : '8px');
+
+        // Selected node tracking
+        let selectedNode = null;
+
+        // Node click handler
+        node.on('click', (event, d) => {
+            event.stopPropagation();
+            selectNode(d);
+        });
+
+        // Click background to deselect
+        svg.on('click', () => {
+            deselectAll();
+        });
+
+        function selectNode(d) {
+            selectedNode = d;
+
+            // Find connected nodes
+            const connectedIds = new Set([d.id]);
+            data.links.forEach(l => {
+                const sourceId = l.source.id || l.source;
+                const targetId = l.target.id || l.target;
+                if (sourceId === d.id) connectedIds.add(targetId);
+                if (targetId === d.id) connectedIds.add(sourceId);
+            });
+
+            // Update node classes
+            node.classed('selected', n => n.id === d.id);
+            node.classed('dimmed', n => !connectedIds.has(n.id));
+
+            // Update link classes
+            link.classed('highlighted', l => {
+                const sourceId = l.source.id || l.source;
+                const targetId = l.target.id || l.target;
+                return sourceId === d.id || targetId === d.id;
+            });
+            link.classed('dimmed', l => {
+                const sourceId = l.source.id || l.source;
+                const targetId = l.target.id || l.target;
+                return sourceId !== d.id && targetId !== d.id;
+            });
+
+            // Update details panel
+            const connections = data.links.filter(l => {
+                const sourceId = l.source.id || l.source;
+                const targetId = l.target.id || l.target;
+                return sourceId === d.id || targetId === d.id;
+            });
+
+            const connectedNodes = connections.map(conn => {
+                const sourceId = conn.source.id || conn.source;
+                const targetId = conn.target.id || conn.target;
+                const connectedId = sourceId === d.id ? targetId : sourceId;
+                return data.nodes.find(n => n.id === connectedId);
+            }).filter(Boolean);
+
+            const details = document.getElementById('details');
+            details.innerHTML = `
+                <div class="type" style="background: ${colors[d.group]}; color: #000;">${d.group.toUpperCase()}</div>
+                <h3>${d.id}</h3>
+                <p>${d.description}</p>
+                <div class="connections-header">CONNECTIONS (${connectedNodes.length})</div>
+                <div class="connections-list">
+                    ${connectedNodes.map(n => `
+                        <div class="connection-item" data-id="${n.id}" style="color: ${colors[n.group]}">${n.id}</div>
+                    `).join('')}
+                </div>
+            `;
+
+            // Add click handlers for connection items
+            details.querySelectorAll('.connection-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const nodeData = data.nodes.find(n => n.id === item.dataset.id);
+                    if (nodeData) selectNode(nodeData);
+                });
+            });
+        }
+
+        function deselectAll() {
+            selectedNode = null;
+            node.classed('selected', false);
+            node.classed('dimmed', false);
+            link.classed('highlighted', false);
+            link.classed('dimmed', false);
+
+            document.getElementById('details').innerHTML = `
+                <p style="color: rgba(255,255,255,0.4);">Click a node to view details</p>
+            `;
+        }
+
+        // Search functionality
+        document.getElementById('search').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            if (!query) {
+                node.style('opacity', 1);
+                link.style('opacity', null);
+                return;
+            }
+            node.style('opacity', d =>
+                d.id.toLowerCase().includes(query) ||
+                d.description.toLowerCase().includes(query) ? 1 : 0.1
+            );
+            link.style('opacity', 0.05);
+        });
+
+        // Filter buttons
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                applyFilter(btn.dataset.filter);
+            });
+        });
+
+        // Legend items as filters
+        document.querySelectorAll('.legend-item').forEach(item => {
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                applyFilter(item.dataset.filter);
+            });
+        });
+
+        function applyFilter(filter) {
+            if (filter === 'all') {
+                node.style('opacity', 1);
+                link.style('opacity', null);
+            } else {
+                node.style('opacity', d => d.group === filter ? 1 : 0.1);
+                link.style('opacity', l => {
+                    const sourceNode = data.nodes.find(n => n.id === (l.source.id || l.source));
+                    const targetNode = data.nodes.find(n => n.id === (l.target.id || l.target));
+                    return (sourceNode?.group === filter || targetNode?.group === filter) ? 0.4 : 0.02;
+                });
+            }
+        }
+
+        // Zoom controls
+        document.getElementById('zoom-in').addEventListener('click', () => {
+            svg.transition().duration(300).call(zoom.scaleBy, 1.4);
+        });
+        document.getElementById('zoom-out').addEventListener('click', () => {
+            svg.transition().duration(300).call(zoom.scaleBy, 0.7);
+        });
+        document.getElementById('zoom-reset').addEventListener('click', () => {
+            svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+        });
+
+        // Simulation tick
+        simulation.on('tick', () => {
+            link
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+
+            node.attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+
+        // Drag functions
+        function dragstarted(event) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            event.subject.fx = event.subject.x;
+            event.subject.fy = event.subject.y;
+        }
+
+        function dragged(event) {
+            event.subject.fx = event.x;
+            event.subject.fy = event.y;
+        }
+
+        function dragended(event) {
+            if (!event.active) simulation.alphaTarget(0);
+            event.subject.fx = null;
+            event.subject.fy = null;
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            const newWidth = graphEl.clientWidth;
+            const newHeight = graphEl.clientHeight;
+            svg.attr('width', newWidth).attr('height', newHeight);
+            simulation.force('center', d3.forceCenter(newWidth / 2, newHeight / 2));
+            simulation.alpha(0.3).restart();
+        });
+    </script>
+</body>
+</html>

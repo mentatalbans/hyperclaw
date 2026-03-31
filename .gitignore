@@ -1,0 +1,69 @@
+# Secrets & credentials — NEVER commit these
+.env
+.env.*
+!.env.example
+secrets/
+workspace/secrets/
+workspace/trading/wallets/
+*.pem
+*.key
+*.json.key
+*_token.json
+*_credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.coverage
+.pytest_cache/
+
+# Logs & runtime state
+logs/
+*.log
+*.pid
+*.db
+HEARTBEAT.md
+memory/heartbeat-state.json
+memory/memory-server.pid
+memory/memory-server.log
+memory/engram.db
+
+# macOS
+.DS_Store
+__MACOSX/
+
+# LaunchAgent plists (local only)
+com.hyperclaw.*.plist
+
+# Workspace private data
+workspace/telegram_inbox/
+workspace/andys-notes/
+workspace/brand/*.mp4
+workspace/dashboard_refs/
+workspace/drafts/
+
+# ARC bench runtime
+arc_agi_bench/arc_results.db
+environment_files/
+arc_agi_bench/environment_files/
+
+# Config runtime
+config/skills/scout_report_*.yaml
+
+# Compiled
+*.pyc
+hyperclaw-tui
+run_api_server.py
+
+# Private workspace — NEVER commit
+workspace/
+
+# UI backup files
+ui/**/*.backup*
+ui/**/*.bak*
+ui/**/*_backup_*
+CLAUDE.md

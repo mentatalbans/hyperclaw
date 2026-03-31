@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HyperClaw — HyperOS Command Interface</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --j-blue: #00d4ff;
+      --j-blue-dim: #0099cc;
+      --j-cyan: #00ffff;
+      --j-glow: rgba(0,212,255,0.35);
+      --j-dark: #000c1a;
+      --j-panel: rgba(0,20,45,0.7);
+      --j-border: rgba(0,212,255,0.25);
+      --j-border-bright: rgba(0,212,255,0.6);
+      --j-text: #d8f4ff;
+      --j-dim: #4a8fa8;
+      --j-orange: #ff6a00;
+      --j-red: #ff2d55;
+      --j-green: #00ff88;
+      --j-gold: #ffd000;
+      --j-purple: #bf5fff;
+      --font-d: 'Orbitron', monospace;
+      --font-b: 'Rajdhani', sans-serif;
+      --hdr: 64px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: radial-gradient(ellipse at 20% 20%, #001428 0%, #000810 40%, #000205 100%);
+      color: var(--j-text);
+      font-family: var(--font-b);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── ANIMATED BACKGROUND ── */
+    .jarvis-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+    .hex-grid {
+      position: absolute; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='52'%3E%3Cpath d='M30 0 L60 15 L60 37 L30 52 L0 37 L0 15 Z' fill='none' stroke='rgba(0,160,255,0.055)' stroke-width='1'/%3E%3C/svg%3E");
+      background-size: 60px 52px;
+      animation: hex-drift 80s linear infinite;
+    }
+    @keyframes hex-drift { 0%{transform:translate(0,0)} 100%{transform:translate(-60px,-52px)} }
+    .scan-line {
+      position: absolute; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--j-cyan), transparent);
+      box-shadow: 0 0 20px var(--j-cyan), 0 0 60px var(--j-cyan);
+      animation: scan 6s ease-in-out infinite;
+    }
+    @keyframes scan { 0%,100%{top:-2px;opacity:0} 5%{opacity:.8} 95%{opacity:.8} 100%{top:100%;opacity:0} }
+    .arc-glow {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      width: 800px; height: 800px;
+      background: radial-gradient(circle, rgba(0,180,255,0.06) 0%, transparent 65%);
+      animation: arc-pulse 4s ease-in-out infinite;
+    }
+    @keyframes arc-pulse { 0%,100%{opacity:.4;transform:translate(-50%,-50%) scale(1)} 50%{opacity:.7;transform:translate(-50%,-50%) scale(1.08)} }
+    .ring { position:absolute; top:50%; left:50%; border:1px solid rgba(0,212,255,0.07); border-radius:50%; transform:translate(-50%,-50%); }
+    .ring-1 { width:350px; height:350px; animation:rot-cw 35s linear infinite; }
+    .ring-2 { width:550px; height:550px; animation:rot-ccw 55s linear infinite; border-style:dashed; }
+    .ring-3 { width:750px; height:750px; animation:rot-cw 75s linear infinite; }
+    @keyframes rot-cw { from{transform:translate(-50%,-50%) rotate(0deg)} to{transform:translate(-50%,-50%) rotate(360deg)} }
+    @keyframes rot-ccw { from{transform:translate(-50%,-50%) rotate(360deg)} to{transform:translate(-50%,-50%) rotate(0deg)} }
+
+    /* ── HEADER ── */
+    .header {
+      position: fixed; top:0; left:0; right:0; height:var(--hdr);
+      background: linear-gradient(180deg, rgba(0,16,36,0.97) 0%, rgba(0,8,18,0.95) 100%);
+      border-bottom: 1px solid var(--j-border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; z-index: 200; backdrop-filter: blur(16px);
+    }
+    .header::after {
+      content:''; position:absolute; bottom:0; left:0; right:0; height:1px;
+      background: linear-gradient(90deg, transparent, var(--j-blue) 30%, var(--j-cyan) 50%, var(--j-blue) 70%, transparent);
+      animation: hdr-glow 4s ease-in-out infinite;
+    }
+    @keyframes hdr-glow { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+    .logo { display:flex; align-items:center; gap:14px; }
+    .arc-reactor {
+      width:42px; height:42px; position:relative;
+      border:2px solid rgba(0,212,255,0.4); border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      animation: reactor-spin 3s ease-in-out infinite;
+    }
+    @keyframes reactor-spin { 0%,100%{box-shadow:0 0 12px var(--j-cyan), inset 0 0 12px rgba(0,255,255,0.15)} 50%{box-shadow:0 0 30px var(--j-cyan), inset 0 0 25px rgba(0,255,255,0.3)} }
+    .arc-reactor span { font-family:var(--font-d); font-size:17px; font-weight:900; color:var(--j-cyan); text-shadow:0 0 10px var(--j-cyan); }
+    .logo-text h1 { font-family:var(--font-d); font-size:18px; font-weight:700; letter-spacing:5px; color:var(--j-cyan); text-shadow:0 0 12px var(--j-glow); }
+    .logo-text p { font-family:var(--font-d); font-size:8px; letter-spacing:4px; color:var(--j-dim); text-transform:uppercase; margin-top:2px; }
+
+    .nav-tabs { display:flex; gap:3px; }
+    .nav-tab {
+      padding:8px 18px; font-family:var(--font-d); font-size:10px; font-weight:500;
+      letter-spacing:2.5px; color:var(--j-dim); background:transparent;
+      border:1px solid transparent; cursor:pointer; transition:all .25s;
+      text-transform:uppercase; position:relative;
+    }
+    .nav-tab:hover { color:var(--j-blue); border-color:var(--j-border); background:rgba(0,212,255,0.04); }
+    .nav-tab.active {
+      color:var(--j-cyan); border-color:var(--j-blue);
+      background:rgba(0,212,255,0.08);
+      box-shadow:0 0 20px rgba(0,212,255,0.15), inset 0 0 15px rgba(0,212,255,0.04);
+    }
+    .nav-tab.active::after {
+      content:''; position:absolute; bottom:-1px; left:25%; right:25%;
+      height:2px; background:var(--j-cyan); box-shadow:0 0 8px var(--j-cyan);
+    }
+    .nav-tab.trading-tab { color:#ffd000; }
+    .nav-tab.trading-tab.active { color:var(--j-gold); border-color:var(--j-gold); background:rgba(255,208,0,0.08); box-shadow:0 0 20px rgba(255,208,0,0.15); }
+    .nav-tab.trading-tab.active::after { background:var(--j-gold); box-shadow:0 0 8px var(--j-gold); }
+
+    .status-area { display:flex; align-items:center; gap:20px; }
+    .world-time { display:flex; gap:16px; }
+    .tz { text-align:center; }
+    .tz .lbl { font-family:var(--font-d); font-size:8px; letter-spacing:2px; color:var(--j-dim); }
+    .tz .clk { font-family:var(--font-d); font-size:13px; font-weight:500; letter-spacing:1px; color:var(--j-blue); }
+    .sys-status {
+      display:flex; align-items:center; gap:8px; padding:6px 14px;
+      border:1px solid var(--j-green); background:rgba(0,255,136,0.04);
+      font-family:var(--font-d); font-size:9px; font-weight:600; letter-spacing:2px; color:var(--j-green);
+    }
+    .status-dot { width:7px; height:7px; border-radius:50%; background:var(--j-green); box-shadow:0 0 8px var(--j-green); animation:blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── LAYOUT ── */
+    .main { position:relative; z-index:1; margin-top:var(--hdr); padding:20px; min-height:calc(100vh - var(--hdr)); }
+    .page { display:none; }
+    .page.active { display:block; animation:page-in .3s ease-out; }
+    @keyframes page-in { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:16px; }
+    .c2{grid-column:span 2} .c3{grid-column:span 3} .c4{grid-column:span 4}
+    .c5{grid-column:span 5} .c6{grid-column:span 6} .c7{grid-column:span 7}
+    .c8{grid-column:span 8} .c9{grid-column:span 9} .c12{grid-column:span 12}
+
+    /* ── PANEL ── */
+    .panel {
+      background:var(--j-panel); border:1px solid var(--j-border);
+      backdrop-filter:blur(12px); position:relative; overflow:hidden;
+    }
+    .panel::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:1px;
+      background:linear-gradient(90deg, transparent, var(--j-blue) 40%, var(--j-cyan) 60%, transparent);
+      opacity:.6;
+    }
+    .panel-hdr {
+      padding:13px 18px; border-bottom:1px solid var(--j-border);
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .panel-title {
+      font-family:var(--font-d); font-size:10px; font-weight:600;
+      letter-spacing:3px; color:var(--j-blue); text-transform:uppercase;
+      display:flex; align-items:center; gap:8px;
+    }
+    .panel-title::before { content:'◆'; font-size:7px; color:var(--j-cyan); animation:dpulse 2s infinite; }
+    @keyframes dpulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .panel-sub { font-size:9px; color:var(--j-dim); font-family:var(--font-d); letter-spacing:1px; }
+    .panel-body { padding:18px; }
+    .corner { position:absolute; width:16px; height:16px; border-color:var(--j-blue-dim); border-style:solid; border-width:0; }
+    .corner.tl{top:0;left:0;border-top-width:2px;border-left-width:2px}
+    .corner.tr{top:0;right:0;border-top-width:2px;border-right-width:2px}
+    .corner.bl{bottom:0;left:0;border-bottom-width:2px;border-left-width:2px}
+    .corner.br{bottom:0;right:0;border-bottom-width:2px;border-right-width:2px}
+
+    /* ── SCROLLBARS ── */
+    ::-webkit-scrollbar{width:4px;height:4px}
+    ::-webkit-scrollbar-track{background:rgba(0,20,40,.3)}
+    ::-webkit-scrollbar-thumb{background:var(--j-blue-dim);border-radius:2px}
+    ::-webkit-scrollbar-thumb:hover{background:var(--j-blue)}
+
+    /* ═══════════════ DASH PAGE ═══════════════ */
+    .metric-card { text-align:center; padding:22px 16px; }
+    .metric-arc { width:110px; height:110px; margin:0 auto 12px; position:relative; }
+    .metric-arc svg { width:100%; height:100%; transform:rotate(-90deg); }
+    .arc-track { fill:none; stroke:rgba(0,212,255,0.08); stroke-width:9; }
+    .arc-prog { fill:none; stroke:var(--j-cyan); stroke-width:9; stroke-linecap:round; stroke-dasharray:283; filter:drop-shadow(0 0 5px var(--j-cyan)); animation:arc-draw 1.5s ease-out; }
+    @keyframes arc-draw { from{stroke-dashoffset:283} }
+    .arc-prog.gold { stroke:var(--j-gold); filter:drop-shadow(0 0 5px var(--j-gold)); }
+    .arc-prog.green { stroke:var(--j-green); filter:drop-shadow(0 0 5px var(--j-green)); }
+    .arc-prog.orange { stroke:var(--j-orange); filter:drop-shadow(0 0 5px var(--j-orange)); }
+    .arc-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:var(--font-d); }
+    .arc-num { font-size:26px; font-weight:700; color:var(--j-cyan); }
+    .arc-num.gold{color:var(--j-gold)} .arc-num.green{color:var(--j-green)}
+    .arc-unit { font-size:9px; color:var(--j-dim); letter-spacing:2px; margin-top:2px; }
+    .metric-val { font-family:var(--font-d); font-size:36px; font-weight:700; color:var(--j-cyan); text-shadow:0 0 20px var(--j-glow); line-height:1; }
+    .metric-lbl { font-family:var(--font-d); font-size:9px; letter-spacing:3px; color:var(--j-dim); margin-top:10px; text-transform:uppercase; }
+
+    .venture-item {
+      display:flex; align-items:center; gap:14px; padding:13px;
+      border:1px solid transparent; border-left:3px solid var(--j-blue);
+      background:rgba(0,20,50,0.5); margin-bottom:9px; transition:all .2s;
+    }
+    .venture-item:hover { background:rgba(0,40,90,.5); border-color:var(--j-border); }
+    .venture-icon { width:36px; height:36px; display:flex; align-items:center; justify-content:center; font-size:18px; border:1px solid var(--j-border); background:rgba(0,212,255,.04); flex-shrink:0; }
+    .venture-info{flex:1}
+    .venture-name { font-family:var(--font-d); font-size:12px; font-weight:600; letter-spacing:1px; color:var(--j-text); }
+    .venture-desc { font-size:10px; color:var(--j-dim); margin-top:3px; }
+    .vstatus { font-family:var(--font-d); font-size:8px; font-weight:700; letter-spacing:2px; padding:4px 10px; border:1px solid; }
+    .vstatus.live{color:var(--j-green);border-color:var(--j-green);background:rgba(0,255,136,.08)}
+    .vstatus.dev{color:var(--j-gold);border-color:var(--j-gold);background:rgba(255,208,0,.08)}
+    .vstatus.plan{color:var(--j-dim);border-color:var(--j-dim);background:rgba(74,158,187,.08)}
+
+    .spend-row { display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid rgba(0,212,255,.08); }
+    .spend-row:last-child{border-bottom:none}
+    .spend-name{font-size:13px;color:var(--j-dim)}
+    .spend-amt{font-family:var(--font-d);font-size:13px;font-weight:600;color:var(--j-text)}
+
+    .svc-row { display:flex; align-items:center; gap:10px; padding:10px 13px; background:rgba(0,20,50,.4); margin-bottom:7px; border-left:3px solid; }
+    .svc-row.online{border-left-color:var(--j-green)}
+    .svc-row.offline{border-left-color:var(--j-red)}
+    .svc-row.warning{border-left-color:var(--j-gold)}
+    .svc-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+    .svc-row.online .svc-dot{background:var(--j-green);box-shadow:0 0 7px var(--j-green)}
+    .svc-row.offline .svc-dot{background:var(--j-red)}
+    .svc-row.warning .svc-dot{background:var(--j-gold);box-shadow:0 0 7px var(--j-gold);animation:blink 1.5s infinite}
+    .svc-name{flex:1;font-size:12px;color:var(--j-text)}
+    .svc-port{font-family:var(--font-d);font-size:10px;color:var(--j-dim)}
+
+    .agent-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:8px; }
+    .agent-card { padding:10px 8px; background:rgba(0,20,50,.5); border:1px solid var(--j-border); text-align:center; transition:all .2s; cursor:default; }
+    .agent-card:hover { background:rgba(0,40,90,.5); transform:translateY(-2px); box-shadow:0 4px 18px rgba(0,212,255,.1); }
+    .agent-id { font-family:var(--font-d); font-size:10px; font-weight:700; color:var(--j-cyan); letter-spacing:1px; }
+    .agent-nm { font-size:9px; color:var(--j-dim); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .agent-badge { font-size:7px; padding:2px 5px; margin-top:5px; display:inline-block; letter-spacing:1px; }
+    .agent-badge.active{background:rgba(0,255,136,.15);color:var(--j-green)}
+    .agent-badge.live{background:rgba(0,212,255,.15);color:var(--j-cyan)}
+    .agent-badge.standby{background:rgba(74,158,187,.15);color:var(--j-dim)}
+
+    /* ═══════════════ Assistant AI PAGE ═══════════════ */
+    .chat-wrap { height:calc(100vh - 112px); display:flex; flex-direction:column; }
+    .chat-msgs { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:18px; }
+    .msg { display:flex; gap:13px; max-width:88%; animation:msg-in .3s ease-out; }
+    @keyframes msg-in { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .msg.user { margin-left:auto; flex-direction:row-reverse; }
+    .msg-av { width:38px; height:38px; border:2px solid var(--j-blue); display:flex; align-items:center; justify-content:center; font-family:var(--font-d); font-size:13px; font-weight:700; flex-shrink:0; }
+    .msg.jarvis .msg-av { background:rgba(0,212,255,.1); color:var(--j-cyan); animation:av-glow 2s infinite; }
+    @keyframes av-glow { 0%,100%{box-shadow:0 0 10px var(--j-glow)} 50%{box-shadow:0 0 22px var(--j-glow)} }
+    .msg.user .msg-av { background:rgba(255,106,0,.1); border-color:var(--j-orange); color:var(--j-orange); }
+    .msg-body { flex:1; }
+    .msg-txt { padding:13px 18px; background:var(--j-panel); border:1px solid var(--j-border); font-size:14px; line-height:1.75; }
+    .msg.user .msg-txt { background:rgba(255,106,0,.08); border-color:rgba(255,106,0,.25); }
+    .msg-time { font-size:9px; color:var(--j-dim); margin-top:6px; font-family:var(--font-d); letter-spacing:1px; }
+    .typing-indicator { display:flex; gap:5px; padding:14px 18px; background:var(--j-panel); border:1px solid var(--j-border); }
+    .typing-dot { width:7px; height:7px; border-radius:50%; background:var(--j-blue); animation:typing 1.2s infinite; }
+    .typing-dot:nth-child(2){animation-delay:.2s} .typing-dot:nth-child(3){animation-delay:.4s}
+    @keyframes typing { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-5px);opacity:1} }
+    .chat-bar { padding:16px 20px; border-top:1px solid var(--j-border); display:flex; gap:12px; background:rgba(0,8,20,.85); backdrop-filter:blur(10px); }
+    .voice-btn { width:52px; height:52px; border:2px solid var(--j-blue); background:rgba(0,212,255,.04); color:var(--j-blue); font-size:20px; cursor:pointer; transition:all .2s; flex-shrink:0; }
+    .voice-btn:hover { background:rgba(0,212,255,.12); box-shadow:0 0 18px var(--j-glow); }
+    .voice-btn.on { background:rgba(255,45,85,.12); border-color:var(--j-red); color:var(--j-red); animation:listen-pulse 1s infinite; }
+    @keyframes listen-pulse { 0%,100%{box-shadow:0 0 8px rgba(255,45,85,.3)} 50%{box-shadow:0 0 22px rgba(255,45,85,.6)} }
+    .chat-inp { flex:1; background:rgba(0,20,50,.6); border:1px solid var(--j-border); padding:14px 18px; color:var(--j-text); font-family:var(--font-b); font-size:14px; outline:none; transition:all .2s; }
+    .chat-inp:focus { border-color:var(--j-blue); box-shadow:0 0 16px rgba(0,212,255,.18); }
+    .chat-inp::placeholder{color:var(--j-dim)}
+    .send-btn { padding:14px 30px; background:linear-gradient(135deg,rgba(0,140,190,.85),rgba(0,90,140,.85)); border:1px solid var(--j-blue); color:var(--j-text); font-family:var(--font-d); font-size:11px; font-weight:600; letter-spacing:3px; cursor:pointer; transition:all .2s; text-transform:uppercase; }
+    .send-btn:hover { background:linear-gradient(135deg,rgba(0,170,220,.9),rgba(0,120,170,.9)); box-shadow:0 0 22px var(--j-glow); }
+    .send-btn:disabled{opacity:.4;cursor:not-allowed}
+
+    /* ═══════════════ TRADING PAGE ═══════════════ */
+    .trading-header { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:16px; }
+    .t-metric { padding:18px; background:var(--j-panel); border:1px solid var(--j-border); text-align:center; position:relative; overflow:hidden; }
+    .t-metric::after { content:''; position:absolute; top:0;left:0;right:0;height:2px; }
+    .t-metric.blue::after{background:var(--j-blue);box-shadow:0 0 10px var(--j-blue)}
+    .t-metric.green::after{background:var(--j-green);box-shadow:0 0 10px var(--j-green)}
+    .t-metric.gold::after{background:var(--j-gold);box-shadow:0 0 10px var(--j-gold)}
+    .t-metric.red::after{background:var(--j-red);box-shadow:0 0 10px var(--j-red)}
+    .t-val { font-family:var(--font-d); font-size:30px; font-weight:700; color:var(--j-cyan); }
+    .t-val.green{color:var(--j-green)} .t-val.red{color:var(--j-red)} .t-val.gold{color:var(--j-gold)}
+    .t-lbl { font-family:var(--font-d); font-size:8px; letter-spacing:3px; color:var(--j-dim); margin-top:8px; }
+    .t-sub { font-family:var(--font-d); font-size:10px; color:var(--j-dim); margin-top:5px; }
+
+    .positions-table { width:100%; border-collapse:collapse; }
+    .positions-table th { font-family:var(--font-d); font-size:9px; letter-spacing:2px; color:var(--j-dim); padding:10px 14px; text-align:left; border-bottom:1px solid var(--j-border); background:rgba(0,20,50,.4); text-transform:uppercase; }
+    .positions-table td { padding:13px 14px; border-bottom:1px solid rgba(0,212,255,.07); font-size:13px; transition:background .15s; }
+    .positions-table tr:hover td { background:rgba(0,40,90,.3); }
+    .positions-table tr:last-child td { border-bottom:none; }
+    .pos-coin { font-family:var(--font-d); font-size:14px; font-weight:700; color:var(--j-cyan); }
+    .pos-side { font-family:var(--font-d); font-size:10px; font-weight:700; letter-spacing:2px; padding:3px 10px; border:1px solid; }
+    .pos-side.long{color:var(--j-green);border-color:var(--j-green);background:rgba(0,255,136,.08)}
+    .pos-side.short{color:var(--j-red);border-color:var(--j-red);background:rgba(255,45,85,.08)}
+    .pos-pnl.positive{color:var(--j-green)} .pos-pnl.negative{color:var(--j-red)}
+    .bias-badge { font-family:var(--font-d); font-size:11px; font-weight:700; padding:6px 16px; border:1px solid; letter-spacing:2px; }
+    .bias-badge.bull{color:var(--j-green);border-color:var(--j-green);background:rgba(0,255,136,.08)}
+    .bias-badge.bear{color:var(--j-red);border-color:var(--j-red);background:rgba(255,45,85,.08)}
+    .bias-badge.neutral{color:var(--j-gold);border-color:var(--j-gold);background:rgba(255,208,0,.08)}
+
+    .trade-controls { display:flex; gap:10px; flex-wrap:wrap; padding:16px; border-top:1px solid var(--j-border); }
+    .ctrl-btn { padding:9px 20px; font-family:var(--font-d); font-size:10px; font-weight:600; letter-spacing:2px; border:1px solid; cursor:pointer; transition:all .2s; text-transform:uppercase; background:transparent; }
+    .ctrl-btn.halt { color:var(--j-red); border-color:var(--j-red); }
+    .ctrl-btn.halt:hover { background:rgba(255,45,85,.12); box-shadow:0 0 16px rgba(255,45,85,.3); }
+    .ctrl-btn.resume { color:var(--j-green); border-color:var(--j-green); }
+    .ctrl-btn.resume:hover { background:rgba(0,255,136,.1); box-shadow:0 0 16px rgba(0,255,136,.25); }
+    .ctrl-btn.close-all { color:var(--j-orange); border-color:var(--j-orange); }
+    .ctrl-btn.close-all:hover { background:rgba(255,106,0,.1); }
+
+    /* ═══════════════ MARKETS PAGE ═══════════════ */
+    .market-cats { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+    .market-cat { padding:6px 14px; font-family:var(--font-d); font-size:9px; letter-spacing:2px; border:1px solid var(--j-border); color:var(--j-dim); cursor:pointer; transition:all .2s; text-transform:uppercase; background:transparent; }
+    .market-cat:hover { color:var(--j-blue); border-color:var(--j-blue); }
+    .market-cat.active { color:var(--j-cyan); border-color:var(--j-cyan); background:rgba(0,212,255,.07); }
+    .market-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(185px,1fr)); gap:12px; }
+    .market-card { padding:16px; background:var(--j-panel); border:1px solid var(--j-border); transition:all .2s; position:relative; overflow:hidden; }
+    .market-card:hover { border-color:var(--j-blue); box-shadow:0 0 20px rgba(0,212,255,.1); transform:translateY(-3px); }
+    .market-card::after { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+    .market-card.up::after{background:linear-gradient(90deg,transparent,var(--j-green));opacity:.6}
+    .market-card.down::after{background:linear-gradient(90deg,transparent,var(--j-red));opacity:.6}
+    .m-sym { font-family:var(--font-d); font-size:14px; font-weight:700; color:var(--j-cyan); }
+    .m-name { font-size:9px; color:var(--j-dim); margin-top:2px; letter-spacing:1px; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .m-price { font-family:var(--font-d); font-size:22px; font-weight:700; margin-top:10px; color:var(--j-text); }
+    .m-chg { font-family:var(--font-d); font-size:12px; font-weight:600; margin-top:4px; }
+    .m-chg.up{color:var(--j-green)} .m-chg.down{color:var(--j-red)}
+    .sparkline { height:32px; margin-top:10px; }
+    .sparkline svg { width:100%; height:100%; overflow:visible; }
+
+    /* ═══════════════ INTEL PAGE ═══════════════ */
+    .intel-item { padding:16px 18px; border-bottom:1px solid rgba(0,212,255,.07); cursor:pointer; transition:background .15s; }
+    .intel-item:hover{background:rgba(0,40,90,.25)}
+    .intel-item:last-child{border-bottom:none}
+    .intel-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+    .intel-src { font-family:var(--font-d); font-size:8px; font-weight:700; letter-spacing:2px; padding:3px 9px; background:rgba(0,212,255,.08); border:1px solid var(--j-border); color:var(--j-blue); }
+    .intel-time{font-size:9px;color:var(--j-dim);margin-left:auto;font-family:var(--font-d)}
+    .intel-ttl{font-size:14px;font-weight:600;color:var(--j-text);margin-bottom:5px;line-height:1.4}
+    .intel-sum{font-size:11px;color:var(--j-dim);line-height:1.6}
+    .summit-item{display:flex;align-items:center;gap:13px;padding:13px;background:rgba(0,20,50,.4);border-left:3px solid var(--j-gold);margin-bottom:9px}
+    .summit-dt{text-align:center;padding:9px 12px;background:rgba(255,208,0,.08);border:1px solid rgba(255,208,0,.25)}
+    .summit-mo{font-family:var(--font-d);font-size:8px;color:var(--j-gold);letter-spacing:2px}
+    .summit-day{font-family:var(--font-d);font-size:20px;font-weight:700;color:var(--j-gold)}
+    .summit-nm{font-family:var(--font-d);font-size:12px;font-weight:600;color:var(--j-text);letter-spacing:1px}
+    .summit-loc{font-size:10px;color:var(--j-dim);margin-top:3px}
+
+    /* ═══════════════ PREDICT PAGE ═══════════════ */
+    .predict-card{padding:18px;background:var(--j-panel);border:1px solid var(--j-border);margin-bottom:12px}
+    .predict-q{font-size:14px;font-weight:600;color:var(--j-text);margin-bottom:13px;line-height:1.5}
+    .pbar{height:7px;background:rgba(0,212,255,.08);border-radius:4px;overflow:hidden;margin-bottom:9px}
+    .pbar-fill{height:100%;background:linear-gradient(90deg,var(--j-blue),var(--j-cyan));box-shadow:0 0 8px var(--j-glow);animation:bar-load .8s ease-out}
+    @keyframes bar-load{from{width:0!important}}
+    .pmeta{display:flex;justify-content:space-between;font-size:11px}
+    .pprob{font-family:var(--font-d);font-weight:700;color:var(--j-cyan)}
+    .pvol{color:var(--j-dim)}
+    .analysis-box{padding:18px;background:rgba(0,40,100,.25);border:1px solid var(--j-blue)}
+    .analysis-box h3{font-family:var(--font-d);font-size:10px;font-weight:600;letter-spacing:2px;color:var(--j-cyan);margin-bottom:13px;display:flex;align-items:center;gap:8px}
+    .analysis-box h3::before{content:'◈';animation:dpulse 2s infinite}
+    .analysis-box p{font-size:13px;line-height:1.8;color:var(--j-text);margin-bottom:12px}
+    .analysis-box strong{color:var(--j-cyan)}
+
+    /* ═══════════════ OPS PAGE ═══════════════ */
+    .log-entry{padding:9px 14px;border-bottom:1px solid rgba(0,212,255,.06);font-size:12px;line-height:1.5;display:flex;gap:12px}
+    .log-entry:last-child{border-bottom:none}
+    .log-ts{font-family:var(--font-d);font-size:9px;color:var(--j-dim);white-space:nowrap;padding-top:2px}
+    .log-msg{color:var(--j-text)}
+    .log-msg .ok{color:var(--j-green)} .log-msg .warn{color:var(--j-gold)} .log-msg .err{color:var(--j-red)} .log-msg .info{color:var(--j-blue)}
+
+    /* ═══════════════ TOAST ═══════════════ */
+    .toast-container{position:fixed;top:80px;right:20px;z-index:999;display:flex;flex-direction:column;gap:8px}
+    .toast{padding:12px 18px;background:rgba(0,20,50,.95);border:1px solid var(--j-border);border-left:3px solid var(--j-blue);font-size:12px;color:var(--j-text);animation:toast-in .3s ease-out;backdrop-filter:blur(10px);max-width:320px}
+    .toast.success{border-left-color:var(--j-green);color:var(--j-green)}
+    .toast.error{border-left-color:var(--j-red);color:var(--j-red)}
+    .toast.warning{border-left-color:var(--j-gold);color:var(--j-gold)}
+    @keyframes toast-in{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes toast-out{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(20px)}}
+
+    @media(max-width:1200px){
+      .grid{grid-template-columns:repeat(6,1fr)}
+      .c3,.c4{grid-column:span 3} .c5,.c6,.c7,.c8{grid-column:span 6}
+      .agent-grid{grid-template-columns:repeat(5,1fr)}
+    }
+    @media(max-width:768px){
+      .grid{grid-template-columns:1fr}
+      .c2,.c3,.c4,.c5,.c6,.c7,.c8,.c9,.c12{grid-column:span 1}
+      .nav-tabs{display:none} .world-time{display:none}
+      .agent-grid{grid-template-columns:repeat(3,1fr)}
+      .market-grid{grid-template-columns:repeat(2,1fr)}
+      .trading-header{grid-template-columns:repeat(2,1fr)}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── ANIMATED BACKGROUND ── -->
+<div class="jarvis-bg">
+  <div class="hex-grid"></div>
+  <div class="arc-glow"></div>
+  <div class="ring ring-1"></div>
+  <div class="ring ring-2"></div>
+  <div class="ring ring-3"></div>
+  <div class="scan-line"></div>
+</div>
+
+<!-- ── TOAST CONTAINER ── -->
+<div class="toast-container" id="toasts"></div>
+
+<!-- ── HEADER ── -->
+<header class="header">
+  <div class="logo">
+    <div class="arc-reactor"><span>G</span></div>
+    <div class="logo-text">
+      <h1>H Y P E R O S</h1>
+      <p>Assistant Command Interface · Assistant</p>
+    </div>
+  </div>
+  <nav class="nav-tabs">
+    <button class="nav-tab active" data-tab="dash">DASH</button>
+    <button class="nav-tab" data-tab="gil">Assistant AI</button>
+    <button class="nav-tab trading-tab" data-tab="trading">SATOSHI</button>
+    <button class="nav-tab" data-tab="markets">MARKETS</button>
+    <button class="nav-tab" data-tab="intel">INTEL</button>
+    <button class="nav-tab" data-tab="predict">PREDICT</button>
+    <button class="nav-tab" data-tab="ops">OPS</button>
+  </nav>
+  <div class="status-area">
+    <div class="world-time">
+      <div class="tz"><div class="lbl">LOS ANGELES</div><div class="clk" id="clk-la">--:--</div></div>
+      <div class="tz"><div class="lbl">NEW YORK</div><div class="clk" id="clk-ny">--:--</div></div>
+      <div class="tz"><div class="lbl">LONDON</div><div class="clk" id="clk-lon">--:--</div></div>
+      <div class="tz"><div class="lbl">TOKYO</div><div class="clk" id="clk-tyo">--:--</div></div>
+    </div>
+    <div class="sys-status">
+      <div class="status-dot" id="sys-dot"></div>
+      <span id="sys-label">SYSTEMS ONLINE</span>
+    </div>
+  </div>
+</header>
+
+<main class="main">
+
+  <!-- ════════════════════════════════════════════
+       DASH PAGE
+  ════════════════════════════════════════════ -->
+  <div class="page active" id="page-dash">
+    <div class="grid">
+
+      <!-- Metric: Agents -->
+      <div class="c3">
+        <div class="panel">
+          <div class="corner tl"></div><div class="corner tr"></div>
+          <div class="corner bl"></div><div class="corner br"></div>
+          <div class="panel-body">
+            <div class="metric-card">
+              <div class="metric-arc">
+                <svg viewBox="0 0 100 100">
+                  <circle class="arc-track" cx="50" cy="50" r="45"/>
+                  <circle class="arc-prog" id="arc-agents" cx="50" cy="50" r="45" style="stroke-dashoffset:36"/>
+                </svg>
+                <div class="arc-center">
+                  <div class="arc-num" id="d-agents">56</div>
+                  <div class="arc-unit">AGENTS</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metric: SATOSHI Balance -->
+      <div class="c3">
+        <div class="panel">
+          <div class="corner tl"></div><div class="corner tr"></div>
+          <div class="corner bl"></div><div class="corner br"></div>
+          <div class="panel-body">
+            <div class="metric-card">
+              <div class="metric-arc">
+                <svg viewBox="0 0 100 100">
+                  <circle class="arc-track" cx="50" cy="50" r="45"/>
+                  <circle class="arc-prog gold" id="arc-balance" cx="50" cy="50" r="45" style="stroke-dashoffset:85"/>
+                </svg>
+                <div class="arc-center">
+                  <div class="arc-num gold" id="d-balance">$337</div>
+                  <div class="arc-unit">SATOSHI</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metric: Positions -->
+      <div class="c3">
+        <div class="panel">
+          <div class="corner tl"></div><div class="corner tr"></div>
+          <div class="corner bl"></div><div class="corner br"></div>
+          <div class="panel-body">
+            <div class="metric-card">
+              <div class="metric-arc">
+                <svg viewBox="0 0 100 100">
+                  <circle class="arc-track" cx="50" cy="50" r="45"/>
+                  <circle class="arc-prog green" id="arc-pos" cx="50" cy="50" r="45" style="stroke-dashoffset:225"/>
+                </svg>
+                <div class="arc-center">
+                  <div class="arc-num green" id="d-positions">5</div>
+                  <div class="arc-unit">POSITIONS</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metric: Uptime -->
+      <div class="c3">
+        <div class="panel">
+          <div class="corner tl"></div><div class="corner tr"></div>
+          <div class="corner bl"></div><div class="corner br"></div>
+          <div class="panel-body">
+            <div class="metric-card">
+              <div class="metric-val" id="d-uptime" style="padding-top:22px">--</div>
+              <div class="metric-lbl">SYSTEM UPTIME</div>
+              <div style="margin-top:12px;font-family:var(--font-d);font-size:9px;color:var(--j-dim)" id="d-pnl">P&L: --</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ventures -->
+      <div class="c5">
+        <div class="panel">
+          <div class="panel-hdr">
+            <div class="panel-title">Active Ventures</div>
+            <span class="panel-sub">HYPER NIMBUS PORTFOLIO</span>
+          </div>
+          <div class="panel-body">
+            <div class="venture-item" style="border-left-color:var(--j-cyan)">
+              <div class="venture-icon">🏨</div>
+              <div class="venture-info">
+                <div class="venture-name">HYPER HOSPITALITY</div>
+                <div class="venture-desc">8 AI Agents · 210 LOIs · $7.5M+ ACV · April 2026 GTM</div>
+              </div>
+              <div class="vstatus live">LIVE</div>
+            </div>
+            <div class="venture-item" style="border-left-color:var(--j-green)">
+              <div class="venture-icon">🎯</div>
+              <div class="venture-info">
+                <div class="venture-name">HYPER TALENT</div>
+                <div class="venture-desc">10 Signed · Sports & Entertainment AI · Post-Revenue</div>
+              </div>
+              <div class="vstatus live">LIVE</div>
+            </div>
+            <div class="venture-item" style="border-left-color:var(--j-gold)">
+              <div class="venture-icon">🏥</div>
+              <div class="venture-info">
+                <div class="venture-name">HYPER HEALTH</div>
+                <div class="venture-desc">Drug Discovery · Concierge Medicine · Hospital Ops</div>
+              </div>
+              <div class="vstatus dev">R&D</div>
+            </div>
+            <div class="venture-item" style="border-left-color:var(--j-purple)">
+              <div class="venture-icon">🚀</div>
+              <div class="venture-info">
+                <div class="venture-name">HYPER SPACE</div>
+                <div class="venture-desc">Guyana GSA · CubeSats · Equatorial Advantage</div>
+              </div>
+              <div class="vstatus plan">PLAN</div>
+            </div>
+            <div class="venture-item" style="border-left-color:var(--j-orange)">
+              <div class="venture-icon">🤖</div>
+              <div class="venture-info">
+                <div class="venture-name">HYPER FINANCE</div>
+                <div class="venture-desc">Elgin & Archer · Autonomous PE · RevPAR Tokenization</div>
+              </div>
+              <div class="vstatus plan">PLAN</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System Health + API Spend -->
+      <div class="c3">
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-hdr"><div class="panel-title">System Health</div></div>
+          <div class="panel-body" id="svc-health">
+            <div class="svc-row online"><div class="svc-dot"></div><span class="svc-name">HyperClaw API</span><span class="svc-port">:8001</span></div>
+            <div class="svc-row online" id="svc-satoshi"><div class="svc-dot"></div><span class="svc-name">SATOSHI Engine</span><span class="svc-port">:5001</span></div>
+            <div class="svc-row online"><div class="svc-dot"></div><span class="svc-name">Telegram Bot</span><span class="svc-port">active</span></div>
+            <div class="svc-row warning"><div class="svc-dot"></div><span class="svc-name">WhatsApp</span><span class="svc-port">pending</span></div>
+            <div class="svc-row online"><div class="svc-dot"></div><span class="svc-name">Gmail OAuth</span><span class="svc-port">active</span></div>
+            <div class="svc-row online"><div class="svc-dot"></div><span class="svc-name">Calendar</span><span class="svc-port">active</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-hdr"><div class="panel-title">API Spend</div></div>
+          <div class="panel-body">
+            <div class="spend-row"><span class="spend-name">Anthropic</span><span class="spend-amt">$250 /mo</span></div>
+            <div class="spend-row"><span class="spend-name">ElevenLabs</span><span class="spend-amt">109K cr</span></div>
+            <div class="spend-row"><span class="spend-name">Runway</span><span class="spend-amt">350 cr</span></div>
+            <div class="spend-row"><span class="spend-name">Supabase</span><span class="spend-amt">$25 /mo</span></div>
+            <div class="spend-row"><span class="spend-name">Hyperliquid</span><span class="spend-amt" id="hl-bal">$337</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 56-Agent Swarm -->
+      <div class="c4">
+        <div class="panel" style="height:100%">
+          <div class="panel-hdr">
+            <div class="panel-title">Organization Products</div>
+          </div>
+          <div class="panel-body">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;justify-content:space-between;padding:9px 12px;background:rgba(0,212,255,.06);border:1px solid var(--j-border)"><span style="font-family:var(--font-d);font-size:11px;color:var(--j-cyan)">FOUNDATION</span><span style="font-family:var(--font-d);font-size:11px;color:var(--j-dim)">$18/key/mo</span></div>
+              <div style="display:flex;justify-content:space-between;padding:9px 12px;background:rgba(0,212,255,.06);border:1px solid var(--j-border)"><span style="font-family:var(--font-d);font-size:11px;color:var(--j-cyan)">NEXUS</span><span style="font-family:var(--font-d);font-size:11px;color:var(--j-dim)">$22/key/mo</span></div>
+              <div style="display:flex;justify-content:space-between;padding:9px 12px;background:rgba(0,212,255,.06);border:1px solid var(--j-border)"><span style="font-family:var(--font-d);font-size:11px;color:var(--j-cyan)">HAL</span><span style="font-family:var(--font-d);font-size:11px;color:var(--j-dim)">$12/key/mo</span></div>
+              <div style="display:flex;justify-content:space-between;padding:9px 12px;background:rgba(0,212,255,.06);border:1px solid var(--j-border)"><span style="font-family:var(--font-d);font-size:11px;color:var(--j-cyan)">ECHO</span><span style="font-family:var(--font-d);font-size:11px;color:var(--j-dim)">$10/key/mo</span></div>
+              <div style="display:flex;justify-content:space-between;padding:9px 12px;background:rgba(0,212,255,.06);border:1px solid var(--j-border)"><span style="font-family:var(--font-d);font-size:11px;color:var(--j-cyan)">MENTAT</span><span style="font-family:var(--font-d);font-size:11px;color:var(--j-dim)">$9/key/mo</span></div>
+              <div style="display:flex;justify-content:space-between;padding:9px 12px;background:rgba(0,212,255,.06);border:1px solid var(--j-border)"><span style="font-family:var(--font-d);font-size:11px;color:var(--j-cyan)">CHANI</span><span style="font-family:var(--font-d);font-size:11px;color:var(--j-dim)">$8/key/mo</span></div>
+              <div style="display:flex;justify-content:space-between;padding:9px 12px;background:rgba(0,212,255,.06);border:1px solid var(--j-border)"><span style="font-family:var(--font-d);font-size:11px;color:var(--j-cyan)">TARS</span><span style="font-family:var(--font-d);font-size:11px;color:var(--j-dim)">$7/key/mo</span></div>
+              <div style="display:flex;justify-content:space-between;padding:9px 12px;background:rgba(0,212,255,.06);border:1px solid var(--j-border)"><span style="font-family:var(--font-d);font-size:11px;color:var(--j-cyan)">SELDON</span><span style="font-family:var(--font-d);font-size:11px;color:var(--j-dim)">$9/key/mo</span></div>
+              <div style="display:flex;justify-content:space-between;padding:11px 12px;background:rgba(0,255,136,.05);border:1px solid rgba(0,255,136,.2)"><span style="font-family:var(--font-d);font-size:11px;color:var(--j-green);font-weight:700">FULL SUITE</span><span style="font-family:var(--font-d);font-size:11px;color:var(--j-green);font-weight:700">$95/key/mo</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agent Swarm -->
+      <div class="c12">
+        <div class="panel">
+          <div class="panel-hdr">
+            <div class="panel-title">56-Agent Swarm</div>
+            <span class="panel-sub" id="swarm-count">LOADING ROSTER...</span>
+          </div>
+          <div class="panel-body">
+            <div class="agent-grid" id="agent-grid">
+              <div style="color:var(--j-dim);font-size:12px;padding:10px">Loading swarm...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /grid -->
+  </div><!-- /page-dash -->
+
+
+  <!-- ════════════════════════════════════════════
+       Assistant AI PAGE
+  ════════════════════════════════════════════ -->
+  <div class="page" id="page-gil">
+    <div class="panel" style="height:calc(100vh - 108px)">
+      <div class="chat-wrap">
+        <div class="chat-msgs" id="chat-msgs">
+          <div class="msg jarvis">
+            <div class="msg-av">G</div>
+            <div class="msg-body">
+              <div class="msg-txt">Good day, user. All systems are operational. SATOSHI is live on Hyperliquid with $<span id="chat-balance">337</span> and 5 open positions. The 56-agent swarm stands ready. How may I assist you today?</div>
+              <div class="msg-time" id="chat-init-time">--:--:-- PST</div>
+            </div>
+          </div>
+        </div>
+        <div class="chat-bar">
+          <button class="voice-btn" id="voice-btn" title="Toggle voice (George)">🎤</button>
+          <input type="text" class="chat-inp" id="chat-inp" placeholder="Command, user...">
+          <button class="send-btn" id="send-btn">TRANSMIT</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════
+       SATOSHI / TRADING PAGE
+  ════════════════════════════════════════════ -->
+  <div class="page" id="page-trading">
+    <!-- Header metrics -->
+    <div class="trading-header">
+      <div class="t-metric blue">
+        <div class="t-val" id="t-bal">$337</div>
+        <div class="t-lbl">HL BALANCE</div>
+        <div class="t-sub" id="t-exchange">Hyperliquid · Perpetuals</div>
+      </div>
+      <div class="t-metric green">
+        <div class="t-val green" id="t-pnl">--</div>
+        <div class="t-lbl">UNREALIZED P&L</div>
+        <div class="t-sub" id="t-dpnl">Daily: 0.00%</div>
+      </div>
+      <div class="t-metric gold">
+        <div class="t-val gold" id="t-positions">5</div>
+        <div class="t-lbl">OPEN POSITIONS</div>
+        <div class="t-sub" id="t-bias">Macro Bias: NEUTRAL</div>
+      </div>
+      <div class="t-metric" id="t-status-card">
+        <div class="t-val" id="t-status-val">ACTIVE</div>
+        <div class="t-lbl">ENGINE STATUS</div>
+        <div class="t-sub">SATOSHI v7.0 · 14 markets</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Positions Table -->
+      <div class="c8">
+        <div class="panel">
+          <div class="panel-hdr">
+            <div class="panel-title">Open Positions</div>
+            <span class="panel-sub" id="t-updated">LIVE · AUTO-REFRESH 10s</span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="positions-table" id="pos-table">
+              <thead>
+                <tr>
+                  <th>ASSET</th>
+                  <th>SIDE</th>
+                  <th>SIZE</th>
+                  <th>ENTRY</th>
+                  <th>MARK</th>
+                  <th>NOTIONAL</th>
+                  <th>UNREALIZED P&L</th>
+                </tr>
+              </thead>
+              <tbody id="pos-body">
+                <tr><td colspan="7" style="text-align:center;color:var(--j-dim);padding:30px">Loading positions...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="trade-controls">
+            <button class="ctrl-btn halt" onclick="satoshiAction('halt')">⏸ HALT ENGINE</button>
+            <button class="ctrl-btn resume" onclick="satoshiAction('resume')">▶ RESUME ENGINE</button>
+            <button class="ctrl-btn close-all" onclick="satoshiAction('close_all')">✕ CLOSE ALL POSITIONS</button>
+            <span style="margin-left:auto;font-family:var(--font-d);font-size:10px;color:var(--j-dim);align-self:center" id="t-wallet">Wallet: Connected</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SATOSHI Intel Panel -->
+      <div class="c4">
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-hdr"><div class="panel-title">Macro Intelligence</div></div>
+          <div class="panel-body">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <span style="font-size:13px;color:var(--j-dim)">Current Bias</span>
+              <span class="bias-badge neutral" id="macro-bias">NEUTRAL</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(0,212,255,.07)">
+              <span style="font-size:12px;color:var(--j-dim)">Crypto Score</span>
+              <span style="font-family:var(--font-d);font-size:12px;color:var(--j-text)" id="crypto-score">0.00</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(0,212,255,.07)">
+              <span style="font-size:12px;color:var(--j-dim)">Last Updated</span>
+              <span style="font-family:var(--font-d);font-size:10px;color:var(--j-dim)" id="macro-updated">--</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0">
+              <span style="font-size:12px;color:var(--j-dim)">Engine Status</span>
+              <span style="font-family:var(--font-d);font-size:11px;color:var(--j-green)" id="eng-status">RUNNING</span>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-hdr"><div class="panel-title">Position Breakdown</div></div>
+          <div class="panel-body" id="pos-breakdown">
+            <p style="color:var(--j-dim);font-size:12px">Loading...</p>
+          </div>
+        </div>
+      </div>
+    </div><!-- /grid -->
+  </div><!-- /page-trading -->
+
+
+  <!-- ════════════════════════════════════════════
+       MARKETS PAGE
+  ════════════════════════════════════════════ -->
+  <div class="page" id="page-markets">
+    <div class="panel">
+      <div class="panel-hdr">
+        <div class="panel-title">Bloomberg Terminal</div>
+        <span class="panel-sub">LIVE · 30s REFRESH · YAHOO FINANCE</span>
+      </div>
+      <div class="panel-body">
+        <div class="market-cats" id="market-cats">
+          <button class="market-cat active" data-cat="all">ALL</button>
+          <button class="market-cat" data-cat="crypto">CRYPTO</button>
+          <button class="market-cat" data-cat="indices">INDICES</button>
+          <button class="market-cat" data-cat="tech">TECH</button>
+          <button class="market-cat" data-cat="finance">FINANCE</button>
+          <button class="market-cat" data-cat="commodities">COMMODITIES</button>
+          <button class="market-cat" data-cat="hospitality">HOSPITALITY</button>
+        </div>
+        <div class="market-grid" id="market-grid">
+          <p style="color:var(--j-dim);padding:20px">Loading market data...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════
+       INTEL PAGE
+  ════════════════════════════════════════════ -->
+  <div class="page" id="page-intel">
+    <div class="grid">
+      <div class="c8">
+        <div class="panel">
+          <div class="panel-hdr">
+            <div class="panel-title">Global Intelligence Feed</div>
+            <span class="panel-sub">28 SOURCES · AUTO-REFRESH 60s</span>
+          </div>
+          <div style="max-height:calc(100vh - 200px);overflow-y:auto" id="intel-feed">
+            <p style="padding:20px;color:var(--j-dim)">Loading intel feeds...</p>
+          </div>
+        </div>
+      </div>
+      <div class="c4">
+        <div class="panel">
+          <div class="panel-hdr"><div class="panel-title">Summit Tracker</div></div>
+          <div class="panel-body" id="summit-list">
+            <p style="color:var(--j-dim)">Loading...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════
+       PREDICT PAGE
+  ════════════════════════════════════════════ -->
+  <div class="page" id="page-predict">
+    <div class="grid">
+      <div class="c8">
+        <div class="panel">
+          <div class="panel-hdr">
+            <div class="panel-title">Polymarket Intelligence</div>
+            <span class="panel-sub">LIVE MARKETS · 60s REFRESH</span>
+          </div>
+          <div class="panel-body" style="max-height:calc(100vh - 180px);overflow-y:auto" id="predict-feed">
+            <p style="color:var(--j-dim)">Loading prediction markets...</p>
+          </div>
+        </div>
+      </div>
+      <div class="c4">
+        <div class="panel">
+          <div class="panel-hdr"><div class="panel-title">Assistant Analysis Engine</div></div>
+          <div class="panel-body">
+            <div class="analysis-box" id="predict-analysis">
+              <h3>INTELLIGENCE BRIEF</h3>
+              <p><strong>Fed Watch:</strong> Rate cut probability markets remain the highest-volume plays. Current sentiment pricing June 2026 cut at 68%, down from 82% last week — macro uncertainty is real.</p>
+              <p><strong>Geopolitical:</strong> Election and conflict markets showing elevated volatility. Recommend small position sizing on binary political outcomes.</p>
+              <p><strong>AI Regulation:</strong> Markets appear mispriced given recent Senate committee activity. Worth monitoring for contrarian opportunity.</p>
+              <p><strong>Crypto:</strong> BTC ETF flow markets trending bullish. SATOSHI macro bias aligned — watching closely.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════
+       OPS PAGE
+  ════════════════════════════════════════════ -->
+  <div class="page" id="page-ops">
+    <div class="grid">
+      <div class="c4">
+        <div class="panel">
+          <div class="panel-hdr"><div class="panel-title">All Services</div></div>
+          <div class="panel-body" id="ops-services">
+            <div class="svc-row online"><div class="svc-dot"></div><span class="svc-name">HyperClaw API</span><span class="svc-port">:8001</span></div>
+            <div class="svc-row online"><div class="svc-dot"></div><span class="svc-name">SATOSHI Engine</span><span class="svc-port">:5001</span></div>
+            <div class="svc-row online"><div class="svc-dot"></div><span class="svc-name">Telegram Bot</span><span class="svc-port">active</span></div>
+            <div class="svc-row warning"><div class="svc-dot"></div><span class="svc-name">WhatsApp Bridge</span><span class="svc-port">pending key</span></div>
+            <div class="svc-row online"><div class="svc-dot"></div><span class="svc-name">Gmail OAuth</span><span class="svc-port">active</span></div>
+            <div class="svc-row online"><div class="svc-dot"></div><span class="svc-name">Google Calendar</span><span class="svc-port">active</span></div>
+            <div class="svc-row online"><div class="svc-dot"></div><span class="svc-name">iMessage Bridge</span><span class="svc-port">active</span></div>
+            <div class="svc-row online"><div class="svc-dot"></div><span class="svc-name">Supabase (RLS)</span><span class="svc-port">secured</span></div>
+            <div class="svc-row warning"><div class="svc-dot"></div><span class="svc-name">Memory MCP Server</span><span class="svc-port">:8765</span></div>
+            <div class="svc-row online"><div class="svc-dot"></div><span class="svc-name">ElevenLabs TTS</span><span class="svc-port">George · active</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="c4">
+        <div class="panel">
+          <div class="panel-hdr"><div class="panel-title">Swarm Command</div></div>
+          <div class="panel-body">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <button class="ctrl-btn resume" style="width:100%;text-align:center" onclick="runAllHands()">◈ RUN ALL-HANDS MEETING</button>
+              <button class="ctrl-btn" style="width:100%;text-align:center;color:var(--j-blue);border-color:var(--j-blue)" onclick="checkSwarmStatus()">◆ CHECK SWARM STATUS</button>
+            </div>
+            <div style="margin-top:16px;padding:14px;background:rgba(0,20,50,.4);border:1px solid var(--j-border);max-height:300px;overflow-y:auto" id="swarm-output">
+              <p style="color:var(--j-dim);font-size:12px">Awaiting command...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="c4">
+        <div class="panel">
+          <div class="panel-hdr"><div class="panel-title">Activity Log</div></div>
+          <div style="max-height:500px;overflow-y:auto" id="ops-log">
+            <div class="log-entry"><span class="log-ts">NOW</span><div class="log-msg"><span class="ok">✓</span> HyperOS command center loaded</div></div>
+            <div class="log-entry"><span class="log-ts">SESSION</span><div class="log-msg"><span class="info">⚡</span> Assistant Assistant initialized</div></div>
+            <div class="log-entry"><span class="log-ts">TODAY</span><div class="log-msg"><span class="ok">✓</span> Supabase RLS secured — 16 tables</div></div>
+            <div class="log-entry"><span class="log-ts">TODAY</span><div class="log-msg"><span class="ok">✓</span> Gmail OAuth upgraded — 8 scopes</div></div>
+            <div class="log-entry"><span class="log-ts">TODAY</span><div class="log-msg"><span class="ok">✓</span> Google Calendar connected</div></div>
+            <div class="log-entry"><span class="log-ts">TODAY</span><div class="log-msg"><span class="ok">✓</span> iMessage bridge activated</div></div>
+            <div class="log-entry"><span class="log-ts">TODAY</span><div class="log-msg"><span class="info">⚡</span> SATOSHI active — 5 positions open</div></div>
+            <div class="log-entry"><span class="log-ts">03:28</span><div class="log-msg"><span class="warn">⚠</span> Memory MCP restarted via launchd</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+<script>
+// ════════════════════════════════════════════════════════════
+// Assistant COMMAND CENTER — MASTER SCRIPT
+// ════════════════════════════════════════════════════════════
+
+// ── MARKET CATEGORY MAP ──────────────────────────────────────
+const MARKET_CATS = {
+  crypto: ['BTC','ETH','SOL','AVAX','LINK','MATIC','DOT','ATOM','UNI','AAVE','DOGE'],
+  indices: ['GSPC','DJI','IXIC','RUT','VIX'],
+  tech: ['AAPL','MSFT','GOOGL','AMZN','NVDA','META','TSLA','AMD','INTC','CRM','ORCL','ADBE','NFLX','PYPL','SHOP','SNOW','PLTR','COIN','ARKK'],
+  finance: ['JPM','GS','MS','BAC','V','MA','BRK-B'],
+  commodities: ['GC=F','SI=F','CL=F','NG=F','DX-Y','EURUSD','GBPUSD','USDJPY','GLD','TLT'],
+  hospitality: ['MAR','HLT','H','ABNB','BKNG','EXPE'],
+};
+
+// ── STATE ─────────────────────────────────────────────────────
+let MARKETS = [];
+let INTEL = [];
+let SUMMITS = [];
+let PREDICTIONS = [];
+let AGENTS = [];
+let SATOSHI = {};
+let activeCat = 'all';
+let voiceOn = false;
+let currentAudio = null;
+let chatSession = null;
+
+// ── NAVIGATION ────────────────────────────────────────────────
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('page-' + tab.dataset.tab).classList.add('active');
+    // Lazy load on first visit
+    if (tab.dataset.tab === 'markets' && MARKETS.length === 0) pollMarkets();
+    if (tab.dataset.tab === 'intel' && INTEL.length === 0) { pollIntel(); pollSummits(); }
+    if (tab.dataset.tab === 'predict' && PREDICTIONS.length === 0) pollPredictions();
+    if (tab.dataset.tab === 'trading') pollSatoshi();
+  });
+});
+
+// ── WORLD CLOCKS ─────────────────────────────────────────────
+function updateClocks() {
+  const now = new Date();
+  const fmt = tz => now.toLocaleTimeString('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  document.getElementById('clk-la').textContent = fmt('America/Los_Angeles');
+  document.getElementById('clk-ny').textContent = fmt('America/New_York');
+  document.getElementById('clk-lon').textContent = fmt('Europe/London');
+  document.getElementById('clk-tyo').textContent = fmt('Asia/Tokyo');
+}
+setInterval(updateClocks, 1000);
+updateClocks();
+document.getElementById('chat-init-time').textContent =
+  new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,timeZone:'America/Los_Angeles'}) + ' PST';
+
+// ── TOAST SYSTEM ─────────────────────────────────────────────
+function toast(msg, type='info', duration=4000) {
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => {
+    t.style.animation = 'toast-out .3s ease-out forwards';
+    setTimeout(() => t.remove(), 300);
+  }, duration);
+}
+
+// ── HTML ESCAPE ───────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+// ── HEALTH POLL ───────────────────────────────────────────────
+async function pollHealth() {
+  try {
+    const res = await fetch('/health');
+    const d = await res.json();
+    const upSec = Math.floor(d.uptime_seconds || 0);
+    const h = Math.floor(upSec/3600), m = Math.floor((upSec%3600)/60);
+    document.getElementById('d-uptime').textContent = h > 0 ? `${h}h ${m}m` : `${upSec}s`;
+    if (d.satoshi_balance) {
+      const bal = d.satoshi_balance.toFixed(0);
+      document.getElementById('d-balance').textContent = '$' + bal;
+      document.getElementById('hl-bal').textContent = '$' + d.satoshi_balance.toFixed(2);
+      document.getElementById('chat-balance').textContent = bal;
+    }
+    const row = document.getElementById('svc-satoshi');
+    if (d.satoshi === 'active') row.className = 'svc-row online';
+    else if (d.satoshi === 'standby') row.className = 'svc-row warning';
+    else row.className = 'svc-row offline';
+  } catch(e) {
+    document.getElementById('sys-label').textContent = 'API OFFLINE';
+    document.getElementById('sys-dot').style.background = 'var(--j-red)';
+  }
+}
+
+// ── SATOSHI POLL ──────────────────────────────────────────────
+async function pollSatoshi() {
+  try {
+    const res = await fetch('/api/satoshi/status');
+    const d = await res.json();
+    SATOSHI = d;
+
+    // Dash metrics
+    if (d.hl_balance) {
+      document.getElementById('d-balance').textContent = '$' + d.hl_balance.toFixed(0);
+      document.getElementById('t-bal').textContent = '$' + d.hl_balance.toFixed(2);
+      document.getElementById('hl-bal').textContent = '$' + d.hl_balance.toFixed(2);
+    }
+    const positions = d.positions || [];
+    document.getElementById('d-positions').textContent = positions.length;
+    document.getElementById('t-positions').textContent = positions.length;
+
+    // Unrealized P&L total
+    const totalPnl = positions.reduce((s, p) => s + (p.unrealized_pnl || 0), 0);
+    const pnlStr = (totalPnl >= 0 ? '+$' : '-$') + Math.abs(totalPnl).toFixed(2);
+    const pnlEl = document.getElementById('t-pnl');
+    pnlEl.textContent = pnlStr;
+    pnlEl.className = 't-val ' + (totalPnl >= 0 ? 'green' : 'red');
+    document.getElementById('d-pnl').textContent = 'Unrealized P&L: ' + pnlStr;
+
+    // Daily P&L
+    const dpnl = d.daily_pnl || '0.00%';
+    document.getElementById('t-dpnl').textContent = 'Daily: ' + dpnl;
+
+    // Macro bias
+    const bias = (d.uw_sentiment && d.uw_sentiment.macro_bias) || 'NEUTRAL';
+    const biasEl = document.getElementById('macro-bias');
+    biasEl.textContent = bias;
+    biasEl.className = 'bias-badge ' + (bias === 'BULLISH' ? 'bull' : bias === 'BEARISH' ? 'bear' : 'neutral');
+    document.getElementById('t-bias').textContent = 'Macro Bias: ' + bias;
+    if (d.uw_sentiment) {
+      document.getElementById('crypto-score').textContent = (d.uw_sentiment.crypto_score || 0).toFixed(2);
+      const updRaw = d.uw_sentiment.last_updated;
+      if (updRaw) {
+        const upd = new Date(updRaw);
+        document.getElementById('macro-updated').textContent = upd.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false});
+      }
+    }
+
+    // Engine status
+    const halted = d.halted;
+    const statusEl = document.getElementById('t-status-val');
+    const engEl = document.getElementById('eng-status');
+    if (halted) {
+      statusEl.textContent = 'HALTED';
+      statusEl.className = 't-val red';
+      document.getElementById('t-status-card').className = 't-metric red';
+      engEl.textContent = 'HALTED';
+      engEl.style.color = 'var(--j-red)';
+    } else if (!d.funded) {
+      statusEl.textContent = 'STANDBY';
+      statusEl.className = 't-val gold';
+      document.getElementById('t-status-card').className = 't-metric gold';
+    } else {
+      statusEl.textContent = 'ACTIVE';
+      statusEl.className = 't-val green';
+      document.getElementById('t-status-card').className = 't-metric green';
+      engEl.textContent = 'RUNNING';
+      engEl.style.color = 'var(--j-green)';
+    }
+
+    // Render positions table
+    renderPositions(positions);
+
+  } catch(e) { console.error('Satoshi poll:', e); }
+}
+
+function renderPositions(positions) {
+  const tbody = document.getElementById('pos-body');
+  if (!positions || positions.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--j-dim);padding:30px">No open positions</td></tr>';
+    document.getElementById('pos-breakdown').innerHTML = '<p style="color:var(--j-dim);font-size:12px">No positions</p>';
+    return;
+  }
+  tbody.innerHTML = positions.map(p => {
+    const pnl = p.unrealized_pnl || 0;
+    const pnlClass = pnl >= 0 ? 'positive' : 'negative';
+    const pnlStr = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+    return `<tr>
+      <td><span class="pos-coin">${p.coin}</span></td>
+      <td><span class="pos-side ${(p.side||'').toLowerCase()}">${p.side}</span></td>
+      <td style="font-family:var(--font-d);font-size:12px">${p.size}</td>
+      <td style="font-family:var(--font-d);font-size:12px">$${Number(p.entry_price||0).toLocaleString()}</td>
+      <td style="font-family:var(--font-d);font-size:12px">—</td>
+      <td style="font-family:var(--font-d);font-size:12px">$${Number(p.size_usd||0).toFixed(0)}</td>
+      <td><span class="pos-pnl ${pnlClass}" style="font-family:var(--font-d);font-size:13px;font-weight:700">${pnlStr}</span></td>
+    </tr>`;
+  }).join('');
+
+  // Breakdown panel
+  document.getElementById('pos-breakdown').innerHTML = positions.map(p => {
+    const pnl = p.unrealized_pnl || 0;
+    return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,212,255,.07)">
+      <span style="font-family:var(--font-d);font-size:11px;color:var(--j-cyan)">${p.coin} <span style="color:${p.side==='LONG' ? 'var(--j-green)' : 'var(--j-red)'};font-size:9px">${p.side}</span></span>
+      <span style="font-family:var(--font-d);font-size:11px;color:${pnl>=0?'var(--j-green)':'var(--j-red)'}">${pnl>=0?'+':''} $${Math.abs(pnl).toFixed(2)}</span>
+    </div>`;
+  }).join('');
+}
+
+async function satoshiAction(action) {
+  const confirmMsgs = {
+    halt: 'Halt SATOSHI engine?',
+    resume: 'Resume SATOSHI engine?',
+    close_all: '⚠️ CLOSE ALL POSITIONS? This cannot be undone.'
+  };
+  if (!confirm(confirmMsgs[action] || 'Confirm action?')) return;
+
+  const endpoints = { halt: '/api/satoshi/halt', resume: '/api/satoshi/resume', close_all: '/api/satoshi/close' };
+  const ep = endpoints[action];
+  if (!ep) return;
+  try {
+    const res = await fetch(ep, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const d = await res.json();
+    toast(d.message || `${action} sent`, action === 'halt' ? 'warning' : 'success');
+    setTimeout(pollSatoshi, 1500);
+  } catch(e) { toast('Action failed: ' + e.message, 'error'); }
+}
+
+// ── AGENTS POLL ───────────────────────────────────────────────
+async function pollAgents() {
+  try {
+    const res = await fetch('/api/agents');
+    const d = await res.json();
+    AGENTS = d.agents || [];
+    const total = d.total_agents || AGENTS.length;
+    document.getElementById('d-agents').textContent = total;
+    document.getElementById('swarm-count').textContent = `${AGENTS.length} AGENTS ACTIVE`;
+
+    const grid = document.getElementById('agent-grid');
+    grid.innerHTML = AGENTS.slice(0, 56).map(a => {
+      const name = (a.name || a.id || '').split(' — ')[0].split(' - ')[0];
+      const status = a.status || 'STANDBY';
+      const badge = status === 'LIVE' ? 'live' : status === 'active' ? 'active' : 'standby';
+      return `<div class="agent-card">
+        <div class="agent-id">${(a.id||'').toUpperCase().slice(0,8)}</div>
+        <div class="agent-nm" title="${name}">${name}</div>
+        <div class="agent-badge ${badge}">${status}</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('agent-grid').innerHTML = '<p style="color:var(--j-dim);font-size:12px">Swarm offline</p>';
+  }
+}
+
+// ── MARKETS ───────────────────────────────────────────────────
+function getCat(sym) {
+  for (const [cat, syms] of Object.entries(MARKET_CATS)) {
+    if (syms.some(s => sym.toUpperCase().includes(s.toUpperCase()) || sym.toUpperCase() === s.toUpperCase())) return cat;
+  }
+  return 'other';
+}
+
+function genSparkSVG(data, isUp) {
+  if (!data || data.length < 2) {
+    let pts = [], y = 15;
+    for (let x = 0; x <= 100; x += 10) { y += (Math.random()-.5)*6; y=Math.max(5,Math.min(25,y)); pts.push(`${x},${y}`); }
+    const col = isUp ? 'var(--j-green)' : 'var(--j-red)';
+    return `<svg viewBox="0 0 100 30"><polyline fill="none" stroke="${col}" stroke-width="1.8" stroke-linejoin="round" points="${pts.join(' ')}"/></svg>`;
+  }
+  const mn = Math.min(...data), mx = Math.max(...data), rng = mx - mn || 1;
+  const step = 100 / (data.length - 1);
+  const pts = data.map((v,i) => `${(i*step).toFixed(1)},${(28-((v-mn)/rng)*24).toFixed(1)}`).join(' ');
+  const col = isUp ? 'var(--j-green)' : 'var(--j-red)';
+  return `<svg viewBox="0 0 100 30"><polyline fill="none" stroke="${col}" stroke-width="1.8" stroke-linejoin="round" points="${pts}"/></svg>`;
+}
+
+function formatPrice(p, sym) {
+  if (!p || p === 0) return '—';
+  if (p >= 10000) return '$' + p.toLocaleString('en-US',{maximumFractionDigits:0});
+  if (p >= 100) return '$' + p.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (p >= 1) return '$' + p.toFixed(4);
+  return '$' + p.toFixed(6);
+}
+
+function renderMarkets() {
+  const grid = document.getElementById('market-grid');
+  const filtered = activeCat === 'all' ? MARKETS : MARKETS.filter(m => getCat(m.symbol) === activeCat);
+  if (filtered.length === 0) {
+    grid.innerHTML = '<p style="color:var(--j-dim);padding:20px">No data yet...</p>'; return;
+  }
+  grid.innerHTML = filtered.map(m => {
+    const up = m.change >= 0;
+    const chgStr = (up ? '▲ +' : '▼ ') + Math.abs(m.change).toFixed(2) + '%';
+    return `<div class="market-card ${up?'up':'down'}">
+      <div class="m-sym">${m.symbol}</div>
+      <div class="m-name">${m.name}</div>
+      <div class="m-price">${formatPrice(m.price, m.symbol)}</div>
+      <div class="m-chg ${up?'up':'down'}">${chgStr}</div>
+      <div class="sparkline">${genSparkSVG(m.sparkline, up)}</div>
+    </div>`;
+  }).join('');
+}
+
+async function pollMarkets() {
+  try {
+    const res = await fetch('/api/markets');
+    const d = await res.json();
+    if (d.markets && d.markets.length > 0) { MARKETS = d.markets; renderMarkets(); }
+  } catch(e) { console.error('Markets:', e); }
+}
+
+// Market category filter
+document.querySelectorAll('.market-cat').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.market-cat').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeCat = btn.dataset.cat;
+    renderMarkets();
+  });
+});
+
+// ── INTEL ─────────────────────────────────────────────────────
+function renderIntel() {
+  const feed = document.getElementById('intel-feed');
+  if (INTEL.length === 0) { feed.innerHTML = '<p style="padding:20px;color:var(--j-dim)">Loading intel...</p>'; return; }
+  feed.innerHTML = INTEL.map(i =>
+    `<div class="intel-item" onclick="window.open('${esc(i.link||'#')}','_blank')">
+      <div class="intel-hdr">
+        <span class="intel-src">${esc(i.source||'')}</span>
+        <span class="intel-time">${esc(i.time||'')}</span>
+      </div>
+      <div class="intel-ttl">${esc(i.title||'')}</div>
+      <div class="intel-sum">${esc((i.summary||'').substring(0,180))}</div>
+    </div>`
+  ).join('');
+}
+
+function renderSummits() {
+  const list = document.getElementById('summit-list');
+  if (SUMMITS.length === 0) { list.innerHTML = '<p style="color:var(--j-dim)">No upcoming summits</p>'; return; }
+  list.innerHTML = SUMMITS.map(s =>
+    `<div class="summit-item">
+      <div class="summit-dt"><div class="summit-mo">${s.month}</div><div class="summit-day">${s.day}</div></div>
+      <div><div class="summit-nm">${esc(s.name)}</div><div class="summit-loc">${esc(s.location)}</div></div>
+    </div>`
+  ).join('');
+}
+
+async function pollIntel() {
+  try {
+    const res = await fetch('/api/intel?limit=40');
+    const d = await res.json();
+    if (d.items && d.items.length > 0) { INTEL = d.items; renderIntel(); }
+  } catch(e) { console.error('Intel:', e); }
+}
+
+async function pollSummits() {
+  try {
+    const res = await fetch('/api/summits');
+    const d = await res.json();
+    if (d.summits) { SUMMITS = d.summits; renderSummits(); }
+  } catch(e) {}
+}
+
+// ── PREDICTIONS ───────────────────────────────────────────────
+function renderPredictions() {
+  const feed = document.getElementById('predict-feed');
+  if (PREDICTIONS.length === 0) { feed.innerHTML = '<p style="color:var(--j-dim)">Loading markets...</p>'; return; }
+  feed.innerHTML = PREDICTIONS.map(p =>
+    `<div class="predict-card">
+      <div class="predict-q">${esc(p.question||p.q||'')}</div>
+      <div class="pbar"><div class="pbar-fill" style="width:${p.prob}%"></div></div>
+      <div class="pmeta">
+        <span class="pprob">${p.prob}% YES</span>
+        <span class="pvol">Vol: ${p.volume||p.vol||'—'}</span>
+      </div>
+    </div>`
+  ).join('');
+}
+
+async function pollPredictions() {
+  try {
+    const res = await fetch('/api/polymarket?limit=20');
+    const d = await res.json();
+    if (d.markets && d.markets.length > 0) { PREDICTIONS = d.markets; renderPredictions(); }
+  } catch(e) { console.error('Polymarket:', e); }
+}
+
+// ── CHAT ──────────────────────────────────────────────────────
+const chatMsgs = document.getElementById('chat-msgs');
+const chatInp = document.getElementById('chat-inp');
+const sendBtn = document.getElementById('send-btn');
+let chatLoading = false;
+
+function appendMsg(role, text, typing=false) {
+  const isUser = role === 'user';
+  const av = isUser ? 'V' : 'G';
+  const now = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,timeZone:'America/Los_Angeles'});
+  const div = document.createElement('div');
+  div.className = 'msg ' + (isUser ? 'user' : 'jarvis');
+  if (typing) {
+    div.id = 'typing-msg';
+    div.innerHTML = `<div class="msg-av">${av}</div><div class="msg-body"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  } else {
+    div.innerHTML = `<div class="msg-av">${av}</div><div class="msg-body"><div class="msg-txt">${esc(text)}</div><div class="msg-time">${now} PST</div></div>`;
+  }
+  chatMsgs.appendChild(div);
+  chatMsgs.scrollTop = chatMsgs.scrollHeight;
+  return div;
+}
+
+async function sendChat() {
+  const msg = chatInp.value.trim();
+  if (!msg || chatLoading) return;
+  chatInp.value = '';
+  chatLoading = true;
+  sendBtn.disabled = true;
+
+  appendMsg('user', msg);
+  const typingEl = appendMsg('jarvis', '', true);
+
+  try {
+    const res = await fetch('/chat', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({message: msg, session_id: chatSession})
+    });
+    const d = await res.json();
+    if (d.session_id) chatSession = d.session_id;
+    typingEl.remove();
+    const reply = d.response || 'Processing...';
+    appendMsg('jarvis', reply);
+    if (voiceOn) speakText(reply);
+    logActivity(`Chat: "${msg.substring(0,40)}..."`);
+  } catch(e) {
+    typingEl.remove();
+    appendMsg('jarvis', 'Connection interrupted. Please try again, user.');
+    toast('Chat error: ' + e.message, 'error');
+  }
+  chatLoading = false;
+  sendBtn.disabled = false;
+  chatInp.focus();
+}
+
+sendBtn.addEventListener('click', sendChat);
+chatInp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } });
+
+// ── VOICE / TTS ───────────────────────────────────────────────
+const voiceBtn = document.getElementById('voice-btn');
+voiceBtn.addEventListener('click', () => {
+  voiceOn = !voiceOn;
+  voiceBtn.classList.toggle('on', voiceOn);
+  voiceBtn.title = voiceOn ? 'Voice ON — George (click to mute)' : 'Voice OFF (click to enable)';
+  if (!voiceOn && currentAudio) { currentAudio.pause(); currentAudio = null; }
+  toast(voiceOn ? '🔊 George voice enabled' : '🔇 Voice muted', 'info', 2000);
+});
+
+async function speakText(text) {
+  if (!voiceOn || !text) return;
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text: text.substring(0, 600)})
+    });
+    const d = await res.json();
+    if (d.audio) {
+      if (currentAudio) currentAudio.pause();
+      currentAudio = new Audio('data:audio/mp3;base64,' + d.audio);
+      currentAudio.play().catch(()=>{});
+    }
+  } catch(e) { console.error('TTS:', e); }
+}
+
+// ── OPS FUNCTIONS ─────────────────────────────────────────────
+function logActivity(msg, type='info') {
+  const log = document.getElementById('ops-log');
+  const now = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false});
+  const icons = {info:'⚡',success:'✓',warning:'⚠',error:'✕'};
+  const cls = {info:'info',success:'ok',warning:'warn',error:'err'};
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  div.innerHTML = `<span class="log-ts">${now}</span><div class="log-msg"><span class="${cls[type]||'info'}">${icons[type]||'⚡'}</span> ${esc(msg)}</div>`;
+  log.insertBefore(div, log.firstChild);
+  if (log.children.length > 50) log.removeChild(log.lastChild);
+}
+
+async function runAllHands() {
+  const out = document.getElementById('swarm-output');
+  out.innerHTML = '<p style="color:var(--j-blue);font-size:12px">⚡ Convening all-hands meeting...</p>';
+  toast('Dispatching All-Hands meeting to swarm...', 'info');
+  try {
+    const res = await fetch('/api/swarm/all-hands', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const d = await res.json();
+    out.innerHTML = `<pre style="color:var(--j-text);font-size:11px;white-space:pre-wrap;line-height:1.6">${esc(JSON.stringify(d, null, 2))}</pre>`;
+    logActivity('All-Hands meeting dispatched', 'success');
+    toast('All-Hands complete', 'success');
+  } catch(e) {
+    out.innerHTML = `<p style="color:var(--j-red);font-size:12px">Error: ${esc(e.message)}</p>`;
+    toast('All-Hands failed: ' + e.message, 'error');
+  }
+}
+
+async function checkSwarmStatus() {
+  const out = document.getElementById('swarm-output');
+  out.innerHTML = '<p style="color:var(--j-blue);font-size:12px">⚡ Checking swarm status...</p>';
+  try {
+    const res = await fetch('/api/swarm/status');
+    const d = await res.json();
+    out.innerHTML = `<pre style="color:var(--j-text);font-size:11px;white-space:pre-wrap;line-height:1.6">${esc(JSON.stringify(d, null, 2))}</pre>`;
+  } catch(e) {
+    out.innerHTML = `<p style="color:var(--j-red);font-size:12px">Error: ${esc(e.message)}</p>`;
+  }
+}
+
+// ── POLLING SCHEDULE ──────────────────────────────────────────
+pollHealth();
+pollSatoshi();
+pollAgents();
+pollMarkets();
+pollIntel();
+pollSummits();
+pollPredictions();
+
+setInterval(pollHealth, 5000);
+setInterval(pollSatoshi, 10000);
+setInterval(pollAgents, 30000);
+setInterval(pollMarkets, 30000);
+setInterval(pollIntel, 60000);
+setInterval(pollPredictions, 60000);
+
+// ── STARTUP TOAST ─────────────────────────────────────────────
+setTimeout(() => toast('⚡ HyperOS Command Center initialized — Assistant online', 'success', 4000), 800);
+setTimeout(() => toast('SATOSHI active on Hyperliquid · 5 positions open', 'info', 3000), 2000);
+
+</script>
+</body>
+</html>

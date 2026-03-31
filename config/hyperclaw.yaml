@@ -1,0 +1,27 @@
+anthropic:
+  api_key: ${ANTHROPIC_API_KEY}
+chatjimmy:
+  base_url: https://chatjimmy.ai/api
+  timeout_seconds: 5.0
+database:
+  url: postgresql://postgres:YOUR_PASSWORD@db.YOUR_PROJECT.supabase.co:5432/postgres
+logging:
+  file: hyperclaw.log
+  level: INFO
+models:
+  claude_max_tokens: 4096
+  default: claude-sonnet-4-6
+router:
+  fast_loop_enabled: true
+  slow_loop_interval_seconds: 300
+security:
+  audit_log: true
+  policy: default
+supabase:
+  anon_key: ${SUPABASE_ANON_KEY}
+  service_key: ${SUPABASE_SERVICE_KEY}
+  url: ${SUPABASE_URL}
+swarm:
+  default_domain: business
+  max_agents: 50
+version: 0.2.0-alpha

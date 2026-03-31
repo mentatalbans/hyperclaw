@@ -1,0 +1,7 @@
+profile: local
+description: "Local model profile — uses nim-local for cost-free inference"
+primary_model: "nim-local"
+fast_model: "nim-local"
+code_model: "nim-local"
+cost_budget_usd: 0.0
+latency_budget_ms: 1000
