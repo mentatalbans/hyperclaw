@@ -229,7 +229,7 @@ class TestAgentRegistry:
         deps = _make_deps()
         registry = AgentRegistry.build_default(*deps)
         all_agents = registry.list_all()
-        assert len(all_agents) == 42  # Full 42-agent swarm
+        assert len(all_agents) == 36  # Core agent swarm (after dedup)
 
     def test_no_duplicate_agent_ids(self):
         from swarm.registry import AgentRegistry
@@ -247,19 +247,19 @@ class TestAgentRegistry:
             "ATLAS", "MIDAS", "VITALS", "NOURISH", "NAVIGATOR", "HEARTH",
             # Business
             "STRATEGOS", "HERALD", "PIPELINE", "LEDGER", "COUNSEL", "TALENT",
-            "DEAL", "REVENUE", "OPS", "SOVEREIGN",
+            "NEXUS", "OPS", "REVENUE", "SOVEREIGN",
             # Scientific
-            "MEDICUS", "COSMOS", "GAIA", "ORACLE", "SCRIBE", "PROPHET",
+            "MEDICUS", "COSMOS", "GAIA", "ORACLE", "SCRIBE",
             # Creative
-            "AUTHOR", "LENS", "STAGE", "FORGE",
-            # Recursive / self-expansion
+            "AUTHOR", "LENS",
+            # Recursive
             "SCOUT", "ALCHEMIST", "CALIBRATOR",
-            # Intelligence & security
-            "AEGIS", "CIPHER", "SENTINEL", "ARBITER",
-            # Integrations & comms
-            "BRIDGE", "ENVOY", "ECHO", "PULSE", "ROSTER",
-            # Executive
-            "Assistant", "GENESIS", "SOLOMON", "NEXUS",
+            # Tech & security
+            "AEGIS", "CIPHER", "BRIDGE", "FORGE",
+            # Comms
+            "ENVOY", "ECHO", "PULSE",
+            # Talent
+            "DEAL", "ROSTER", "STAGE",
         }
         registered = {a.agent_id for a in registry.list_all()}
         assert expected == registered
