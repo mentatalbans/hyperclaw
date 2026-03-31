@@ -35,6 +35,10 @@ def main():
     chat_parser = subparsers.add_parser("chat", help="Interactive chat mode")
     chat_parser.add_argument("--session", default="cli", help="Session ID")
 
+    # TUI command (full terminal UI)
+    tui_parser = subparsers.add_parser("tui", help="Full terminal UI with tools")
+    tui_parser.add_argument("--session", default="tui", help="Session ID")
+
     # Status command
     subparsers.add_parser("status", help="Show system status")
 
@@ -73,6 +77,10 @@ def main():
     elif args.command == "chat":
         asyncio.run(interactive_chat(args.session))
 
+    elif args.command == "tui":
+        from hyperclaw.cli_tui import main as tui_main
+        tui_main()
+
     elif args.command == "status":
         asyncio.run(show_status())
 
@@ -87,7 +95,16 @@ def main():
 
 
 async def interactive_chat(session_id: str):
-    """Interactive chat mode."""
+    """Interactive chat mode with TUI."""
+    try:
+        # Try the enhanced TUI first
+        from hyperclaw.cli_tui import main as tui_main
+        tui_main()
+        return
+    except ImportError:
+        pass
+
+    # Fallback to basic chat
     from hyperclaw.orchestrator import get_orchestrator
 
     print("\n" + "=" * 60)
