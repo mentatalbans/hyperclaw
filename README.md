@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
 [![PyPI](https://img.shields.io/pypi/v/hyperclaw)](https://pypi.org/project/hyperclaw/)
 
-HyperClaw is a personal AI assistant that works across your entire life. Not just chat — it connects to your email, calendar, tasks, documents, and more. It remembers everything, learns your preferences, and coordinates 50+ specialized AI agents to help you with anything.
+HyperClaw is a personal AI assistant that works across your entire life. Not just chat — it connects to your email, calendar, tasks, documents, and more. It remembers everything, learns your preferences, and coordinates 36+ specialized AI agents to help you with anything.
 
 ---
 
@@ -18,8 +18,49 @@ HyperClaw is a personal AI assistant that works across your entire life. Not jus
 - **Support your business** — Invoicing, customer tracking, sales pipelines
 - **Research anything** — Web search, document analysis, data synthesis
 - **Remember everything** — Your preferences, history, context across all sessions
+- **Optimize costs** — Smart model routing uses cheap models for simple tasks
 
 One AI. Every platform. All working together.
+
+---
+
+## Architecture
+
+### Cost-Optimized Model Router
+
+HyperClaw intelligently routes tasks to the most cost-effective model:
+
+| Model | Use Case | Cost |
+|-------|----------|------|
+| **ChatJimmy** (Llama 3.1 8B) | Simple queries, classification, quick lookups | ~$0.00001/1k tokens |
+| **Claude Haiku** | Moderate tasks, basic analysis | ~$0.001/1k tokens |
+| **Claude Sonnet** | Complex tasks, coding, writing | ~$0.003/1k tokens |
+| **Claude Opus** | Deep reasoning, research, planning | ~$0.015/1k tokens |
+
+Simple "what time is it?" goes to ChatJimmy. Complex "analyze this report and create a strategy" goes to Claude.
+
+### Multi-Agent Coordination
+
+36 specialized agents organized by domain:
+
+- **Personal (6):** Atlas, Midas, Vitals, Nourish, Navigator, Hearth
+- **Business (10):** Strategos, Herald, Pipeline, Ledger, Counsel, Talent, Nexus, Ops, Revenue, Sovereign
+- **Scientific (5):** Medicus, Cosmos, Gaia, Oracle, Scribe
+- **Creative (4):** Author, Lens, Stage, Forge
+- **Technology (3):** Aegis, Bridge, Cipher
+- **Communications (5):** Echo, Envoy, Pulse, Herald, Roster
+- **Recursive (3):** Scout, Alchemist, Calibrator
+
+Tasks are automatically routed to the best agent based on domain and complexity.
+
+### Persistent Memory
+
+Memory persists across sessions:
+
+- **Working Memory** — Current context and active tasks
+- **Episodic Memory** — Conversation history and decisions
+- **Semantic Memory** — Facts and knowledge
+- **Instincts** — Learned behavioral patterns
 
 ---
 
@@ -31,16 +72,24 @@ One AI. Every platform. All working together.
 ```bash
 brew install pipx
 pipx install hyperclaw
-hyperclaw init
+hyperclaw setup
 ```
 
 **Linux/Windows:**
 ```bash
 pip install hyperclaw
-hyperclaw init
+hyperclaw setup
 ```
 
-The setup walks you through everything — no technical knowledge needed.
+Then start the server:
+```bash
+hyperclaw server
+```
+
+Or use interactive chat:
+```bash
+hyperclaw chat
+```
 
 ### Option 2: Self-Host with Docker
 
@@ -55,102 +104,227 @@ cp .env.example .env
 # Edit .env and add your Anthropic API key
 # ANTHROPIC_API_KEY=sk-ant-your-key
 
+# Optional: Add ChatJimmy for cheap simple tasks
+# CHATJIMMY_API_KEY=your-taalas-key
+
 # Start
 docker-compose up
 ```
 
-Open `http://localhost:8000` in your browser.
+Open `http://localhost:8001` in your browser.
 
-### Option 3: Cloud Deploy
+### Option 3: Production Setup
 
-**Render** (recommended):
 ```bash
-# One-click deploy via Render dashboard
-# 1. Fork this repo to your GitHub
-# 2. Connect to Render and deploy from your fork
-```
+# Clone and setup
+git clone https://github.com/mentatalbans/hyperclaw.git
+cd hyperclaw
+pip install -r requirements.txt
 
-**Fly.io**:
-```bash
-fly launch --config fly.toml
-fly secrets set ANTHROPIC_API_KEY=sk-ant-your-key
+# Initialize workspace and config
+python -m hyperclaw setup
+
+# Initialize database (requires DATABASE_URL in .env)
+python -m hyperclaw setup --init-db
+
+# Start server
+python -m hyperclaw server --port 8001
 ```
 
 ---
 
-## What You Need
+## Configuration
 
 ### Required
-- **Anthropic API Key** — Powers the AI brain
-  - Get one free at [console.anthropic.com](https://console.anthropic.com)
+- **ANTHROPIC_API_KEY** — Powers the AI brain
+  - Get one at [console.anthropic.com](https://console.anthropic.com)
 
-### Optional (but recommended)
-- **Database** — Enables memory across sessions
-  - Easiest: [Supabase](https://supabase.com) (free tier works great)
-  - Or: Any PostgreSQL with pgvector
+### Recommended
+- **DATABASE_URL** — PostgreSQL with pgvector for memory
+  - Easiest: [Supabase](https://supabase.com) (free tier works)
+  - Run `schema/init.sql` to create tables
 
-### Integrations (connect what you use)
-- **Messaging:** Telegram, Slack, Discord, WhatsApp, Teams
-- **Email:** Gmail, Outlook
-- **Productivity:** Google Calendar, Notion, Todoist, Linear
-- **Business:** Salesforce, HubSpot, Stripe, QuickBooks
-- **Developer:** GitHub, Jira
+- **CHATJIMMY_API_KEY** — Cheap model for simple tasks
+  - Get one at [taalas.ai](https://taalas.ai)
+  - Reduces costs by 90%+ for simple queries
+
+### Optional Integrations
+
+**Messaging:**
+```bash
+TELEGRAM_BOT_TOKEN=your-bot-token
+SLACK_BOT_TOKEN=xoxb-your-token
+```
+
+**Email:**
+```bash
+GMAIL_CLIENT_ID=...
+GMAIL_CLIENT_SECRET=...
+GMAIL_REFRESH_TOKEN=...
+```
 
 See [.env.example](.env.example) for all available integrations.
 
 ---
 
-## How It Works
+## API Endpoints
 
+### Chat
+```bash
+# Simple chat
+curl -X POST http://localhost:8001/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What can you help me with?"}'
+
+# Streaming chat
+curl -X POST http://localhost:8001/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Explain quantum computing", "stream": true}'
 ```
-You → Your AI → Specialist Agents → Results
 
-Example:
-"Schedule a meeting with my team next week and send invites"
+### Tasks
+```bash
+# Create a task
+curl -X POST http://localhost:8001/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"goal": "Research competitors in AI space", "domain": "business"}'
 
-Your AI coordinates:
-├── Calendar agent (finds available times)
-├── Email agent (drafts invites)
-├── Memory agent (recalls team preferences)
-└── Returns: "Meeting scheduled for Tuesday 2pm. Invites sent to 4 people."
+# Get task status
+curl http://localhost:8001/api/tasks/abc123
+
+# List all tasks
+curl http://localhost:8001/api/tasks
 ```
 
-### The Agents
+### Multi-Agent Coordination
+```bash
+# Coordinate complex goal across multiple agents
+curl -X POST http://localhost:8001/api/coordinate \
+  -H "Content-Type: application/json" \
+  -d '{"goal": "Create a complete marketing strategy for product launch"}'
+```
 
-| Domain | What They Do |
-|--------|-------------|
-| Business | Finance, contracts, market analysis |
-| Communications | Email, messaging, scheduling |
-| Personal | Health, fitness, reminders |
-| Research | Web search, document analysis |
-| Creative | Writing, design, brainstorming |
-| Technical | Code, debugging, architecture |
+### Memory
+```bash
+# Store a memory
+curl -X POST http://localhost:8001/api/memory/remember \
+  -H "Content-Type: application/json" \
+  -d '{"content": "User prefers concise responses", "importance": 0.8}'
+
+# Recall memories
+curl -X POST http://localhost:8001/api/memory/recall \
+  -H "Content-Type: application/json" \
+  -d '{"query": "user preferences"}'
+```
+
+### Cost Management
+```bash
+# Get current costs
+curl http://localhost:8001/api/costs
+
+# Set daily budget
+curl -X POST "http://localhost:8001/api/costs/budget?budget_usd=5.0"
+
+# List available models
+curl http://localhost:8001/api/models
+```
+
+### System
+```bash
+# Health check
+curl http://localhost:8001/health
+
+# Full status
+curl http://localhost:8001/status
+
+# List agents
+curl http://localhost:8001/api/agents
+
+# List integrations
+curl http://localhost:8001/api/integrations
+```
 
 ---
 
-## Commands
+## CLI Commands
 
 ```bash
-hyperclaw init          # First-time setup (guided)
-hyperclaw start         # Start the system
-hyperclaw doctor        # Check if everything's working
+# Setup workspace and configuration
+hyperclaw setup
+hyperclaw setup --init-db  # Also initialize database
 
-hyperclaw swarm "..."   # Ask anything
-hyperclaw agent         # List all agents
-hyperclaw integrations  # Manage connections
+# Start the server
+hyperclaw server
+hyperclaw server --port 8080
+
+# Interactive chat
+hyperclaw chat
+
+# Check status
+hyperclaw status
+
+# Memory operations
+hyperclaw memory list
+hyperclaw memory recall "user preferences"
+hyperclaw memory remember "Important note"
+
+# Version
+hyperclaw version
 ```
 
 ---
 
-## Dashboard
+## Workspace Structure
 
-HyperClaw includes a web dashboard at `http://localhost:8000`:
+After setup, HyperClaw creates:
 
-- **Chat** — Talk to your AI
-- **Integrations** — Connect your services
-- **Agents** — See all specialists
-- **Memory** — View what your AI remembers
-- **Settings** — Configure your system
+```
+~/.hyperclaw/
+├── workspace/
+│   ├── SOUL.md           # AI personality
+│   ├── IDENTITY.md       # AI configuration
+│   ├── USER.md           # Your profile
+│   ├── MEMORY.md         # Working memory
+│   └── secrets/
+│       └── .env          # API keys
+├── memory/
+│   ├── instincts.md      # Learned behaviors
+│   ├── core-episodes.md  # Key memories
+│   └── daily/            # Daily logs
+├── config/
+│   └── hyperclaw.yaml    # System config
+└── logs/
+```
+
+Edit these files to customize your assistant's behavior.
+
+---
+
+## Cost Optimization Tips
+
+1. **Use ChatJimmy** — Add `CHATJIMMY_API_KEY` to route simple tasks to a model that costs 100x less
+
+2. **Set a budget** — `hyperclaw` respects `DAILY_BUDGET_USD` and falls back to cheaper models when exceeded
+
+3. **Enable prefer_cheap** — Set `PREFER_CHEAP_MODELS=true` to always prefer the cheapest capable model
+
+4. **Monitor usage** — Check `/api/costs` to see spend by model
+
+---
+
+## Database Setup (Optional but Recommended)
+
+For persistent memory across sessions, set up PostgreSQL with pgvector:
+
+1. Create a Supabase project (free) or use any PostgreSQL
+2. Enable the `vector` extension
+3. Run `schema/init.sql` to create tables
+4. Add `DATABASE_URL` to your `.env`
+
+```bash
+# Initialize database
+python -m hyperclaw setup --init-db
+```
 
 ---
 
@@ -178,7 +352,7 @@ HyperClaw includes a web dashboard at `http://localhost:8000`:
 - Check that API keys are in your `.env` file
 
 **Need help?**
-- Run `hyperclaw doctor` to check system health
+- Run `hyperclaw status` to check system health
 - Open an issue on [GitHub](https://github.com/mentatalbans/hyperclaw/issues)
 
 ---
