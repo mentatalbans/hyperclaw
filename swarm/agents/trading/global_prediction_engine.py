@@ -35,7 +35,7 @@ class GlobalPredictionEngine(BaseAgent):
         self.advantage_domains = {
             "hospitality": {
                 "confidence": 0.95,
-                "sources": ["sir_vaughn_expertise", "hyper_nimbus_data", "industry_network"],
+                "sources": ["user_expertise", "organization_data", "industry_network"],
                 "keywords": ["hotel", "travel", "tourism", "marriott", "hilton", "hyatt", "airbnb", "booking"]
             },
             "ai_development": {

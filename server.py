@@ -110,17 +110,17 @@ async def health_check():
     """Health check — full system status."""
     uptime = time.time() - START_TIME
 
-    # Check SATOSHI
-    satoshi_status = "offline"
-    satoshi_balance = None
+    # Check ATLAS_TRADING
+    trading_status = "offline"
+    trading_balance = None
     try:
         import httpx
         async with httpx.AsyncClient(timeout=2.0) as client:
             resp = await client.get("http://localhost:5001/status")
             if resp.status_code == 200:
                 data = resp.json()
-                satoshi_status = "active" if data.get("funded") and not data.get("halted") else "standby"
-                satoshi_balance = data.get("hl_balance")
+                trading_status = "active" if data.get("funded") and not data.get("halted") else "standby"
+                trading_balance = data.get("hl_balance")
     except Exception:
         pass
 
@@ -139,13 +139,13 @@ async def health_check():
         "status": "operational",
         "agent": "Assistant",
         "identity": "HyperClaw",
-        "principal": "the user Pierre Davis",
+        "principal": "the user the user",
         "identity_loaded": True,
         "version": "1.0.0",
         "uptime_seconds": round(uptime, 1),
         "conversation_turns": TURN_COUNT,
-        "satoshi": satoshi_status,
-        "satoshi_balance": satoshi_balance,
+        "trading": trading_status,
+        "trading_balance": trading_balance,
         "memory_server": memory_status,
         "redis": "not_configured",
         "platform": "HyperClaw",
@@ -359,16 +359,16 @@ async def reload_memory():
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@app.get("/api/satoshi/status")
-async def satoshi_status():
-    """Get SATOSHI trading engine status."""
+@app.get("/api/trading/status")
+async def trading_status():
+    """Get the trading engine status."""
     try:
         import httpx
         async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.get("http://localhost:5001/status")
             return resp.json()
     except Exception:
-        return {"status": "offline", "error": "SATOSHI unreachable"}
+        return {"status": "offline", "error": "ATLAS_TRADING unreachable"}
 
 
 # ── Trading Routes ────────────────────────────────────────────────────────────
@@ -379,9 +379,9 @@ class TradeSignal(BaseModel):
     entry: float = 0
 
 
-@app.post("/api/satoshi/signal")
+@app.post("/api/trading/signal")
 async def send_trade_signal(signal: TradeSignal):
-    """Send trading signal to SATOSHI."""
+    """Send trading signal to ATLAS_TRADING."""
     try:
         from hyperclaw.trading import send_signal
         return await send_signal(signal.symbol, signal.side, signal.size_usd, signal.entry)
@@ -389,9 +389,9 @@ async def send_trade_signal(signal: TradeSignal):
         return {"status": "error", "error": str(e)}
 
 
-@app.post("/api/satoshi/close")
+@app.post("/api/trading/close")
 async def close_position(symbol: str = "", close_all: bool = False):
-    """Close position(s) on SATOSHI."""
+    """Close position(s) on ATLAS_TRADING."""
     try:
         from hyperclaw.trading import close_position
         return await close_position(symbol, close_all)
@@ -399,22 +399,22 @@ async def close_position(symbol: str = "", close_all: bool = False):
         return {"status": "error", "error": str(e)}
 
 
-@app.post("/api/satoshi/halt")
+@app.post("/api/trading/halt")
 async def halt_trading():
-    """Emergency halt SATOSHI trading."""
+    """Emergency halt ATLAS_TRADING trading."""
     try:
-        from hyperclaw.trading import halt_satoshi
-        return await halt_satoshi()
+        from hyperclaw.trading import halt_trading
+        return await halt_trading()
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
 
-@app.post("/api/satoshi/resume")
+@app.post("/api/trading/resume")
 async def resume_trading():
-    """Resume SATOSHI trading."""
+    """Resume ATLAS_TRADING trading."""
     try:
-        from hyperclaw.trading import resume_satoshi
-        return await resume_satoshi()
+        from hyperclaw.trading import resume_trading
+        return await resume_trading()
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
@@ -527,7 +527,7 @@ def _stub_response(message: str) -> str:
     if any(w in msg for w in ["hello", "hi", "hey"]):
         return "Assistant online. How can I help?"
     if any(w in msg for w in ["status", "health"]):
-        return "All systems operational. FastAPI ✓ | Telegram ✓ | SATOSHI active."
+        return "All systems operational. FastAPI ✓ | Telegram ✓ | ATLAS_TRADING active."
     return "Standing by. What would you like to work on?"
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, AsyncIterator, Optional
+from typing import Any, AsyncIterator, Optional, Union
 
 from dotenv import load_dotenv
 
@@ -147,7 +147,7 @@ class Orchestrator:
         channel: str = "api",
         stream: bool = False,
         force_model: str = None
-    ) -> str | AsyncIterator[str]:
+    ) -> Union[str, AsyncIterator[str]]:
         """
         Main chat interface with intelligent model routing.
         Simple queries go to ChatJimmy, complex tasks to Claude.

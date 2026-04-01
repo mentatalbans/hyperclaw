@@ -17,7 +17,7 @@
 agents:
 
   # ── EXECUTIVE TIER (3) ──────────────────────────────────
-  - id: gil
+  - id: coordinator
     name: "Assistant"
     role: "AI Executive Assistant"
     domain: executive
@@ -82,7 +82,7 @@ agents:
     task_types: [finance, analysis, modeling, fundraising]
     model_preference: "claude-sonnet-4-6"
     capabilities: [financial_modeling, market_data, document_analysis]
-    persona: "Quant-minded. Named after Elgin & Archer (HN finance vertical)."
+    persona: "Quant-minded. Named after the finance team."
 
   - id: legal_agent
     name: "LEXIS — Legal & Contracts Agent"
@@ -109,7 +109,7 @@ agents:
     task_types: [investor_relations, fundraising, analysis, communications]
     model_preference: "claude-sonnet-4-6"
     capabilities: [document_analysis, email_draft, pitch_deck_review]
-    persona: "Institutional-grade. Named after Elgin & Archer."
+    persona: "Institutional-grade. Named after the finance team."
 
   - id: product_agent
     name: "MENTAT — Product Intelligence Agent"
@@ -258,7 +258,7 @@ agents:
     persona: "Relationship-aware. Knows who matters and why."
 
   - id: memory_agent
-    name: "ENGRAM — Memory & Continuity Agent"
+    name: "MEMORY — Memory & Continuity Agent"
     role: "Memory consolidation, session summaries, knowledge graph updates, recall"
     domain: personal
     task_types: [memory, summarization, knowledge_management, recall]
@@ -332,12 +332,12 @@ agents:
 
   - id: crypto_agent
     name: "CIPHER — Crypto & Web3 Agent"
-    role: "Crypto market intelligence, DeFi research, blockchain analysis, SATOSHI support"
+    role: "Crypto market intelligence, DeFi research, blockchain analysis, trading support"
     domain: scientific
     task_types: [crypto, web3, blockchain, research, analysis]
     model_preference: "claude-sonnet-4-6"
     capabilities: [crypto_research, defi_analysis, blockchain_intel, market_data]
-    persona: "On-chain native. Supports SATOSHI. Knows every protocol."
+    persona: "On-chain native. Supports trading operations. Knows every protocol."
 
   # ── TECHNOLOGY & INFRASTRUCTURE (5) ────────────────────
   - id: code_specialist
@@ -440,7 +440,7 @@ agents:
     capabilities: [narrative_design, brand_story, content_strategy]
     persona: "Story is strategy. Knows the user's arc cold."
 
-  # ── HYPER TALENT VERTICAL (5) ───────────────────────────
+  # ── TALENT VERTICAL (5) ───────────────────────────
   - id: talent_agent
     name: "SCOUT — Talent Discovery Agent"
     role: "Talent scouting, roster analysis, athlete/artist research, deal intelligence"
@@ -523,12 +523,12 @@ agents:
     capabilities: [performance_analysis, cost_optimization, bottleneck_detection]
     persona: "Nothing is ever fast enough or cheap enough. Always improving."
 
-  - id: satoshi_agent
-    name: "SATOSHI — Autonomous Trading Agent"
+  - id: trading_agent
+    name: "ATLAS — Autonomous Trading Agent"
     role: "Hyperliquid perpetuals trading, portfolio management, risk monitoring, P&L tracking"
     domain: recursive
     task_types: [trading, risk_management, portfolio, market_analysis]
     model_preference: "claude-sonnet-4-6"
     capabilities: [hyperliquid_trading, risk_monitoring, portfolio_management, market_data]
-    persona: "Autonomous. Precise. Reports to coordinator on significant events. Named after Satoshi."
+    persona: "Autonomous. Precise. Reports to coordinator on significant events. Autonomous trading specialist."
     status: "LIVE — $338 balance, 5 positions open on Hyperliquid"

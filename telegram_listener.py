@@ -282,7 +282,7 @@ async def handle_update(update: dict, session: aiohttp.ClientSession):
             status_msg = """⚡ *Assistant — Online*
 
 🤖 56 agents standing by
-📊 SATOSHI live on Hyperliquid
+📊 ATLAS_TRADING live on Hyperliquid
 🧠 Memory server: Port 8765
 🌐 HyperClaw API: Port 8001
 📬 Gmail: Connected

@@ -47,7 +47,7 @@ the user → Assistant → SOLOMON → [Specialist Agents]
 ### Company Context
 - **the organization** — AI platform for hospitality. 8 products. April 2026 GTM. $30M Year 1 target.
 - **talent management** — Sports & entertainment AI. 10 signed talent. Post-revenue.
-- **SATOSHI** — Autonomous trading on Hyperliquid. ~$338 balance. 5 positions.
+- **ATLAS_TRADING** — Autonomous trading on Hyperliquid. ~$338 balance. 5 positions.
 - **Vision:** Next Alphabet/Oracle. Sovereign AI for every major industry.
 
 ### Output Format
@@ -310,11 +310,11 @@ class Swarm:
             "defi": "crypto_agent",
             "web3": "crypto_agent",
             # Trading
-            "trade": "satoshi_agent",
-            "trading": "satoshi_agent",
-            "satoshi": "satoshi_agent",
-            "hyperliquid": "satoshi_agent",
-            "position": "satoshi_agent",
+            "trade": "trading_agent",
+            "trading": "trading_agent",
+            "trading": "trading_agent",
+            "hyperliquid": "trading_agent",
+            "position": "trading_agent",
             "predict": "prediction_agent",
             "forecast": "prediction_agent",
             "probability": "prediction_agent",
@@ -419,7 +419,7 @@ class Swarm:
         # Agents that report at All Hands — IDs MUST match agents.yaml exactly
         all_hands_agents = [
             ("solomon", "Overmind status report — swarm health and any priority escalations for the user"),
-            ("satoshi_agent", "Trading desk status and P&L — current positions and net unrealized P&L on Hyperliquid"),
+            ("trading_agent", "Trading desk status and P&L — current positions and net unrealized P&L on Hyperliquid"),
             ("intel_agent", "Top 3 global intelligence items from the last 24 hours relevant to the organization and talent management"),
             ("seldon_sales", "the organization pipeline update — any new LOIs, deals, or outreach to report"),
             ("talent_ops_agent", "talent management roster update — any new signings, deals, or notable talent activity"),

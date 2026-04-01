@@ -20,16 +20,16 @@ ENV_FILE = Path(str(Path.home() / ".hyperclaw/.env"))
 HYPERCLAW_ROOT = Path(os.environ.get("HYPERCLAW_ROOT", str(Path.home() / ".hyperclaw")))
 
 EXPECTED_LAUNCHD = {
-    "com.gil.telegram-listener",
-    "com.gil.telegram-poller",
+    "com.hyperclaw.telegram-listener",
+    "com.hyperclaw.telegram-poller",
     "com.hyperclaw.api",
     "com.hyperclaw.plist",  # main hyperclaw
     "com.hyperclaw.prometheus",
-    "com.hyperclaw.satoshi",
+    "com.hyperclaw.trading",
     "homebrew.mxcl.tailscale",
     "homebrew.mxcl.tor",
-    "com.gil.security-check",
-    "com.gil.memory-server",
+    "com.hyperclaw.security-check",
+    "com.hyperclaw.memory-server",
     "com.hyperclaw",
     "com.google.GoogleUpdater.wake",
     "com.google.keystone.agent",
@@ -37,7 +37,7 @@ EXPECTED_LAUNCHD = {
 }
 
 EXPECTED_PORTS_LOCAL = {
-    5001: "SATOSHI (Hyperliquid)",
+    5001: "ATLAS_TRADING (Hyperliquid)",
     8001: "HyperClaw API",
     8765: "Memory Server",
     9050: "Tor SOCKS",
@@ -119,7 +119,7 @@ def check_local_services():
     return "\n".join(results)
 
 
-def check_satoshi():
+def check_trading():
     try:
         r = requests.get("http://127.0.0.1:5001/status", timeout=5)
         d = r.json()
@@ -223,7 +223,7 @@ def main():
         "",
         "[ HYPERCLAW ]",
         f"  API:          {check_hyperclaw()}",
-        f"  SATOSHI:      {check_satoshi()}",
+        f"  ATLAS_TRADING:      {check_trading()}",
         "",
         "[ LAUNCHD ]",
         f"  {check_launchd()}",

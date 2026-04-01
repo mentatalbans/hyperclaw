@@ -176,7 +176,7 @@ class PredictionStrategistAgent(BaseAgent):
             "ai_development": ["the organization AI team", "Tech development insights", "Enterprise AI adoption data"],
             "economic_policy": ["PROPHET macro analysis", "Industry impact modeling"],
             "tech_adoption": ["B2B SaaS metrics", "Customer adoption patterns"],
-            "crypto_regulation": ["SATOSHI trading data", "Market structure analysis"]
+            "crypto_regulation": ["ATLAS_TRADING trading data", "Market structure analysis"]
         }
         return sources.get(category, ["General market research"])
     

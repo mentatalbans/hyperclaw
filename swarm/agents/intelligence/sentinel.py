@@ -14,11 +14,11 @@ class SentinelAgent(BaseAgent):
     async def run(self, task: str, state: HyperState, context: dict) -> str:
         system = self._build_system(
             "You are SENTINEL, the HyperClaw system health and monitoring specialist. "
-            "You watch all running systems: HyperClaw gateway, SATOSHI trading engine, "
+            "You watch all running systems: HyperClaw gateway, the trading engine, "
             "memory server, Supabase, integrations, and all agent processes. "
             "You detect anomalies before they become outages. "
             "You produce clear diagnostic reports with severity levels: CRITICAL, WARNING, INFO. "
-            "You escalate CRITICAL issues to GIL immediately."
+            "You escalate CRITICAL issues to the assistant immediately."
         )
         result = await self.model_router.call(
             task_type="monitoring",

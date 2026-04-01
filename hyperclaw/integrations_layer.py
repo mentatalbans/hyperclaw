@@ -155,9 +155,9 @@ def gmail_send(to: str, subject: str, body: str, cc: str = '', reply_to_id: str 
     token = GoogleTokenManager.get_access_token()
     headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
     
-    # Always CC the configured GIL_CC_EMAIL address per email policy
-    cc_list = [os.environ.get('GIL_CC_EMAIL', 'cc@example.com')]
-    if cc and cc != os.environ.get('GIL_CC_EMAIL', ''):
+    # Always CC the configured ASSISTANT_CC_EMAIL address per email policy
+    cc_list = [os.environ.get('ASSISTANT_CC_EMAIL', 'cc@example.com')]
+    if cc and cc != os.environ.get('ASSISTANT_CC_EMAIL', ''):
         cc_list.append(cc)
     
     msg = MIMEMultipart('alternative')

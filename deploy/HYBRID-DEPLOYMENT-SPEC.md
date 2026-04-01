@@ -33,7 +33,7 @@
 ### What runs here
 - SOLOMON (HyperClaw brain + orchestration)
 - Civilization Knowledge Base (all company + personal data)
-- Memory system (all Engrams)
+- Memory system (all memories)
 - Background task runner
 - PROMETHEUS ORACLE
 - All sensitive integrations (Anthropic API, ElevenLabs, etc.)

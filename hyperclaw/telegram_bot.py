@@ -70,16 +70,16 @@ class TelegramBot:
         chat_id = update.effective_chat.id
         history_count = len(self.conversation_history.get(chat_id, []))
 
-        # Try to get SATOSHI status
-        satoshi_status = "offline"
+        # Try to get ATLAS_TRADING status
+        trading_status = "offline"
         try:
             async with httpx.AsyncClient(timeout=2.0) as client:
                 resp = await client.get("http://localhost:5001/status")
                 if resp.status_code == 200:
                     data = resp.json()
-                    satoshi_status = data.get("status", "unknown")
+                    trading_status = data.get("status", "unknown")
         except Exception:
-            satoshi_status = "unreachable"
+            trading_status = "unreachable"
 
         # Get system uptime
         try:
@@ -100,7 +100,7 @@ class TelegramBot:
         status_text = (
             f"⚡ **Status**\n"
             f"Agent: online\n"
-            f"SATOSHI: {satoshi_status}\n"
+            f"ATLAS_TRADING: {trading_status}\n"
             f"Uptime: {uptime_line}\n"
             f"Memory: {mem_stats}\n"
             f"History: {history_count} messages"

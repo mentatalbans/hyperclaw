@@ -1,6 +1,6 @@
 """
 BaseAgent — foundation for all HyperSwarm specialist agents.
-Every agent gets the full AGI framework: context loading, Engram memory,
+Every agent gets the full AGI framework: context loading, persistent memory,
 tool access, and the same behavioral core as Assistant.
 """
 from __future__ import annotations
@@ -81,7 +81,7 @@ def _load_agent_context() -> str:
 class BaseAgent(AgentBidder):
     """
     Foundation class for all HyperSwarm agents.
-    Every agent carries the full AGI framework: context, Engram memory, behavioral core.
+    Every agent carries the full AGI framework: context, persistent memory, behavioral core.
     Subclasses must define: agent_id, domain, description, supported_task_types
     and implement run().
     """

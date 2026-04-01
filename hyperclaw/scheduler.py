@@ -71,12 +71,12 @@ class HyperClawScheduler:
             replace_existing=True,
         )
 
-        # Sleep consolidation: 2:30 AM PST daily (Engram)
+        # Sleep consolidation: 2:30 AM PST daily (MemoryStore)
         self.scheduler.add_job(
             self.sleep_consolidation_job,
             CronTrigger(hour=2, minute=30),
             id="sleep_consolidation",
-            name="Engram Sleep Consolidation",
+            name="Memory Sleep Consolidation",
             replace_existing=True,
         )
 
@@ -206,16 +206,16 @@ class HyperClawScheduler:
 
     async def sleep_consolidation_job(self) -> None:
         """
-        Nightly Engram sleep consolidation — 2:30 AM PST.
+        Nightly Memory sleep consolidation — 2:30 AM PST.
         Decays non-core episodes, prunes, generates dream residues.
-        Based on Andy Zhang's Engram architecture.
+        Based on the engineering team's memory architecture.
         """
-        logger.info("Running Engram sleep consolidation...")
+        logger.info("Running Memory sleep consolidation...")
         try:
             import sys
             sys.path.insert(0, str(Path.home() / ".hyperclaw/memory"))
-            from engram import get_engram
-            e = get_engram()
+            from memory_store import get_memory_store
+            e = get_memory_store()
             result = e.sleep_consolidate()
             logger.info(f"Sleep consolidation: {result}")
             if result.get("skipped"):
@@ -272,11 +272,11 @@ def get_scheduler(send_telegram_fn: Optional[Callable] = None) -> HyperClawSched
 
 # ── Sleep Consolidation Job ───────────────────────────────────────────────────
 
-    """Add the nightly Engram sleep consolidation job."""
+    """Add the nightly Memory sleep consolidation job."""
     scheduler_instance.scheduler.add_job(
         scheduler_instance.sleep_consolidation_job,
         CronTrigger(hour=2, minute=30),
         id="sleep_consolidation",
-        name="Engram Sleep Consolidation",
+        name="Memory Sleep Consolidation",
         replace_existing=True,
     )

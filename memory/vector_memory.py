@@ -14,7 +14,7 @@ import httpx
 
 # Paths
 MEMORY_DIR = Path(__file__).parent
-ENGRAM_DB = MEMORY_DIR / "engram.db"
+MEMORY_DB = MEMORY_DIR / "memory_store.db"
 VECTOR_DB = MEMORY_DIR / "vectors.db"
 
 # Embedding config
@@ -239,20 +239,20 @@ def memory_list(limit: int = 20, domain: str = None) -> List[Dict[str, Any]]:
     } for row in rows]
 
 
-def sync_engram_to_vectors():
-    """Sync existing engram episodes to vector store."""
+def sync_memory_to_vectors():
+    """Sync existing memory_store episodes to vector store."""
     init_vector_db()
 
-    # Read episodes from engram.db
-    engram_conn = sqlite3.connect(str(ENGRAM_DB))
-    episodes = engram_conn.execute(
+    # Read episodes from memory_store.db
+    memory_conn = sqlite3.connect(str(MEMORY_DB))
+    episodes = memory_conn.execute(
         "SELECT id, content, domain, source FROM episodes"
     ).fetchall()
-    engram_conn.close()
+    memory_conn.close()
 
     synced = 0
     for ep_id, content, domain, source in episodes:
-        result = memory_store(content, source=source or "engram", domain=domain)
+        result = memory_store(content, source=source or "memory_store", domain=domain)
         if "Stored" in result:
             synced += 1
             print(f"Synced: {content[:50]}...")
@@ -314,7 +314,7 @@ if __name__ == "__main__":
             print(f"{m['id']}: {m['content']}")
 
     elif cmd == "sync":
-        print(sync_engram_to_vectors())
+        print(sync_memory_to_vectors())
 
     elif cmd == "stats":
         print(json.dumps(memory_stats(), indent=2))
