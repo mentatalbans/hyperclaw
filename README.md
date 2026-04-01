@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
 [![PyPI](https://img.shields.io/pypi/v/hyperclaw)](https://pypi.org/project/hyperclaw/)
 
-HyperClaw is a personal AI assistant that works across your entire life. Not just chat — it connects to your email, calendar, tasks, documents, and more. It remembers everything, learns your preferences, and coordinates 36+ specialized AI agents to help you with anything.
+HyperClaw is a personal AI assistant that works across your entire life. Not just chat — it connects to your email, calendar, tasks, documents, and more. It remembers everything, learns your preferences, and coordinates 44 specialized AI agents to help you with anything.
 
 ---
 
@@ -41,15 +41,18 @@ Simple "what time is it?" goes to ChatJimmy. Complex "analyze this report and cr
 
 ### Multi-Agent Coordination
 
-36 specialized agents organized by domain:
+44 specialized agents organized by domain:
 
+- **Business (11):** Strategos, Herald, Pipeline, Ledger, Counsel, Talent, Nexus, Ops, Revenue, Sovereign, Venture
 - **Personal (6):** Atlas, Midas, Vitals, Nourish, Navigator, Hearth
-- **Business (10):** Strategos, Herald, Pipeline, Ledger, Counsel, Talent, Nexus, Ops, Revenue, Sovereign
 - **Scientific (5):** Medicus, Cosmos, Gaia, Oracle, Scribe
-- **Creative (4):** Author, Lens, Stage, Forge
-- **Technology (3):** Aegis, Bridge, Cipher
-- **Communications (5):** Echo, Envoy, Pulse, Herald, Roster
+- **Communications (5):** Echo, Envoy, Pulse, Cipher, Herald
+- **Talent (4):** Scout, Deal, Stage, Roster
+- **Trading (3):** Prediction Strategist, Polymarket Trader, Global Prediction Engine
+- **Technology (3):** Aegis, Bridge, Forge
 - **Recursive (3):** Scout, Alchemist, Calibrator
+- **Intelligence (2):** Sentinel, Arbiter
+- **Creative (2):** Author, Lens
 
 Tasks are automatically routed to the best agent based on domain and complexity.
 

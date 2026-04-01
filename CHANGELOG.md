@@ -9,7 +9,7 @@ All notable changes to HyperClaw will be documented in this file.
 - TUI command interface with signal handling and smart routing
 - Database schema for PostgreSQL with pgvector support
 - Cost-optimized model routing (ChatJimmy integration for 100x cheaper simple tasks)
-- Enhanced multi-agent coordination system with 36 specialized agents
+- Enhanced multi-agent coordination system with 44 specialized agents
 - Persistent memory architecture with working, episodic, and semantic layers
 
 ### Enhanced
