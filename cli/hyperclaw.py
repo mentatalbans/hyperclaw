@@ -163,13 +163,21 @@ def start() -> None:
     """Start HyperClaw and chat with your AI."""
     import os
 
-    # Check for API key
+    # Check for API key - also try loading from ~/.hyperclaw/.env
+    from pathlib import Path
+    env_file = Path.home() / ".hyperclaw" / ".env"
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            if line.startswith("ANTHROPIC_API_KEY="):
+                key, val = line.split("=", 1)
+                os.environ.setdefault(key.strip(), val.strip().strip('"'))
+
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         console.print("[red]ANTHROPIC_API_KEY not set.[/red]")
-        console.print("\nSet it with:")
+        console.print("\nRun [bold cyan]hyperclaw init[/bold cyan] to set up your API key.")
+        console.print("\nOr set it manually:")
         console.print("  export ANTHROPIC_API_KEY=sk-ant-...")
-        console.print("\nOr add it to ~/.hyperclaw/.env")
         raise typer.Exit(1)
 
     # Launch TUI directly

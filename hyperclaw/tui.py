@@ -2879,6 +2879,8 @@ def main():
 
     if not API_KEY:
         print(f"\n{RED}ANTHROPIC_API_KEY not set.{RESET}")
+        print(f"\nRun {CYAN}hyperclaw init{RESET} to set up your API key.")
+        print(f"Or set it manually: export ANTHROPIC_API_KEY=sk-ant-...")
         sys.exit(1)
 
     # Load memories and build system prompt
