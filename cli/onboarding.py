@@ -27,12 +27,14 @@ BANNER = """
 """
 
 
-def slow_print(text: str, delay: float = 0.03):
-    """Print text character by character for a warm feel."""
+def slow_print(text: str, delay: float = 0.02):
+    """Print text character by character for a typewriter effect."""
+    import sys
     for char in text:
-        console.print(char, end="", highlight=False)
+        sys.stdout.write(char)
+        sys.stdout.flush()
         time.sleep(delay)
-    console.print()
+    print()
 
 
 def get_ai_name(user_name: str) -> str:
@@ -55,14 +57,29 @@ def warm_greeting():
     console.print(BANNER)
     time.sleep(0.5)
 
+    # Welcome message
     console.print()
-    slow_print("[bold white]Hey there.[/bold white]", 0.05)
+    rprint("[bold white]Welcome to HyperClaw.[/bold white]")
+    console.print()
+    time.sleep(0.3)
+
+    rprint("[white]HyperClaw is your personal AI assistant — not a chatbot.[/white]")
+    rprint("[white]It connects to your tools, remembers everything, and actually gets things done.[/white]")
+    console.print()
+    time.sleep(0.3)
+
+    rprint("[dim]What HyperClaw can do:[/dim]")
+    rprint("[cyan]  • Manage email, calendar, tasks, and documents[/cyan]")
+    rprint("[cyan]  • Research, analyze, and summarize anything[/cyan]")
+    rprint("[cyan]  • Connect to Telegram, Slack, Notion, and 40+ integrations[/cyan]")
+    rprint("[cyan]  • Remember your preferences across sessions[/cyan]")
+    console.print()
     time.sleep(0.5)
 
-    console.print()
-    rprint("[white]I'm going to be your AI. Not a chatbot — a real assistant.[/white]")
-    time.sleep(0.3)
-    rprint("[white]Work, research, communication, planning — whatever you need.[/white]")
+    rprint("[dim]Setup will take about 2 minutes:[/dim]")
+    rprint("[white]  1. Your name and what to call your AI[/white]")
+    rprint("[white]  2. Anthropic API key (powers the AI)[/white]")
+    rprint("[white]  3. Optional: Database for persistent memory[/white]")
     console.print()
     time.sleep(0.5)
 
