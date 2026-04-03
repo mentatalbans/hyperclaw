@@ -75,23 +75,29 @@ Memory persists across sessions:
 ```bash
 brew install pipx
 pipx install hyperclaw
-hyperclaw setup
+hyperclaw init
 ```
 
 **Linux/Windows:**
 ```bash
 pip install hyperclaw
-hyperclaw setup
+hyperclaw init
 ```
 
-Then start the server:
+The `init` command runs an interactive setup that will:
+1. Ask for your name and what to call your AI
+2. Guide you through API key setup (Anthropic)
+3. Optionally set up database for persistent memory
+4. Launch the chat interface
+
+Then use interactive chat:
 ```bash
-hyperclaw server
+hyperclaw start
 ```
 
-Or use interactive chat:
+Or run the TUI:
 ```bash
-hyperclaw chat
+hyperclaw-tui
 ```
 
 ### Option 2: Self-Host with Docker
