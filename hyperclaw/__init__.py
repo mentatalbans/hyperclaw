@@ -8,7 +8,7 @@ A production-ready AI assistant platform with:
 - Database-backed state management
 """
 
-__version__ = "1.0.8"
+__version__ = "1.0.9"
 
 # Core components
 try:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hyperclaw"
-version = "1.0.8"
+version = "1.0.9"
 description = "Unlimited-domain multi-agent AI swarm platform"
 readme = "README.md"
 license = {text = "MIT"}
