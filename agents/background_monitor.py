@@ -15,9 +15,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Callable
 import httpx
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-HYPERCLAW_ROOT = Path(__file__).parent.parent
+# Use user's ~/.hyperclaw directory, not package location
+HYPERCLAW_ROOT = Path(os.environ.get("HYPERCLAW_ROOT", Path.home() / ".hyperclaw"))
 AGENTS_STATE_FILE = HYPERCLAW_ROOT / "agents" / "state.json"
 ALERTS_LOG = HYPERCLAW_ROOT / "logs" / "alerts.log"
 

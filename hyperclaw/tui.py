@@ -16,25 +16,51 @@ import anthropic
 import httpx
 
 # Import vector memory
-sys.path.insert(0, str(Path(__file__).parent.parent / "memory"))
 try:
-    from vector_memory import memory_store as vm_store, memory_search as vm_search
-    from vector_memory import memory_forget as vm_forget, memory_list as vm_list, memory_stats as vm_stats
+    from memory.vector_memory import memory_store as vm_store, memory_search as vm_search
+    from memory.vector_memory import memory_forget as vm_forget, memory_list as vm_list, memory_stats as vm_stats
     VECTOR_MEMORY_AVAILABLE = True
 except ImportError:
     VECTOR_MEMORY_AVAILABLE = False
+    # Provide stub functions
+    def vm_store(*args, **kwargs): return "Memory not available"
+    def vm_search(*args, **kwargs): return []
+    def vm_forget(*args, **kwargs): return "Memory not available"
+    def vm_list(*args, **kwargs): return []
+    def vm_stats(*args, **kwargs): return {}
 
 # Import agents
-sys.path.insert(0, str(Path(__file__).parent.parent / "agents"))
 try:
-    from background_monitor import agent_start, agent_stop, agent_status, agent_add_watch
-    from planner import plan_create, plan_add_task, plan_status, plan_next, plan_update, plan_list, plan_delete
-    from transcriber import audio_transcribe, video_transcribe, audio_record, transcripts_list, transcript_get
-    from learning import learning_log, learning_stats, learning_patterns, learning_reflect, learning_advice, learning_feedback
+    from agents.background_monitor import agent_start, agent_stop, agent_status, agent_add_watch
+    from agents.planner import plan_create, plan_add_task, plan_status, plan_next, plan_update, plan_list, plan_delete
+    from agents.transcriber import audio_transcribe, video_transcribe, audio_record, transcripts_list, transcript_get
+    from agents.learning import learning_log, learning_stats, learning_patterns, learning_reflect, learning_advice, learning_feedback
     AGENTS_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     AGENTS_AVAILABLE = False
-    print(f"Agents not available: {e}")
+    # Provide stub functions so TUI still works
+    def agent_start(*args, **kwargs): return "Agents not available"
+    def agent_stop(*args, **kwargs): return "Agents not available"
+    def agent_status(*args, **kwargs): return "Agents not available"
+    def agent_add_watch(*args, **kwargs): return "Agents not available"
+    def plan_create(*args, **kwargs): return "Planner not available"
+    def plan_add_task(*args, **kwargs): return "Planner not available"
+    def plan_status(*args, **kwargs): return "Planner not available"
+    def plan_next(*args, **kwargs): return "Planner not available"
+    def plan_update(*args, **kwargs): return "Planner not available"
+    def plan_list(*args, **kwargs): return []
+    def plan_delete(*args, **kwargs): return "Planner not available"
+    def audio_transcribe(*args, **kwargs): return "Transcriber not available"
+    def video_transcribe(*args, **kwargs): return "Transcriber not available"
+    def audio_record(*args, **kwargs): return "Transcriber not available"
+    def transcripts_list(*args, **kwargs): return []
+    def transcript_get(*args, **kwargs): return "Transcriber not available"
+    def learning_log(*args, **kwargs): return "Learning not available"
+    def learning_stats(*args, **kwargs): return {}
+    def learning_patterns(*args, **kwargs): return []
+    def learning_reflect(*args, **kwargs): return "Learning not available"
+    def learning_advice(*args, **kwargs): return "Learning not available"
+    def learning_feedback(*args, **kwargs): return "Learning not available"
 
 MODEL = "claude-sonnet-4-20250514"
 

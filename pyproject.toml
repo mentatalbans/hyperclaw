@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hyperclaw"
-version = "1.0.7"
+version = "1.0.8"
 description = "Unlimited-domain multi-agent AI swarm platform"
 readme = "README.md"
 license = {text = "MIT"}
@@ -37,7 +37,7 @@ hyperclaw-tui = "hyperclaw.tui:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["hyperclaw*", "core*", "memory*", "models*", "swarm*", "security*", "ui*", "recursive*", "cli*"]
+include = ["hyperclaw*", "core*", "memory*", "models*", "swarm*", "security*", "ui*", "recursive*", "cli*", "agents*", "integrations*", "civilization*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

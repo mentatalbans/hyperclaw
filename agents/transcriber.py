@@ -14,9 +14,8 @@ from datetime import datetime
 from typing import Optional, Dict, List
 import httpx
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-HYPERCLAW_ROOT = Path(__file__).parent.parent
+# Use user's ~/.hyperclaw directory, not package location
+HYPERCLAW_ROOT = Path(os.environ.get("HYPERCLAW_ROOT", Path.home() / ".hyperclaw"))
 TRANSCRIPTS_DIR = HYPERCLAW_ROOT / "workspace" / "transcripts"
 TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
 

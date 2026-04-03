@@ -13,9 +13,8 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from enum import Enum
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-HYPERCLAW_ROOT = Path(__file__).parent.parent
+# Use user's ~/.hyperclaw directory, not package location
+HYPERCLAW_ROOT = Path(os.environ.get("HYPERCLAW_ROOT", Path.home() / ".hyperclaw"))
 PLANS_DIR = HYPERCLAW_ROOT / "workspace" / "plans"
 PLANS_DIR.mkdir(parents=True, exist_ok=True)
 

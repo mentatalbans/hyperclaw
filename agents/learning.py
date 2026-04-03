@@ -13,9 +13,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from collections import defaultdict
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-HYPERCLAW_ROOT = Path(__file__).parent.parent
+# Use user's ~/.hyperclaw directory, not package location
+HYPERCLAW_ROOT = Path(os.environ.get("HYPERCLAW_ROOT", Path.home() / ".hyperclaw"))
 LEARNING_DB = HYPERCLAW_ROOT / "memory" / "learning.db"
 INSTINCTS_FILE = HYPERCLAW_ROOT / "memory" / "instincts.md"
 
