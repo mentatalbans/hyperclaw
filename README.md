@@ -10,6 +10,24 @@ HyperClaw is a personal AI assistant that works across your entire life. Not jus
 
 ---
 
+## What's New in v0.2.0
+
+- **Claude 5 family** with tiered model routing (sonnet-5 / opus-5 / fable-5) and
+  **automatic failover** — overloads degrade gracefully instead of going silent
+- **Universal file delivery** — the `send_file` tool pushes any document, deck,
+  spreadsheet, image, or video into the conversation you're already in (Telegram
+  documents, iMessage attachments, email attachments) or opens it on the Mac
+- **Full email suite** — HTML email, in-thread replies, forwarding with attachments,
+  drafts-as-approval, archive/star/read, Gmail search
+- **Offsite heartbeat** — a dead-man's-switch template that alerts you externally if
+  the machine running your assistant dies (see `.env.example` → `HEARTBEAT_URL`)
+- **Persona templating** — your assistant's identity lives in an untracked file
+  (`persona.example.md`), not in source code
+- **Hardened channel security** — fail-closed allowlists for iMessage and Telegram;
+  see [SECURITY.md](SECURITY.md) before exposing the bot to any channel
+
+---
+
 ## What Can It Do?
 
 - **Manage your communications** — Email, Telegram, Slack, Discord, WhatsApp, Teams

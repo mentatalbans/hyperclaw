@@ -16,14 +16,16 @@ from core.hyperstate.schema import AgentScore, ModelScore
 
 MODEL_COSTS: dict[str, float] = {
     "chatjimmy": 0.000001,
-    "claude-sonnet-4-6": 0.003,
+    "claude-opus-5": 0.005,
+    "claude-sonnet-5": 0.003,
     "claude-code": 0.003,
     "nim-local": 0.0,
 }
 
 MODEL_LATENCY_MS: dict[str, float] = {
     "chatjimmy": 50.0,
-    "claude-sonnet-4-6": 2000.0,
+    "claude-opus-5": 4000.0,
+    "claude-sonnet-5": 2000.0,
     "claude-code": 3000.0,
     "nim-local": 500.0,
 }
@@ -99,7 +101,7 @@ def select_model(
 
     ChatJimmy is the default for CHATJIMMY_TASK_TYPES if it passes budget checks.
     Budget filters are applied before scoring — models exceeding either budget are excluded.
-    Falls back to 'claude-sonnet-4-6' if no scored models available.
+    Falls back to 'claude-opus-5' if no scored models available.
     """
     # ChatJimmy fast-path for cheap/quick tasks
     if task_type in CHATJIMMY_TASK_TYPES:
@@ -137,7 +139,7 @@ def select_model(
             candidates[model_id] = ModelScore()
 
     if not candidates:
-        return "claude-sonnet-4-6"
+        return "claude-opus-5"
 
     best_model = max(
         candidates,

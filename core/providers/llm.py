@@ -81,14 +81,13 @@ class AnthropicProvider(LLMProvider):
 
     name = "anthropic"
     supports_vision = True
-    default_model = "claude-sonnet-4-20250514"
+    default_model = "claude-opus-5"
 
     MODELS = [
-        "claude-opus-4-20250514",
-        "claude-sonnet-4-20250514",
-        "claude-haiku-4-5-20251001",
-        "claude-3-5-sonnet-20241022",
-        "claude-3-opus-20240229",
+        "claude-opus-5",
+        "claude-sonnet-5",
+        "claude-haiku-4-5",
+        "claude-fable-5",
     ]
 
     def __init__(self, api_key: str | None = None):
@@ -107,10 +106,11 @@ class AnthropicProvider(LLMProvider):
         model = model or self.default_model
 
         async with httpx.AsyncClient() as client:
+            # NOTE: temperature is intentionally omitted — sampling params
+            # were removed on the Claude 5 family and return HTTP 400.
             payload = {
                 "model": model,
                 "max_tokens": max_tokens,
-                "temperature": temperature,
                 "messages": [{"role": m.role, "content": m.content} for m in messages],
             }
             if system:
@@ -150,10 +150,10 @@ class AnthropicProvider(LLMProvider):
         model = model or self.default_model
 
         async with httpx.AsyncClient() as client:
+            # temperature omitted — rejected (400) on the Claude 5 family
             payload = {
                 "model": model,
                 "max_tokens": max_tokens,
-                "temperature": temperature,
                 "messages": [{"role": m.role, "content": m.content} for m in messages],
                 "stream": True,
             }
@@ -745,12 +745,12 @@ class BedrockProvider(LLMProvider):
 
     name = "bedrock"
     supports_vision = True
-    default_model = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    default_model = "anthropic.claude-sonnet-5"
 
     MODELS = [
-        "anthropic.claude-3-5-sonnet-20241022-v2:0",
-        "anthropic.claude-3-opus-20240229-v1:0",
-        "anthropic.claude-3-haiku-20240307-v1:0",
+        "anthropic.claude-sonnet-5",
+        "anthropic.claude-opus-5",
+        "anthropic.claude-haiku-4-5",
         "amazon.titan-text-premier-v1:0",
         "meta.llama3-70b-instruct-v1:0",
         "cohere.command-r-plus-v1:0",
@@ -791,10 +791,10 @@ class BedrockProvider(LLMProvider):
 
         # Format depends on model family
         if "anthropic" in model:
+            # temperature omitted — rejected (400) on the Claude 5 family
             body = {
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": max_tokens,
-                "temperature": temperature,
                 "messages": [{"role": m.role, "content": m.content} for m in messages],
             }
             if system:
@@ -860,11 +860,11 @@ class OpenRouterProvider(LLMProvider):
 
     name = "openrouter"
     supports_vision = True
-    default_model = "anthropic/claude-3.5-sonnet"
+    default_model = "anthropic/claude-sonnet-5"
 
     MODELS = [
-        "anthropic/claude-3.5-sonnet",
-        "anthropic/claude-3-opus",
+        "anthropic/claude-sonnet-5",
+        "anthropic/claude-opus-5",
         "openai/gpt-4o",
         "openai/gpt-4-turbo",
         "google/gemini-pro-1.5",

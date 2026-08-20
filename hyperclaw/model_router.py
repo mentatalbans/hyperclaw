@@ -60,12 +60,12 @@ MODELS = {
 
     # Claude Haiku - Fast Claude for moderate tasks
     "claude-haiku": ModelConfig(
-        id="claude-haiku-4-5-20251001",
+        id="claude-haiku-4-5",
         name="Claude Haiku 4.5",
         tier=ModelTier.FAST,
         provider="anthropic",
-        cost_per_1k_input=0.0008,
-        cost_per_1k_output=0.004,
+        cost_per_1k_input=0.001,
+        cost_per_1k_output=0.005,
         max_tokens=4096,
         latency_ms=500,
         capabilities=["chat", "analysis", "coding", "writing"],
@@ -74,8 +74,8 @@ MODELS = {
 
     # Claude Sonnet - Balanced for most tasks
     "claude-sonnet": ModelConfig(
-        id="claude-sonnet-4-20250514",
-        name="Claude Sonnet 4",
+        id="claude-sonnet-5",
+        name="Claude Sonnet 5",
         tier=ModelTier.STANDARD,
         provider="anthropic",
         cost_per_1k_input=0.003,
@@ -88,16 +88,43 @@ MODELS = {
 
     # Claude Opus - Premium for complex tasks
     "claude-opus": ModelConfig(
-        id="claude-opus-4-20250514",
-        name="Claude Opus 4",
+        id="claude-opus-5",
+        name="Claude Opus 5",
         tier=ModelTier.PREMIUM,
         provider="anthropic",
-        cost_per_1k_input=0.015,
-        cost_per_1k_output=0.075,
+        cost_per_1k_input=0.005,
+        cost_per_1k_output=0.025,
         max_tokens=8192,
         latency_ms=3000,
         capabilities=["chat", "analysis", "coding", "writing", "reasoning", "planning", "complex_reasoning", "research"],
         api_key_env="ANTHROPIC_API_KEY",
+    ),
+    "claude-fable": ModelConfig(
+        id="claude-fable-5",
+        name="Claude Fable 5",
+        tier=ModelTier.PREMIUM,
+        provider="anthropic",
+        cost_per_1k_input=0.010,
+        cost_per_1k_output=0.050,
+        max_tokens=8192,
+        latency_ms=3000,
+        capabilities=["chat", "analysis", "coding", "writing", "reasoning", "planning", "complex_reasoning", "research"],
+        api_key_env="ANTHROPIC_API_KEY",
+    ),
+
+    # OpenRouter - Meta router for any model
+    "openrouter": ModelConfig(
+        id="openrouter/auto",
+        name="OpenRouter Auto",
+        tier=ModelTier.STANDARD,
+        provider="openrouter",
+        cost_per_1k_input=0.002,
+        cost_per_1k_output=0.006,
+        max_tokens=4096,
+        latency_ms=1500,
+        capabilities=["chat", "analysis", "coding", "writing"],
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
     ),
 }
 
@@ -168,6 +195,14 @@ class ModelRouter:
 
             elif provider == "chatjimmy":
                 # ChatJimmy uses OpenAI-compatible API
+                api_key = os.environ.get(model_config.api_key_env, "")
+                self._clients[provider] = {
+                    "base_url": model_config.base_url,
+                    "api_key": api_key,
+                }
+
+            elif provider == "openrouter":
+                # OpenRouter uses OpenAI-compatible API
                 api_key = os.environ.get(model_config.api_key_env, "")
                 self._clients[provider] = {
                     "base_url": model_config.base_url,
@@ -304,6 +339,8 @@ class ModelRouter:
                 response, metadata = await self._call_anthropic(model, message, system, history)
             elif model.provider == "chatjimmy":
                 response, metadata = await self._call_chatjimmy(model, message, system, history)
+            elif model.provider == "openrouter":
+                response, metadata = await self._call_openrouter(model, message, system, history)
             else:
                 raise ValueError(f"Unknown provider: {model.provider}")
 
@@ -392,6 +429,51 @@ class ModelRouter:
                     "temperature": 0.7,
                 },
                 timeout=30.0,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        choice = data["choices"][0]
+        usage = data.get("usage", {})
+
+        return choice["message"]["content"], {
+            "input_tokens": usage.get("prompt_tokens", 0),
+            "output_tokens": usage.get("completion_tokens", 0),
+        }
+
+    async def _call_openrouter(
+        self,
+        model: ModelConfig,
+        message: str,
+        system: str,
+        history: list[dict]
+    ) -> tuple[str, dict]:
+        """Call OpenRouter API."""
+        config = self._get_client(model)
+
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        if history:
+            messages.extend(history[-15:])
+        messages.append({"role": "user", "content": message})
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{config['base_url']}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {config['api_key']}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://hyperclaw.ai",
+                    "X-Title": "HyperClaw",
+                },
+                json={
+                    "model": model.id,
+                    "messages": messages,
+                    "max_tokens": model.max_tokens,
+                    "temperature": 0.7,
+                },
+                timeout=60.0,
             )
             response.raise_for_status()
             data = response.json()

@@ -396,25 +396,53 @@ TOOLS = [
     },
     {
         "name": "telegram",
-        "description": "Send a Telegram message.",
+        "description": "Send a Telegram message, optionally with a file attached (photo, PDF, doc, video - auto-detected).",
         "input_schema": {
             "type": "object",
             "properties": {
-                "message": {"type": "string", "description": "Message to send"}
+                "message": {"type": "string", "description": "Message to send"},
+                "file": {"type": "string", "description": "Optional path to a file to send (photo/document/video/audio auto-detected)"}
             },
             "required": ["message"]
         }
     },
     {
         "name": "imessage",
-        "description": "Send an iMessage to a contact. Use for casual, human-like texting.",
+        "description": "Send an iMessage to a contact, optionally with a file/photo attached. Use for casual, human-like texting.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "message": {"type": "string", "description": "Message to send"},
-                "recipient": {"type": "string", "description": "Phone number or email."}
+                "recipient": {"type": "string", "description": "Phone number or email."},
+                "file": {"type": "string", "description": "Optional path to a file/photo to attach"}
             },
             "required": ["message"]
+        }
+    },
+    {
+        "name": "send_file",
+        "description": "Deliver ANY file (document, PDF, deck, spreadsheet, image, chart) to a conversation or channel. via='here' sends it back in the CURRENT conversation (Telegram/iMessage - use this when the user asks for a file in chat). Other options: telegram, imessage, email, open (opens locally on the Mac).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Path to the file to deliver"},
+                "via": {"type": "string", "enum": ["here", "telegram", "imessage", "email", "open"], "description": "Delivery channel. Default 'here' = current conversation."},
+                "to": {"type": "string", "description": "Recipient: email address (via=email), phone (via=imessage), chat_id (via=telegram), or app name (via=open). Optional otherwise."},
+                "caption": {"type": "string", "description": "Caption/message to accompany the file"}
+            },
+            "required": ["path"]
+        }
+    },
+    {
+        "name": "open_file",
+        "description": "Open a file locally on the Mac in its default app (or a named app, e.g. Preview, Microsoft Word, Keynote).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "File to open"},
+                "app": {"type": "string", "description": "Optional app name to open it with"}
+            },
+            "required": ["path"]
         }
     },
     {
@@ -463,15 +491,78 @@ TOOLS = [
     },
     {
         "name": "email_send",
-        "description": "Send an email via Gmail. Always CC your-cc-email@example.com.",
+        "description": "Send an email via Gmail with optional HTML body, attachments, cc/bcc, and in-thread replies. Set CC_EMAIL env to auto-CC an address.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "to": {"type": "string", "description": "Recipient email"},
                 "subject": {"type": "string", "description": "Email subject"},
-                "body": {"type": "string", "description": "Email body"}
+                "body": {"type": "string", "description": "Plain-text body (always required)"},
+                "body_html": {"type": "string", "description": "Optional HTML body for rich formatting (headings, tables, bold)"},
+                "thread_id": {"type": "string", "description": "Thread ID to reply in-thread"},
+                "message_id": {"type": "string", "description": "Message-ID for the In-Reply-To header"},
+                "cc": {"type": "string"},
+                "bcc": {"type": "string"},
+                "attachments": {"type": "array", "items": {"type": "string"}, "description": "File paths to attach"}
             },
             "required": ["to", "subject", "body"]
+        }
+    },
+    {
+        "name": "email_search",
+        "description": "Search Gmail with a query (Gmail search syntax: from:, subject:, newer_than:, etc.).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Gmail search query"},
+                "count": {"type": "integer", "description": "Max results (default 10)"}
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "email_forward",
+        "description": "Forward an email (body + attachments) to someone, with an optional note on top.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message_id": {"type": "string", "description": "Message ID from email_read/email_search"},
+                "to": {"type": "string", "description": "Recipient email address"},
+                "note": {"type": "string", "description": "Optional note above the forwarded content"},
+                "include_attachments": {"type": "boolean", "description": "Forward original attachments too (default true)"}
+            },
+            "required": ["message_id", "to"]
+        }
+    },
+    {
+        "name": "email_draft",
+        "description": "Create a Gmail DRAFT (lands in the Drafts folder for review) instead of sending directly. Use when approval is wanted before sending.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "to": {"type": "string", "description": "Recipient"},
+                "subject": {"type": "string"},
+                "body": {"type": "string", "description": "Plain-text body"},
+                "body_html": {"type": "string", "description": "Optional HTML version for rich formatting"},
+                "cc": {"type": "string"},
+                "attachments": {"type": "array", "items": {"type": "string"}, "description": "File paths to attach"},
+                "thread_id": {"type": "string", "description": "Thread ID to draft a reply into"}
+            },
+            "required": ["to", "subject", "body"]
+        }
+    },
+    {
+        "name": "email_mark",
+        "description": "Inbox management: mark an email read/unread, archive/unarchive, star/unstar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message_id": {"type": "string"},
+                "mark_read": {"type": "boolean"},
+                "archive": {"type": "boolean"},
+                "star": {"type": "boolean"}
+            },
+            "required": ["message_id"]
         }
     },
     {
@@ -1358,8 +1449,14 @@ def download(url, path):
     except Exception as e:
         return f"Error: {e}"
 
-def telegram(message):
-    """Send Telegram message."""
+def telegram(message, file=None):
+    """Send Telegram message, optionally with a file."""
+    if file:
+        try:
+            from hyperclaw.media_hub import telegram_send_file
+            return telegram_send_file(file, caption=message)
+        except Exception as e:
+            return f"Error sending file: {e}"
     try:
         # Load bot token and chat ID from env or config
         bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -1389,8 +1486,14 @@ def telegram(message):
     except Exception as e:
         return f"Error: {e}"
 
-def imessage_send(message, recipient=None):
-    """Send an iMessage via AppleScript."""
+def imessage_send(message, recipient=None, file=None):
+    """Send an iMessage via AppleScript, optionally with a file attachment."""
+    if file:
+        try:
+            from hyperclaw.media_hub import imessage_send_file
+            return imessage_send_file(file, recipient=recipient or "", message=message)
+        except Exception as e:
+            return f"Error sending file: {e}"
     try:
         # Default to configured phone number
         if not recipient:
@@ -1602,25 +1705,86 @@ def email_read(count=5):
     except Exception as e:
         return f"Error: {e}"
 
-def email_send(to, subject, body):
-    """Send email using AppleScript (Mail.app). Always CCs your-cc-email@example.com."""
+def email_send(to, subject, body, thread_id=None, message_id=None, cc='', bcc='', attachments=None, body_html=None):
+    """Send email via Gmail API. thread_id => reply IN-THREAD. Set CC_EMAIL env to auto-CC."""
     try:
-        cc = "your-cc-email@example.com"
-        escaped_body = body.replace('"', '\\"').replace('\n', '\\n')
-        script = f'''
-        tell application "Mail"
-            set newMessage to make new outgoing message with properties {{subject:"{subject}", content:"{escaped_body}", visible:true}}
-            tell newMessage
-                make new to recipient with properties {{address:"{to}"}}
-                make new cc recipient with properties {{address:"{cc}"}}
-            end tell
-            send newMessage
-        end tell
-        return "Email sent"
-        '''
-        return applescript(script)
+        from hyperclaw.integrations_layer import gmail_send
+        result = gmail_send(
+            to=to, subject=subject, body=body,
+            cc=cc, bcc=bcc or '',
+            reply_to_id=thread_id or '',
+            in_reply_to=message_id,
+            attachments=attachments or None,
+            body_html=body_html,
+        )
+        if isinstance(result, dict) and 'error' in result:
+            return f"Gmail error: {result['error']}"
+        return f"Sent to {to}" + (f" (thread {str(thread_id)[:8]}...)" if thread_id else "")
     except Exception as e:
         return f"Error: {e}"
+
+def email_search(query, count=10):
+    """Search Gmail."""
+    try:
+        from hyperclaw.integrations_layer import gmail_search
+        results = gmail_search(query=query, max_results=count)
+        if not results:
+            return "No results."
+        lines = []
+        for r in results:
+            lines.append(f"[{r.get('id','')[:12]}] {r.get('from','?')} | {r.get('subject','(no subject)')} | {r.get('date','')}")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Error: {e}"
+
+def send_file(path, via="here", to="", caption=""):
+    """Deliver any file via any channel (media_hub)."""
+    try:
+        from hyperclaw.media_hub import deliver_file
+        return deliver_file(path, via=via, to=to, caption=caption)
+    except Exception as e:
+        return f"Error: {e}"
+
+def open_file_local(path, app=""):
+    """Open a file locally on the Mac."""
+    try:
+        from hyperclaw.media_hub import open_file
+        return open_file(path, app=app)
+    except Exception as e:
+        return f"Error: {e}"
+
+def email_forward(message_id, to, note="", include_attachments=True):
+    """Forward an email with attachments."""
+    try:
+        from hyperclaw.integrations_layer import gmail_forward
+        result = gmail_forward(message_id, to, note=note, include_attachments=include_attachments)
+        if isinstance(result, dict) and result.get('status') == 'sent':
+            return f"Forwarded to {to} ({result.get('attachments', 0)} attachments)"
+        return f"Forward failed: {result}"
+    except Exception as e:
+        return f"Error: {e}"
+
+def email_draft(to, subject, body, cc="", attachments=None, body_html=None, thread_id=""):
+    """Create a Gmail draft for review."""
+    try:
+        from hyperclaw.integrations_layer import gmail_create_draft
+        result = gmail_create_draft(to, subject, body, cc=cc, attachments=attachments,
+                                    body_html=body_html, thread_id=thread_id)
+        if isinstance(result, dict) and result.get('status') == 'draft_created':
+            return f"Draft created for {to}: '{subject}' - in Drafts folder awaiting review"
+        return f"Draft failed: {result}"
+    except Exception as e:
+        return f"Error: {e}"
+
+def email_mark(message_id, mark_read=None, archive=None, star=None):
+    """Mark read/unread, archive, star."""
+    try:
+        from hyperclaw.integrations_layer import gmail_modify
+        result = gmail_modify(message_id, mark_read=mark_read, archive=archive, star=star)
+        return str(result)
+    except Exception as e:
+        return f"Error: {e}"
+
 
 def calendar_read(days=7):
     """Read upcoming calendar events using AppleScript."""
@@ -2276,12 +2440,47 @@ def execute_tool(name, input_data):
         return result
     elif name == "telegram":
         print_tool("telegram", input_data["message"][:50])
-        result = telegram(input_data["message"])
+        result = telegram(input_data["message"], input_data.get("file"))
         print(f"{GREEN}  ✓ {result}{RESET}")
         return result
     elif name == "imessage":
         print_tool("imessage", input_data["message"][:50])
-        result = imessage_send(input_data["message"], input_data.get("recipient"))
+        result = imessage_send(input_data["message"], input_data.get("recipient"), input_data.get("file"))
+        print(f"{GREEN}  ✓ {result}{RESET}")
+        return result
+    elif name == "send_file":
+        print_tool("send_file", f"{input_data['path']} via {input_data.get('via', 'here')}")
+        result = send_file(input_data["path"], input_data.get("via", "here"),
+                           input_data.get("to", ""), input_data.get("caption", ""))
+        print(f"{GREEN}  ✓ {result}{RESET}")
+        return result
+    elif name == "open_file":
+        print_tool("open_file", input_data["path"])
+        result = open_file_local(input_data["path"], input_data.get("app", ""))
+        print(f"{GREEN}  ✓ {result}{RESET}")
+        return result
+    elif name == "email_search":
+        print_tool("email_search", f"query: {input_data['query']}")
+        result = email_search(input_data["query"], input_data.get("count", 10))
+        print_output(result)
+        return result
+    elif name == "email_forward":
+        print_tool("email_forward", f"{input_data['message_id'][:12]}... -> {input_data['to']}")
+        result = email_forward(input_data["message_id"], input_data["to"],
+                               input_data.get("note", ""), input_data.get("include_attachments", True))
+        print(f"{GREEN}  ✓ {result}{RESET}")
+        return result
+    elif name == "email_draft":
+        print_tool("email_draft", f"to: {input_data['to']} | {input_data['subject'][:40]}")
+        result = email_draft(input_data["to"], input_data["subject"], input_data["body"],
+                             input_data.get("cc", ""), input_data.get("attachments"),
+                             input_data.get("body_html"), input_data.get("thread_id", ""))
+        print(f"{GREEN}  ✓ {result}{RESET}")
+        return result
+    elif name == "email_mark":
+        print_tool("email_mark", input_data["message_id"][:12])
+        result = email_mark(input_data["message_id"], input_data.get("mark_read"),
+                            input_data.get("archive"), input_data.get("star"))
         print(f"{GREEN}  ✓ {result}{RESET}")
         return result
     elif name == "imessage_read":
@@ -2306,7 +2505,10 @@ def execute_tool(name, input_data):
         return result
     elif name == "email_send":
         print_tool("email_send", f"To: {input_data['to']}")
-        result = email_send(input_data["to"], input_data["subject"], input_data["body"])
+        result = email_send(input_data["to"], input_data["subject"], input_data["body"],
+                            input_data.get("thread_id"), input_data.get("message_id"),
+                            input_data.get("cc", ""), input_data.get("bcc", ""),
+                            input_data.get("attachments"), input_data.get("body_html"))
         print(f"{GREEN}  ✓ {result}{RESET}")
         return result
     elif name == "calendar_read":
