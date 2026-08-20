@@ -11,8 +11,8 @@ models:
 
   claude-sonnet-5:
     provider: anthropic
-    cost_per_1k_input: 0.003
-    cost_per_1k_output: 0.015
+    cost_per_1k_input: 0.002
+    cost_per_1k_output: 0.010
     latency_ms: 2000
     max_tokens: 16000
     suitable_tasks: [research, analysis, synthesis, planning, code, health, finance, scientific]

@@ -52,7 +52,7 @@ HyperClaw intelligently routes tasks to the most cost-effective model:
 |-------|----------|------|
 | **ChatJimmy** (Llama 3.1 8B) | Simple queries, classification, quick lookups | ~$0.00001 |
 | **Claude Haiku 4.5** | Moderate tasks, basic analysis | $0.001 / $0.005 |
-| **Claude Sonnet 5** | Everyday requests, drafting, quick answers | $0.003 / $0.015 |
+| **Claude Sonnet 5** | Everyday requests, drafting, quick answers | $0.002 / $0.010 |
 | **Claude Opus 5** | Analysis, planning, writing, research | $0.005 / $0.025 |
 | **Claude Fable 5** | Hardest multi-step work: code, architecture, quant | $0.010 / $0.050 |
 

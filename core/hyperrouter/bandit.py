@@ -17,7 +17,7 @@ from core.hyperstate.schema import AgentScore, ModelScore
 MODEL_COSTS: dict[str, float] = {
     "chatjimmy": 0.000001,
     "claude-opus-5": 0.005,
-    "claude-sonnet-5": 0.003,
+    "claude-sonnet-5": 0.002,
     "claude-code": 0.003,
     "nim-local": 0.0,
 }

@@ -81,7 +81,7 @@ class TestSelectModel:
             "claude-sonnet-5": {"analysis": ModelScore(attempts=10, successes=10)},
             "chatjimmy": {"analysis": ModelScore(attempts=5, successes=3)},
         }
-        # Claude costs 0.003/1k, set budget at 0.0001 → should exclude Claude
+        # Claude costs 0.002/1k, set budget at 0.0001 → should exclude Claude
         model = select_model(model_scores, "analysis", 15, cost_budget_usd=0.0001)
         assert model == "chatjimmy"
 
