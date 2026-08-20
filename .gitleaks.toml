@@ -1,0 +1,14 @@
+# Gitleaks config for HyperClaw.
+# Extends default rules; allowlists cover exactly two verified false positives.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Verified false positives (documented placeholders / class names)"
+regexes = [
+    # SUPABASE-SETUP.md documentation example: a truncated JWT HEADER ('{"alg":"HS256","typ":"JWT"}')
+    # followed by literal '...' — not a real key.
+    '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.\.\.''',
+    # integrations/base.py connector registry: the class name 'AirtableConnector', not a key.
+    '''AirtableConnector''',
+]
