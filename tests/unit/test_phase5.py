@@ -41,7 +41,7 @@ def _make_bid(agent_id="agent-1", confidence=0.8, cost=0.01, eta=2.0, request_id
     return Bid(
         request_id=request_id or uuid.uuid4(),
         agent_id=agent_id,
-        model_id="claude-sonnet-4-6",
+        model_id="claude-sonnet-5",
         confidence=confidence,
         eta_seconds=eta,
         estimated_cost_usd=cost,
@@ -180,7 +180,7 @@ class TestBaseAgent:
         agent.agent_id = "TEST"
         state = _make_state()
 
-        await agent.log_completion(state, "result", "claude-sonnet-4-6", success=True)
+        await agent.log_completion(state, "result", "claude-sonnet-5", success=True)
 
         assert "TEST" in state.agent_scores
         assert state.agent_scores["TEST"].attempts == 1
@@ -194,7 +194,7 @@ class TestBaseAgent:
         agent.agent_id = "TEST"
         state = _make_state()
 
-        await agent.log_completion(state, "result", "claude-sonnet-4-6", success=False)
+        await agent.log_completion(state, "result", "claude-sonnet-5", success=False)
         assert state.agent_scores["TEST"].attempts == 1
         assert state.agent_scores["TEST"].successes == 0
 
@@ -206,9 +206,9 @@ class TestBaseAgent:
         agent.agent_id = "TEST"
         state = _make_state(task_type="research")
 
-        await agent.log_completion(state, "result", "claude-sonnet-4-6", success=True)
-        assert "claude-sonnet-4-6" in state.model_scores
-        assert "research" in state.model_scores["claude-sonnet-4-6"]
+        await agent.log_completion(state, "result", "claude-sonnet-5", success=True)
+        assert "claude-sonnet-5" in state.model_scores
+        assert "research" in state.model_scores["claude-sonnet-5"]
 
     @pytest.mark.asyncio
     async def test_log_completion_increments_version(self):
@@ -219,7 +219,7 @@ class TestBaseAgent:
         state = _make_state()
         initial_version = state.state_version
 
-        await agent.log_completion(state, "result", "claude-sonnet-4-6", success=True)
+        await agent.log_completion(state, "result", "claude-sonnet-5", success=True)
         assert state.state_version == initial_version + 1
 
 
@@ -329,7 +329,7 @@ class TestSpecialistAgents:
         from swarm.agents.business.strategos import StrategosAgent
         deps = _make_deps()
         agent = StrategosAgent(*deps)
-        assert agent.preferred_model == "claude-sonnet-4-6"
+        assert agent.preferred_model == "claude-sonnet-5"
 
     @pytest.mark.asyncio
     async def test_hearth_uses_chatjimmy(self):

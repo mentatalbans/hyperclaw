@@ -138,7 +138,7 @@ class TestAuditLogger:
             action="inference",
             allowed=True,
             agent_id="test-agent",
-            model_used="claude-sonnet-4-6",
+            model_used="claude-sonnet-5",
         )
         pool.acquire.return_value.__aenter__.return_value.execute.assert_called_once()
 
@@ -246,5 +246,5 @@ class TestHyperShield:
     async def test_check_inference_call_returns_true(self, policy_file):
         pool = self._make_pool()
         shield = HyperShield(policy_file, pool)
-        result = await shield.check_inference_call("agent-1", "claude-sonnet-4-6")
+        result = await shield.check_inference_call("agent-1", "claude-sonnet-5")
         assert result is True

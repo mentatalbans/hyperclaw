@@ -18,7 +18,7 @@ class TestCertifier:
     def _good_entry(self, method: str = "test_method") -> ExperimentEntry:
         return ExperimentEntry(
             method=method,
-            model_used="claude-sonnet-4-6",
+            model_used="claude-sonnet-5",
             result="All assertions passed. Output: 42",
             certified=True,
             test_trace="test_foo: PASS\ntest_bar: PASS\n2 passed in 0.01s",
@@ -30,7 +30,7 @@ class TestCertifier:
         entry = self._good_entry()
         cm = self.certifier.certify(entry)
         assert cm.method_id == "test_method"
-        assert cm.model_used == "claude-sonnet-4-6"
+        assert cm.model_used == "claude-sonnet-5"
         assert "cost_usd" in cm.performance
 
     def test_raises_on_empty_test_trace(self):
@@ -82,7 +82,7 @@ class TestCertifier:
     def test_validate_batch_mixed(self):
         entries = [
             self._good_entry("method_0"),
-            ExperimentEntry(method="bad_method", model_used="claude-sonnet-4-6",
+            ExperimentEntry(method="bad_method", model_used="claude-sonnet-5",
                           result="", certified=True, test_trace="trace"),
             self._good_entry("method_2"),
         ]
@@ -93,7 +93,7 @@ class TestCertifier:
 
     def test_validate_batch_all_invalid(self):
         bad = ExperimentEntry(
-            method="bad", model_used="claude-sonnet-4-6",
+            method="bad", model_used="claude-sonnet-5",
             result="", certified=False, test_trace="",
         )
         _, errors = self.certifier.validate_batch([bad, bad])

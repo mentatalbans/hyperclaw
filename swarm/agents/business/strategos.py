@@ -9,7 +9,7 @@ class StrategosAgent(BaseAgent):
     domain = "business"
     description = "Executive Intelligence — strategic analysis, competitive intel, scenario modeling"
     supported_task_types = ["analysis", "research", "planning", "synthesis"]
-    preferred_model = "claude-sonnet-4-6"
+    preferred_model = "claude-sonnet-5"
 
     async def run(self, task: str, state: HyperState, context: dict) -> str:
         system = (
@@ -23,5 +23,5 @@ class StrategosAgent(BaseAgent):
             system=system,
             state=state,
         )
-        await self.log_completion(state, result, "claude-sonnet-4-6", bool(result))
+        await self.log_completion(state, result, "claude-sonnet-5", bool(result))
         return result

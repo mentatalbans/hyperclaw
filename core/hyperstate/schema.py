@@ -141,9 +141,9 @@ class HyperState(BaseModel):
     def get_best_model(self, task_type: str) -> str:
         """
         Return the model_id with the highest successes/attempts ratio for
-        the given task_type. Returns 'claude-sonnet-4-6' if no data exists.
+        the given task_type. Returns 'claude-sonnet-5' if no data exists.
         """
-        best_model = "claude-sonnet-4-6"
+        best_model = "claude-sonnet-5"
         best_rate = -1.0
 
         for model_id, task_scores in self.model_scores.items():

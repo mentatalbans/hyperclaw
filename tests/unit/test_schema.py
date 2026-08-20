@@ -75,43 +75,43 @@ class TestCertifyMethod:
             method_id="method_001",
             test_trace="All tests passed: test_foo OK, test_bar OK",
             result="Output: success",
-            model_used="claude-sonnet-4-6",
+            model_used="claude-sonnet-5",
         )
         assert isinstance(cm, CertifiedMethod)
         assert cm.method_id == "method_001"
-        assert cm.model_used == "claude-sonnet-4-6"
+        assert cm.model_used == "claude-sonnet-5"
         assert len(state.certified_methods) == 1
         assert state.state_version == 1
 
     def test_version_increments(self):
         state = HyperState(domain="business", task=Task(goal="test"))
         assert state.state_version == 0
-        state.certify_method("m1", "trace", "result", "claude-sonnet-4-6")
+        state.certify_method("m1", "trace", "result", "claude-sonnet-5")
         assert state.state_version == 1
-        state.certify_method("m2", "trace2", "result2", "claude-sonnet-4-6")
+        state.certify_method("m2", "trace2", "result2", "claude-sonnet-5")
         assert state.state_version == 2
 
     def test_raises_on_empty_test_trace(self):
         state = HyperState(domain="business", task=Task(goal="test"))
         with pytest.raises(CertificationError) as exc_info:
-            state.certify_method("m1", "", "result", "claude-sonnet-4-6")
+            state.certify_method("m1", "", "result", "claude-sonnet-5")
         assert "test_trace" in str(exc_info.value).lower()
 
     def test_raises_on_whitespace_test_trace(self):
         state = HyperState(domain="business", task=Task(goal="test"))
         with pytest.raises(CertificationError):
-            state.certify_method("m1", "   ", "result", "claude-sonnet-4-6")
+            state.certify_method("m1", "   ", "result", "claude-sonnet-5")
 
     def test_raises_on_empty_result(self):
         state = HyperState(domain="business", task=Task(goal="test"))
         with pytest.raises(CertificationError) as exc_info:
-            state.certify_method("m1", "trace", "", "claude-sonnet-4-6")
+            state.certify_method("m1", "trace", "", "claude-sonnet-5")
         assert "result" in str(exc_info.value).lower()
 
     def test_raises_on_whitespace_result(self):
         state = HyperState(domain="business", task=Task(goal="test"))
         with pytest.raises(CertificationError):
-            state.certify_method("m1", "trace", "   ", "claude-sonnet-4-6")
+            state.certify_method("m1", "trace", "   ", "claude-sonnet-5")
 
 
 # ── get_best_model ─────────────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ class TestCertifyMethod:
 class TestGetBestModel:
     def test_default_when_no_data(self):
         state = HyperState(domain="business", task=Task(goal="test"))
-        assert state.get_best_model("research") == "claude-sonnet-4-6"
+        assert state.get_best_model("research") == "claude-sonnet-5"
 
     def test_returns_highest_win_rate(self):
         state = HyperState(domain="business", task=Task(goal="test"))
@@ -152,7 +152,7 @@ class TestGetBestModel:
         state.model_scores = {
             "model-a": {"code": ModelScore(attempts=10, successes=9)},
         }
-        assert state.get_best_model("research") == "claude-sonnet-4-6"
+        assert state.get_best_model("research") == "claude-sonnet-5"
 
     def test_tie_returns_first_max(self):
         state = HyperState(domain="business", task=Task(goal="test"))

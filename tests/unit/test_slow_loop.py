@@ -49,8 +49,8 @@ class TestSlowLoopRunOnce:
     @pytest.mark.asyncio
     async def test_processes_swarm_messages(self):
         messages = [
-            {"agent_id": "agent-1", "model_used": "claude-sonnet-4-6", "task_type": "research", "certified": True},
-            {"agent_id": "agent-1", "model_used": "claude-sonnet-4-6", "task_type": "research", "certified": False},
+            {"agent_id": "agent-1", "model_used": "claude-sonnet-5", "task_type": "research", "certified": True},
+            {"agent_id": "agent-1", "model_used": "claude-sonnet-5", "task_type": "research", "certified": False},
             {"agent_id": "agent-2", "model_used": "chatjimmy", "task_type": "routing", "certified": True},
         ]
         router = HyperRouter()
@@ -65,8 +65,8 @@ class TestSlowLoopRunOnce:
     @pytest.mark.asyncio
     async def test_updates_router_model_scores(self):
         messages = [
-            {"agent_id": "agent-1", "model_used": "claude-sonnet-4-6", "task_type": "research", "certified": True},
-            {"agent_id": "agent-1", "model_used": "claude-sonnet-4-6", "task_type": "research", "certified": True},
+            {"agent_id": "agent-1", "model_used": "claude-sonnet-5", "task_type": "research", "certified": True},
+            {"agent_id": "agent-1", "model_used": "claude-sonnet-5", "task_type": "research", "certified": True},
         ]
         router = HyperRouter()
         pool = _make_pool(fetch_return=messages)
@@ -74,15 +74,15 @@ class TestSlowLoopRunOnce:
         loop = SlowLoop(router, pool, cg)
         await loop.run_once()
         # Router model scores should be updated
-        assert "claude-sonnet-4-6" in router.model_scores
-        assert "research" in router.model_scores["claude-sonnet-4-6"]
-        assert router.model_scores["claude-sonnet-4-6"]["research"].attempts == 2
-        assert router.model_scores["claude-sonnet-4-6"]["research"].successes == 2
+        assert "claude-sonnet-5" in router.model_scores
+        assert "research" in router.model_scores["claude-sonnet-5"]
+        assert router.model_scores["claude-sonnet-5"]["research"].attempts == 2
+        assert router.model_scores["claude-sonnet-5"]["research"].successes == 2
 
     @pytest.mark.asyncio
     async def test_updates_agent_scores(self):
         messages = [
-            {"agent_id": "my-agent", "model_used": "claude-sonnet-4-6", "task_type": "code", "certified": True},
+            {"agent_id": "my-agent", "model_used": "claude-sonnet-5", "task_type": "code", "certified": True},
         ]
         router = HyperRouter()
         pool = _make_pool(fetch_return=messages)
@@ -96,14 +96,14 @@ class TestSlowLoopRunOnce:
     @pytest.mark.asyncio
     async def test_failure_increments_attempts_not_successes(self):
         messages = [
-            {"agent_id": "agent-1", "model_used": "claude-sonnet-4-6", "task_type": "research", "certified": False},
+            {"agent_id": "agent-1", "model_used": "claude-sonnet-5", "task_type": "research", "certified": False},
         ]
         router = HyperRouter()
         pool = _make_pool(fetch_return=messages)
         cg = _make_causal_graph()
         loop = SlowLoop(router, pool, cg)
         await loop.run_once()
-        score = router.model_scores["claude-sonnet-4-6"]["research"]
+        score = router.model_scores["claude-sonnet-5"]["research"]
         assert score.attempts == 1
         assert score.successes == 0
 
@@ -163,7 +163,7 @@ class TestCertifierCausalGraphIntegration:
         certifier = Certifier(causal_graph=cg)
         entry = ExperimentEntry(
             method="test_integration",
-            model_used="claude-sonnet-4-6",
+            model_used="claude-sonnet-5",
             result="42 passed",
             certified=True,
             test_trace="test_foo: PASS\ntest_bar: PASS",

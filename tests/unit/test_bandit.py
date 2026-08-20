@@ -69,16 +69,16 @@ class TestSelectModel:
     def test_claude_selected_for_research_tasks(self):
         # Equal attempts — exploitation dominates, Claude's 80% win rate beats ChatJimmy's 40%
         model_scores = {
-            "claude-sonnet-4-6": {"research": ModelScore(attempts=100, successes=80)},
+            "claude-sonnet-5": {"research": ModelScore(attempts=100, successes=80)},
             "chatjimmy": {"research": ModelScore(attempts=100, successes=40)},
             "nim-local": {"research": ModelScore(attempts=100, successes=30)},
         }
         model = select_model(model_scores, "research", 300)
-        assert model == "claude-sonnet-4-6"
+        assert model == "claude-sonnet-5"
 
     def test_budget_filter_excludes_expensive_models(self):
         model_scores = {
-            "claude-sonnet-4-6": {"analysis": ModelScore(attempts=10, successes=10)},
+            "claude-sonnet-5": {"analysis": ModelScore(attempts=10, successes=10)},
             "chatjimmy": {"analysis": ModelScore(attempts=5, successes=3)},
         }
         # Claude costs 0.003/1k, set budget at 0.0001 → should exclude Claude
@@ -87,7 +87,7 @@ class TestSelectModel:
 
     def test_latency_filter_excludes_slow_models(self):
         model_scores = {
-            "claude-sonnet-4-6": {"code": ModelScore(attempts=10, successes=10)},
+            "claude-sonnet-5": {"code": ModelScore(attempts=10, successes=10)},
             "nim-local": {"code": ModelScore(attempts=5, successes=4)},
         }
         # Claude latency = 2000ms, nim-local = 500ms, set budget 600ms
@@ -96,7 +96,7 @@ class TestSelectModel:
 
     def test_falls_back_to_claude_with_empty_scores(self):
         model = select_model({}, "research", 0)
-        # Either claude-sonnet-4-6 or another valid fallback (not chatjimmy for non-CJ tasks)
+        # Either claude-sonnet-5 or another valid fallback (not chatjimmy for non-CJ tasks)
         assert "claude" in model or model in MODEL_COSTS
 
     def test_chatjimmy_excluded_by_latency_budget(self):
@@ -108,10 +108,10 @@ class TestSelectModel:
     def test_unexplored_model_gets_inf_score(self):
         # Model with 0 attempts should be explored first (UCB1 → inf)
         model_scores = {
-            "claude-sonnet-4-6": {"analysis": ModelScore(attempts=0, successes=0)},
+            "claude-sonnet-5": {"analysis": ModelScore(attempts=0, successes=0)},
         }
         model = select_model(model_scores, "analysis", 10)
-        assert model == "claude-sonnet-4-6"
+        assert model == "claude-sonnet-5"
 
 
 # ── update_scores ──────────────────────────────────────────────────────────────
@@ -119,39 +119,39 @@ class TestSelectModel:
 class TestUpdateScores:
     def test_success_increments_both(self):
         scores: dict = {}
-        new_scores = update_scores(scores, "claude-sonnet-4-6", "research", success=True)
-        assert new_scores["claude-sonnet-4-6"]["research"].attempts == 1
-        assert new_scores["claude-sonnet-4-6"]["research"].successes == 1
+        new_scores = update_scores(scores, "claude-sonnet-5", "research", success=True)
+        assert new_scores["claude-sonnet-5"]["research"].attempts == 1
+        assert new_scores["claude-sonnet-5"]["research"].successes == 1
 
     def test_failure_increments_only_attempts(self):
         scores: dict = {}
-        new_scores = update_scores(scores, "claude-sonnet-4-6", "research", success=False)
-        assert new_scores["claude-sonnet-4-6"]["research"].attempts == 1
-        assert new_scores["claude-sonnet-4-6"]["research"].successes == 0
+        new_scores = update_scores(scores, "claude-sonnet-5", "research", success=False)
+        assert new_scores["claude-sonnet-5"]["research"].attempts == 1
+        assert new_scores["claude-sonnet-5"]["research"].successes == 0
 
     def test_immutability_original_unchanged(self):
         original: dict = {}
-        new_scores = update_scores(original, "claude-sonnet-4-6", "research", success=True)
+        new_scores = update_scores(original, "claude-sonnet-5", "research", success=True)
         # Original dict must not be mutated
-        assert "claude-sonnet-4-6" not in original
-        assert new_scores["claude-sonnet-4-6"]["research"].attempts == 1
+        assert "claude-sonnet-5" not in original
+        assert new_scores["claude-sonnet-5"]["research"].attempts == 1
 
     def test_immutability_nested_object_unchanged(self):
         original = {
-            "claude-sonnet-4-6": {"research": ModelScore(attempts=5, successes=3)}
+            "claude-sonnet-5": {"research": ModelScore(attempts=5, successes=3)}
         }
         # Snapshot original values
-        orig_attempts = original["claude-sonnet-4-6"]["research"].attempts
-        orig_successes = original["claude-sonnet-4-6"]["research"].successes
+        orig_attempts = original["claude-sonnet-5"]["research"].attempts
+        orig_successes = original["claude-sonnet-5"]["research"].successes
 
-        new_scores = update_scores(original, "claude-sonnet-4-6", "research", success=True)
+        new_scores = update_scores(original, "claude-sonnet-5", "research", success=True)
 
         # Original should be unchanged
-        assert original["claude-sonnet-4-6"]["research"].attempts == orig_attempts
-        assert original["claude-sonnet-4-6"]["research"].successes == orig_successes
+        assert original["claude-sonnet-5"]["research"].attempts == orig_attempts
+        assert original["claude-sonnet-5"]["research"].successes == orig_successes
         # New scores updated
-        assert new_scores["claude-sonnet-4-6"]["research"].attempts == orig_attempts + 1
-        assert new_scores["claude-sonnet-4-6"]["research"].successes == orig_successes + 1
+        assert new_scores["claude-sonnet-5"]["research"].attempts == orig_attempts + 1
+        assert new_scores["claude-sonnet-5"]["research"].successes == orig_successes + 1
 
     def test_accumulates_across_calls(self):
         scores: dict = {}
@@ -192,18 +192,18 @@ class TestHyperRouter:
     def test_record_updates_total_attempts(self):
         router = HyperRouter()
         assert router.total_attempts == 0
-        router.record("agent-1", "claude-sonnet-4-6", "research", success=True)
+        router.record("agent-1", "claude-sonnet-5", "research", success=True)
         assert router.total_attempts == 1
 
     def test_record_updates_agent_scores(self):
         router = HyperRouter()
-        router.record("agent-1", "claude-sonnet-4-6", "research", success=True)
+        router.record("agent-1", "claude-sonnet-5", "research", success=True)
         assert router.agent_scores["agent-1"].successes == 1
         assert router.agent_scores["agent-1"].attempts == 1
 
     def test_record_failure_no_success_increment(self):
         router = HyperRouter()
-        router.record("agent-1", "claude-sonnet-4-6", "research", success=False)
+        router.record("agent-1", "claude-sonnet-5", "research", success=False)
         assert router.agent_scores["agent-1"].successes == 0
         assert router.agent_scores["agent-1"].attempts == 1
 
@@ -217,4 +217,4 @@ class TestHyperRouter:
         router = HyperRouter()
         # 100ms budget — should exclude claude (2000ms) and claude-code (3000ms)
         agent_id, model_id = router.route("analysis", latency_budget=100)
-        assert model_id not in ("claude-sonnet-4-6", "claude-code")
+        assert model_id not in ("claude-sonnet-5", "claude-code")
