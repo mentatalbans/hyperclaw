@@ -54,6 +54,10 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("telegram_supervisor")
+# httpx/httpcore log full request URLs (which embed the bot token) at INFO.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 
 
 class TelegramSupervisor:

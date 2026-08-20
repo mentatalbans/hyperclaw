@@ -67,3 +67,6 @@ ui/**/*.backup*
 ui/**/*.bak*
 ui/**/*_backup_*
 CLAUDE.md
+
+# Example templates are shippable
+!*.example.plist

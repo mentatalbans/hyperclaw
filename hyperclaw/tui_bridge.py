@@ -146,17 +146,45 @@ This request is coming via a chat channel. Keep responses under 2000 characters.
 
         return base
 
+    # Tools allowed to run long (doc/media generation, research); everything else 120s.
+    _TOOL_TIMEOUTS = {
+        "python_exec": 300, "bash": 300, "create_document": 300, "create_presentation": 300,
+        "create_spreadsheet": 300, "zimage_generate": 300, "deep_research": 600,
+    }
+    _DEFAULT_TOOL_TIMEOUT = int(os.environ.get("HYPERCLAW_TOOL_TIMEOUT", "120"))
+
     def _load_tools(self):
         """Load tool definitions from TUI."""
         # Import tools from TUI module
         try:
             from . import tui
             self.tools = tui.TOOLS
-            self.execute_tool = tui.execute_tool
+            self._raw_execute_tool = tui.execute_tool
         except ImportError:
             # Fallback: define essential tools inline
             self.tools = self._get_essential_tools()
-            self.execute_tool = self._execute_tool_fallback
+            self._raw_execute_tool = self._execute_tool_fallback
+        self.execute_tool = self._execute_tool_with_timeout
+
+    # One shared single-slot pool per bridge would serialize tools; use a small pool.
+    _tool_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="tui_tool")
+
+    def _execute_tool_with_timeout(self, name, input_data):
+        """Run a tool with a hard timeout; a hung tool becomes an error result,
+        never a hung conversation. (Python threads can't be killed — the orphaned
+        worker is logged and abandoned; subprocess-backed tools should also pass
+        their own subprocess timeouts.)"""
+        import concurrent.futures as _cf
+        timeout = self._TOOL_TIMEOUTS.get(name, self._DEFAULT_TOOL_TIMEOUT)
+        future = self._tool_executor.submit(self._raw_execute_tool, name, input_data)
+        try:
+            return future.result(timeout=timeout)
+        except _cf.TimeoutError:
+            import logging
+            logging.getLogger("tui_bridge").error(
+                f"Tool '{name}' exceeded {timeout}s — abandoning worker thread")
+            return (f"Error: tool '{name}' timed out after {timeout}s. "
+                    f"It may still be running in the background; do not retry blindly.")
 
     # Universal tools always available regardless of the message (the workhorses).
     _CORE_TOOLS = {
@@ -345,37 +373,66 @@ This request is coming via a chat channel. Keep responses under 2000 characters.
         )
 
 
-    # Failover ladder: on overload/rate-limit/transient errors, walk down the Claude 5
-    # family instead of failing the turn. Directly attacks the silent-outage failure class.
-    _FAILOVER_CHAIN = ["claude-fable-5", "claude-opus-5", "claude-sonnet-5"]
+    # Failover ladder: on overload/rate-limit/transient errors (and policy refusals), walk
+    # down the Claude 5 family instead of failing the turn. Chain is built from the env-driven
+    # tier config (FABLE_MODEL / GIL_OPUS_MODEL / GIL_SONNET_MODEL) so operator overrides in
+    # .env apply to failover too, not just the primary pick.
+    _FAILOVER_CHAIN = ["claude-fable-5", "claude-opus-5", "claude-sonnet-5"]  # fallback if model_selector unavailable
 
-    def _create_with_failover(self, client, *, model, **kwargs):
-        """client.messages.create with automatic model failover on 429/500/529/timeouts."""
+    def _failover_chain(self):
+        try:
+            from hyperclaw.model_selector import tiers
+            t = tiers()
+            chain = [t["fable"], t["opus"], t["sonnet"]]
+            # De-dup while preserving order (overrides may collapse tiers)
+            return list(dict.fromkeys(chain))
+        except Exception:
+            return list(self._FAILOVER_CHAIN)
+
+    def _create_with_failover(self, client, *, model, deadline=None, **kwargs):
+        """client.messages.create with model failover on 429/5xx/timeouts/refusals.
+
+        Returns (response, model_used). Raises the last transient error if every
+        rung fails; respects an optional time.monotonic() deadline between rungs.
+        """
         import time as _time
-        chain = [model] + [m for m in self._FAILOVER_CHAIN if m != model]
+        import logging
+        log = logging.getLogger("tui_bridge")
+        chain = [model] + [m for m in self._failover_chain() if m != model]
         last_err = None
+        last_refusal = None
         for attempt, m in enumerate(chain):
+            if deadline is not None and _time.monotonic() > deadline and attempt > 0:
+                break  # out of time budget; fall through to last_err/last_refusal
             try:
                 resp = client.messages.create(model=m, **kwargs)
+                if getattr(resp, "stop_reason", None) == "refusal":
+                    sd = getattr(resp, "stop_details", None)
+                    log.warning(
+                        f"Refusal on {m} (category={getattr(sd, 'category', None)}): "
+                        f"{getattr(sd, 'explanation', '')}"
+                    )
+                    last_refusal = (resp, m)
+                    continue  # try the next rung — categories often differ by model
                 if m != model:
-                    try:
-                        import logging
-                        logging.getLogger("tui_bridge").warning(f"Model failover: {model} -> {m}")
-                    except Exception:
-                        pass
-                return resp
+                    log.warning(f"Model failover: {model} -> {m}")
+                return resp, m
             except anthropic.APIStatusError as e:
                 status = getattr(e, "status_code", 0)
                 if status in (429, 500, 502, 503, 529):
                     last_err = e
-                    _time.sleep(min(2 * (attempt + 1), 6))
+                    _time.sleep(min(1 + attempt, 2))
                     continue
                 raise
             except (anthropic.APIConnectionError, anthropic.APITimeoutError) as e:
                 last_err = e
-                _time.sleep(min(2 * (attempt + 1), 6))
+                _time.sleep(min(1 + attempt, 2))
                 continue
-        raise last_err
+        if last_refusal is not None:
+            return last_refusal  # whole chain refused — surface it, don't crash
+        if last_err is not None:
+            raise last_err
+        raise RuntimeError("Model failover chain exhausted with no result")
 
     def _execute_sync(
         self,
@@ -398,12 +455,25 @@ This request is coming via a chat channel. Keep responses under 2000 characters.
         # queues files for THIS chat; drained into result['files'] at turn end.
         try:
             from . import outbox as _outbox
-            _outbox.set_current_session(chat_id)
         except Exception:
             _outbox = None
+        if _outbox is not None:
+            try:
+                _outbox.set_current_session(chat_id)
+            except Exception:
+                # Clear any stale binding from a previous turn on this pooled thread so
+                # files can't be queued into the WRONG chat; drain below still works.
+                try:
+                    _outbox.set_current_session(None)
+                except Exception:
+                    pass
 
         try:
-            client = anthropic.Anthropic(api_key=self.api_key)
+            # timeout/max_retries: SDK defaults are 600s x 3 attempts, which multiplied by
+            # the 3-rung failover ladder and the 12-iteration loop is a multi-hour hang.
+            client = anthropic.Anthropic(api_key=self.api_key, timeout=120.0, max_retries=1)
+            import time as _walltime
+            _turn_deadline = _walltime.monotonic() + 600  # 10 min wall-clock per message
 
             # Get relevant memories for this message
             memory_context = self._get_relevant_memories(message)
@@ -443,16 +513,33 @@ This request is coming via a chat channel. Keep responses under 2000 characters.
 
             while iteration < max_iterations:
                 iteration += 1
+                if _walltime.monotonic() > _turn_deadline:
+                    if not response_text.strip():
+                        response_text = ("This is taking longer than my time budget for one message. "
+                                         "Tell me which part to prioritize and I'll continue.")
+                    break
 
-                # Call Claude (with model failover on overload/transient errors)
-                response = self._create_with_failover(
+                # Call Claude (with model failover on overload/transient errors/refusals)
+                response, _model_used = self._create_with_failover(
                     client,
                     model=turn_model,
+                    deadline=_turn_deadline,
                     max_tokens=8000,
                     system=system_with_memory,
                     tools=selected_tools,
                     messages=messages
                 )
+                result['model_used'] = _model_used
+                if _model_used != turn_model:
+                    result['failover_from'] = turn_model
+                if getattr(response, "stop_reason", None) == "refusal":
+                    sd = getattr(response, "stop_details", None)
+                    response_text = response_text or (
+                        "I can't help with that request"
+                        + (f" ({sd.category})" if sd is not None and getattr(sd, 'category', None) else "")
+                        + "."
+                    )
+                    break
 
                 # Process response
                 assistant_content = []
@@ -575,6 +662,19 @@ This request is coming via a chat channel. Keep responses under 2000 characters.
             result['success'] = False
             result['error'] = str(e)
             result['text'] = f"Error executing request: {e}"
+            # Crash guard: a failed message must never take the process down and must
+            # leave forensics. Full traceback to a dedicated, private crash log.
+            try:
+                import traceback
+                crash_log = HYPERCLAW_ROOT / "logs" / "crashes.log"
+                crash_log.parent.mkdir(parents=True, exist_ok=True)
+                with open(crash_log, "a") as fh:
+                    fh.write(f"\n=== {datetime.now().isoformat()} chat={chat_id} ===\n")
+                    fh.write(f"message: {str(message)[:500]}\n")
+                    traceback.print_exc(file=fh)
+                os.chmod(crash_log, 0o600)
+            except Exception:
+                pass
 
         # Deliver any files tools queued for this conversation (send_file via='here',
         # doc engines, charts). Channel adapters send these natively after the text.

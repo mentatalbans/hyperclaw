@@ -46,22 +46,27 @@ except ImportError:
 # Config
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 ALLOWED_CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID", "0"))
+# DM security: additional approved chat ids (comma list) + runtime-approved via /pair
+_EXTRA_ALLOWED = {int(x) for x in os.environ.get("TELEGRAM_ALLOWED_USER_IDS", "").split(",") if x.strip().lstrip("-").isdigit()}
+PAIRING_FILE = Path(os.path.expanduser("~/.hyperclaw/state/telegram_pairing.json"))
 API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
 LOCK_FILE = Path("/tmp/gil_telegram.lock")
 MAX_HISTORY = 20
 
 # Configure logging
-_LOG_DIR = Path(os.environ.get("HYPERCLAW_ROOT", str(Path.home() / ".hyperclaw"))) / "logs"
-_LOG_DIR.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
-        logging.FileHandler(str(_LOG_DIR / 'telegram_direct.log')),
+        logging.FileHandler(str((Path(os.environ.get("HYPERCLAW_ROOT", str(Path.home() / ".hyperclaw"))) / "logs" / 'telegram_direct.log'))),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger('telegram_direct')
+# httpx/httpcore log full request URLs (which embed the bot token) at INFO.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 
 
 class SingleInstanceLock:
@@ -210,6 +215,7 @@ class GilTelegramBot:
 
         except Exception as e:
             logger.error(f"Error sending photo: {e}")
+            return {}
 
     async def send_file(self, file_path: str, caption: str = None) -> dict:
         """Send any file to the chat - photo/video/audio/document auto-detected."""
@@ -252,7 +258,6 @@ class GilTelegramBot:
             return {}
         except Exception as e:
             logger.error(f"Error sending file: {e}")
-            return {}
             return {}
 
     async def edit_message(self, message_id: int, text: str) -> bool:
@@ -633,6 +638,63 @@ class GilTelegramBot:
 
         return None
 
+    # ── DM security: pairing-based allowlist ─────────────────────────────────
+    def _load_pairing(self) -> dict:
+        try:
+            return json.loads(PAIRING_FILE.read_text())
+        except Exception:
+            return {"approved": [], "pending": {}}
+
+    def _save_pairing(self, data: dict):
+        try:
+            PAIRING_FILE.parent.mkdir(parents=True, exist_ok=True)
+            PAIRING_FILE.write_text(json.dumps(data, indent=2))
+        except Exception as e:
+            logger.error(f"Pairing state save failed: {e}")
+
+    def _is_allowed_chat(self, chat_id: int) -> bool:
+        if chat_id == ALLOWED_CHAT_ID or chat_id in _EXTRA_ALLOWED:
+            return True
+        return chat_id in set(self._load_pairing().get("approved", []))
+
+    async def _handle_unpaired(self, chat_id: int, message: dict):
+        """Issue a pairing code once per unknown chat; never process content."""
+        import secrets
+        data = self._load_pairing()
+        pending = data.setdefault("pending", {})
+        known = next((c for c, info in pending.items() if info.get("chat_id") == chat_id), None)
+        user = message.get("from", {})
+        who = f"{user.get('first_name', '')} @{user.get('username', '?')} id={user.get('id')}"
+        if known is None:
+            code = secrets.token_hex(3).upper()
+            pending[code] = {"chat_id": chat_id, "who": who, "ts": time.time()}
+            self._save_pairing(data)
+            logger.warning(f"Unpaired chat {chat_id} ({who}) issued pairing code")
+            try:
+                await self.client.post(f"{API_BASE}/sendMessage", json={
+                    "chat_id": chat_id,
+                    "text": ("This assistant is private. Your message was not read. "
+                             f"Pairing code: {code} — ask the owner to approve it.")})
+            except Exception:
+                pass
+            # Tell the owner someone knocked
+            try:
+                await self.send_message(f"Pairing request from {who} (chat {chat_id}). "
+                                        f"Approve with /pair {code}")
+            except Exception:
+                pass
+        else:
+            logger.info(f"Ignoring message from unpaired chat {chat_id} (code pending)")
+
+    def _approve_pairing(self, code: str) -> str:
+        data = self._load_pairing()
+        info = data.get("pending", {}).pop(code.upper(), None)
+        if not info:
+            return f"No pending pairing with code {code}."
+        data.setdefault("approved", []).append(info["chat_id"])
+        self._save_pairing(data)
+        return f"Paired: {info['who']} (chat {info['chat_id']}) can now talk to me."
+
     async def handle_message(self, update: dict):
         """Handle incoming message including photos and documents."""
         try:
@@ -642,9 +704,16 @@ class GilTelegramBot:
             text = message.get("text", "").strip()
             caption = message.get("caption", "").strip()
 
-            # Security: only respond to allowed chat
-            if chat_id != ALLOWED_CHAT_ID:
-                logger.warning(f"Blocked message from unauthorized chat: {chat_id}")
+            # Security: only respond to allowed chats. Unknown senders get a
+            # one-time pairing code and their message content is NEVER processed.
+            if not self._is_allowed_chat(chat_id):
+                if text.startswith("/pair") or caption.startswith("/pair"):
+                    pass  # never honor /pair from an unknown chat
+                await self._handle_unpaired(chat_id, message)
+                return
+            # Owner approves a pending pairing: /pair <code>
+            if chat_id == ALLOWED_CHAT_ID and text.startswith("/pair "):
+                await self.send_message(self._approve_pairing(text.split(None, 1)[1].strip()))
                 return
 
             # Session management - trigger new session after silence

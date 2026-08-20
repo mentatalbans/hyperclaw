@@ -143,7 +143,10 @@ def save_session(history):
         import json
         # Keep last 50 messages
         to_save = history[-50:] if len(history) > 50 else history
-        SESSION_FILE.write_text(json.dumps(to_save, indent=2))
+        # Atomic write: a crash mid-write must not corrupt the session file
+        _tmp = SESSION_FILE.with_suffix(".json.tmp")
+        _tmp.write_text(json.dumps(to_save, indent=2))
+        os.replace(_tmp, SESSION_FILE)
     except:
         pass
 

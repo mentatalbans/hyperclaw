@@ -38,13 +38,17 @@ def _resolve(path: str) -> Path:
 
 def telegram_send_file(path: str, caption: str = "", chat_id: str = "") -> str:
     """Send any file over Telegram, picking the right API method by type."""
-    p = _resolve(path)
+    try:
+        p = _resolve(path)
+        _size = p.stat().st_size
+    except OSError as e:
+        return str(e)
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     cid = str(chat_id or os.environ.get("TELEGRAM_CHAT_ID", ""))
     if not token or not cid:
         return "Telegram not configured (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)"
-    if p.stat().st_size > MAX_TG_BYTES:
-        return f"File too large for Telegram ({p.stat().st_size // (1024*1024)}MB > 49MB). Email it instead."
+    if _size > MAX_TG_BYTES:
+        return f"File too large for Telegram ({_size // (1024*1024)}MB > 49MB). Email it instead."
 
     kind = outbox.kind_of(str(p))
     method, field = {
@@ -80,18 +84,21 @@ def telegram_send_file(path: str, caption: str = "", chat_id: str = "") -> str:
 
 def imessage_send_file(path: str, recipient: str = "", message: str = "") -> str:
     """Send a file (and optional text) over iMessage via Messages.app."""
-    p = _resolve(path)
+    try:
+        p = _resolve(path)
+    except OSError as e:
+        return str(e)
     recipient = recipient or os.environ.get("OWNER_PHONE", "") or os.environ.get("DEFAULT_PHONE", "")
     if not recipient:
         return "No iMessage recipient (set OWNER_PHONE)"
-    r_esc = recipient.replace('"', '\\"')
-    m_esc = (message or "").replace("\\", "\\\\").replace('"', '\\"')
+    r_esc = recipient.replace("\\", "\\\\").replace('"', '\\"')
+    m_esc = (message or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
     f_esc = str(p).replace("\\", "\\\\").replace('"', '\\"')
     text_line = f'send "{m_esc}" to targetBuddy' if message else ""
     script = f'''
     tell application "Messages"
-        set targetService to 1st account whose service type = iMessage
-        set targetBuddy to participant "{r_esc}" of targetService
+        set targetService to 1st service whose service type = iMessage
+        set targetBuddy to buddy "{r_esc}" of targetService
         {text_line}
         send POSIX file "{f_esc}" to targetBuddy
     end tell
@@ -109,7 +116,10 @@ def imessage_send_file(path: str, recipient: str = "", message: str = "") -> str
 
 def email_send_file(path: str, to: str, subject: str = "", body: str = "", cc: str = "") -> str:
     """Email a file as an attachment via Gmail."""
-    p = _resolve(path)
+    try:
+        p = _resolve(path)
+    except OSError as e:
+        return str(e)
     try:
         from .integrations_layer import gmail_send
         result = gmail_send(
@@ -130,17 +140,22 @@ def email_send_file(path: str, to: str, subject: str = "", body: str = "", cc: s
 
 def open_file(path: str, app: str = "") -> str:
     """Open a file locally on the Mac (default app, or a named app)."""
-    p = _resolve(path)
-    cmd = ["open", str(p)] if not app else ["open", "-a", app, str(p)]
-    res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-    if res.returncode == 0:
-        return f"Opened {p.name}" + (f" in {app}" if app else "")
-    return f"Open failed: {res.stderr.strip()[:200]}"
+    try:
+        p = _resolve(path)
+        cmd = ["open", str(p)] if not app else ["open", "-a", app, str(p)]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if res.returncode == 0:
+            return f"Opened {p.name}" + (f" in {app}" if app else "")
+        return f"Open failed: {res.stderr.strip()[:200]}"
+    except subprocess.TimeoutExpired:
+        return "Open failed: timed out after 30s"
+    except OSError as e:
+        return f"Open failed: {e}"
 
 
 # ── Unified entry ────────────────────────────────────────────────────────────
 
-def deliver_file(path: str, via: str = "here", to: str = "", caption: str = "") -> str:
+def deliver_file(path: str, via: str = "here", to: str = "", caption: str = "", app: str = "") -> str:
     """Single entry point for delivering a file anywhere."""
     via = (via or "here").lower().strip()
     if via in ("here", "chat", "conversation"):
@@ -154,5 +169,5 @@ def deliver_file(path: str, via: str = "here", to: str = "", caption: str = "") 
             return "Email delivery needs a recipient (to=...)"
         return email_send_file(path, to=to, body=caption)
     if via == "open":
-        return open_file(path, app=to)
+        return open_file(path, app=app or to)
     return f"Unknown delivery channel: {via} (use here|telegram|imessage|email|open)"

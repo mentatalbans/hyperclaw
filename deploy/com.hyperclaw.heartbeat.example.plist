@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  HyperClaw offsite heartbeat (example).
+  1. Copy to ~/Library/LaunchAgents/com.hyperclaw.heartbeat.plist
+  2. Replace YOUR_HOME with your home directory (e.g. /Users/you)
+  3. Set HEARTBEAT_URL in your .env (see .env.example)
+  4. launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.hyperclaw.heartbeat.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.hyperclaw.heartbeat</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>YOUR_HOME/.hyperclaw/scripts/heartbeat_ping.sh</string>
+    </array>
+    <key>StartInterval</key><integer>300</integer>
+    <key>RunAtLoad</key><true/>
+    <key>StandardOutPath</key><string>YOUR_HOME/.hyperclaw/logs/heartbeat.log</string>
+    <key>StandardErrorPath</key><string>YOUR_HOME/.hyperclaw/logs/heartbeat.log</string>
+</dict>
+</plist>

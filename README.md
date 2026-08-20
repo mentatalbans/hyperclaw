@@ -48,14 +48,16 @@ One AI. Every platform. All working together.
 
 HyperClaw intelligently routes tasks to the most cost-effective model:
 
-| Model | Use Case | Cost |
+| Model | Use Case | Cost (input/output per 1k tokens) |
 |-------|----------|------|
-| **ChatJimmy** (Llama 3.1 8B) | Simple queries, classification, quick lookups | ~$0.00001/1k tokens |
-| **Claude Haiku** | Moderate tasks, basic analysis | ~$0.001/1k tokens |
-| **Claude Sonnet** | Complex tasks, coding, writing | ~$0.003/1k tokens |
-| **Claude Opus** | Deep reasoning, research, planning | ~$0.015/1k tokens |
+| **ChatJimmy** (Llama 3.1 8B) | Simple queries, classification, quick lookups | ~$0.00001 |
+| **Claude Haiku 4.5** | Moderate tasks, basic analysis | $0.001 / $0.005 |
+| **Claude Sonnet 5** | Everyday requests, drafting, quick answers | $0.003 / $0.015 |
+| **Claude Opus 5** | Analysis, planning, writing, research | $0.005 / $0.025 |
+| **Claude Fable 5** | Hardest multi-step work: code, architecture, quant | $0.010 / $0.050 |
 
-Simple "what time is it?" goes to ChatJimmy. Complex "analyze this report and create a strategy" goes to Claude.
+Simple "what time is it?" stays cheap. "Refactor this system end to end" gets Fable 5 — and if a
+model is overloaded, the failover chain walks down the ladder instead of dropping your request.
 
 ### Multi-Agent Coordination
 
@@ -361,6 +363,7 @@ python -m hyperclaw setup --init-db
 - **No tracking** — We don't collect anything
 - **Open source** — Audit the code yourself
 - **Per-agent permissions** — Control what each agent can access
+- **Channel allowlists** — iMessage/Telegram deny strangers by default; read [SECURITY.md](SECURITY.md) before connecting any channel
 
 ---
 
