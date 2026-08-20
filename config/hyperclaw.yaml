@@ -10,7 +10,7 @@ logging:
   level: INFO
 models:
   claude_max_tokens: 4096
-  default: claude-sonnet-4-6
+  default: claude-sonnet-5
 router:
   fast_loop_enabled: true
   slow_loop_interval_seconds: 300

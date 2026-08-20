@@ -374,9 +374,9 @@ class SkillsRegistry:
         {
             "id": "skill_space_research",
             "name": "Space Technology Research",
-            "description": "Research satellite, CubeSat, and space tech opportunities for Hyper Space vertical",
+            "description": "Research satellite, CubeSat, and space tech opportunities for the space vertical",
             "category": "scientific",
-            "tags": ["space", "satellite", "cubesat", "guyana", "research"],
+            "tags": ["space", "satellite", "cubesat", "research"],
             "agents": ["space_agent"],
             "status": "active",
             "safety_score": 1.0,
@@ -564,7 +564,7 @@ Consider:
 2. What external APIs or data sources would improve intelligence quality?
 3. What workflows are manual that could become agent skills?
 4. What capabilities do world-class executive AI systems have that we lack?
-5. What would specifically help the organization (hospitality AI, $30M ARR target) and talent management?
+5. What would specifically help the organization (hospitality AI) and talent management?
 
 Generate exactly 5 NEW SKILL PROPOSALS in this JSON format:
 {{
@@ -611,12 +611,12 @@ Current context: {context}
 
         # Build context summary
         context = f"""
-- the organization: April 2026 GTM, $30M Year 1 ARR target, 8 AI products, 210 LOIs
-- talent management: 10 signed athletes/entertainers, post-revenue, seeking $2M seed
+- the organization: GTM planning, revenue targets, product suite, sales pipeline
+- talent management: signed roster, revenue stage, fundraising status
 - ATLAS_TRADING: Live trading on Hyperliquid, ~$338 balance, 5 positions
 - Infrastructure: macOS + FastAPI + Supabase + Telegram + Gmail + ElevenLabs + Runway ML
 - Current tools: email, calendar, iMessage, bash, file I/O, Supabase, Telegram, ElevenLabs TTS, Runway video
-- Gap areas: WhatsApp API, LinkedIn intelligence, Polymarket live data, Guyana space intel, sports analytics
+- Gap areas: WhatsApp API, LinkedIn intelligence, Polymarket live data, space-sector intel, sports analytics
 """
         prompt = self.DISCOVERY_PROMPT.format(
             agent_count=agent_count,

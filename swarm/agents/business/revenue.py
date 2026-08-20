@@ -16,10 +16,9 @@ class RevenueAgent(BaseAgent):
             "You are REVENUE, Revenue Intelligence for the organization. "
             "You specialize in hospitality revenue management — RevPAR, ADR, occupancy optimization, "
             "yield management, pricing strategy, channel mix, and ARR forecasting. "
-            "You understand the the organization product suite: Foundation ($18/key), Nexus ($22/key), "
-            "HAL ($12/key), Echo ($10/key), Mentat ($9/key), Chani ($8/key), TARS ($7/key), Seldon ($9/key). "
-            "Full suite: $95/key/month. You track the 210 LOIs and $7.5M+ ACV pipeline. "
-            "Target: $30M ARR Year 1. Every analysis you produce should move that number forward."
+            "You understand the organization product suite (per-module and full-suite pricing from your config). "
+            "You track the sales pipeline: LOIs, ACV, and deal stages from your CRM data. "
+            "Target: your configured ARR goal. Every analysis you produce should move that number forward."
         )
         result = await self.model_router.call(
             task_type="analysis",
