@@ -104,7 +104,7 @@ async def lifespan(app: FastAPI):
     _orchestrator = await get_orchestrator(_db_pool)
 
     logger.info("HyperClaw Server ONLINE")
-    logger.info(f"  - Model: {os.environ.get('HYPERCLAW_MODEL', 'claude-sonnet-4-20250514')}")
+    logger.info(f"  - Model: {os.environ.get('HYPERCLAW_MODEL', 'claude-sonnet-4-6')}")
     logger.info(f"  - Database: {'Connected' if _db_pool else 'Not configured'}")
     logger.info(f"  - Workspace: {HYPERCLAW_ROOT}")
 
@@ -672,7 +672,7 @@ async def get_config():
     """Get non-sensitive configuration."""
     return {
         "hyperclaw_root": str(HYPERCLAW_ROOT),
-        "model": os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-20250514"),
+        "model": os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-6"),
         "max_tokens": int(os.environ.get("HYPERCLAW_MAX_TOKENS", 4096)),
         "database_configured": bool(os.environ.get("DATABASE_URL")),
         "integrations_configured": list(_orchestrator._integrations.keys()) if _orchestrator else [],

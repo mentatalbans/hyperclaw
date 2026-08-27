@@ -27,7 +27,7 @@ WORKSPACE_PATH = HYPERCLAW_ROOT / "workspace"
 KNOWLEDGE_FILE = MEMORY_PATH / "KNOWLEDGE.md"
 SUMMARY_FILE = MEMORY_PATH / "summary.md"
 
-MODEL = os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-20250514")
+MODEL = os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-6")
 MAX_TOKENS = 4096
 
 

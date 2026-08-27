@@ -198,7 +198,9 @@ def write_config(user_name: str, ai_name: str, api_key: str | None, db_url: str 
     import json
 
     hyperclaw_dir = Path.home() / ".hyperclaw"
-    hyperclaw_dir.mkdir(parents=True, exist_ok=True)
+    for _sub in ("", "memory", "memory/daily", "workspace", "workspace/context",
+                 "secrets", "logs", "config"):
+        (hyperclaw_dir / _sub).mkdir(parents=True, exist_ok=True)
 
     # Write config.json with user and AI names
     config_path = hyperclaw_dir / "config.json"

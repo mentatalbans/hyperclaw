@@ -5,7 +5,13 @@ HyperClaw Terminal — Full computer control with visible thinking.
 
 import os
 import sys
+import time
 import json
+import logging
+
+# HTTP client libraries log every request at INFO — pure noise in a chat UI.
+for _noisy in ("httpx", "httpx2", "httpcore", "httpcore2", "anthropic"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 import subprocess
 import base64
 import tempfile
@@ -62,7 +68,7 @@ except ImportError:
     def learning_advice(*args, **kwargs): return "Learning not available"
     def learning_feedback(*args, **kwargs): return "Learning not available"
 
-MODEL = "claude-sonnet-4-20250514"
+MODEL = os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-6")
 
 # Paths - use ~/.hyperclaw or HYPERCLAW_ROOT env var
 HYPERCLAW_ROOT = Path(os.environ.get("HYPERCLAW_ROOT", Path.home() / ".hyperclaw"))
@@ -151,6 +157,43 @@ def save_session(history):
         pass
 
 # Load config
+
+def _swarm_roster() -> dict:
+    """Enumerate specialist swarm agents by reading class attributes — no
+    instantiation, so no model/router dependencies are needed."""
+    import importlib
+    import inspect
+    import pkgutil
+    from collections import defaultdict
+    try:
+        import swarm.agents as _pkg
+        from swarm.agents.base import BaseAgent
+    except Exception as e:
+        return {"error": f"swarm package unavailable: {e}"}
+    seen = {}
+    for mod_info in pkgutil.walk_packages(_pkg.__path__, _pkg.__name__ + "."):
+        try:
+            mod = importlib.import_module(mod_info.name)
+        except Exception:
+            continue
+        for _, obj in inspect.getmembers(mod, inspect.isclass):
+            if (issubclass(obj, BaseAgent) and obj is not BaseAgent
+                    and obj.__module__ == mod.__name__):
+                aid = getattr(obj, "agent_id", obj.__name__)
+                dom = getattr(obj, "domain", "unknown")
+                seen[f"{dom}.{aid}"] = {
+                    "agent_id": aid,
+                    "domain": dom,
+                    "description": getattr(obj, "description", ""),
+                    "task_types": getattr(obj, "supported_task_types", []),
+                }
+    domains = defaultdict(int)
+    for a in seen.values():
+        domains[a["domain"]] += 1
+    return {"count": len(seen), "domains": dict(domains),
+            "agents": sorted(seen.values(), key=lambda a: (a["domain"], a["agent_id"]))}
+
+
 def load_config():
     """Load config.json with user/AI names."""
     config_path = HYPERCLAW_ROOT / "config.json"
@@ -1043,7 +1086,12 @@ TOOLS = [
     },
     {
         "name": "agent_status",
-        "description": "Get status of all background agents.",
+        "description": "Get status of the 3 background monitoring agents (email, market, news). For the full 44-agent specialist swarm, use swarm_roster.",
+        "input_schema": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "swarm_roster",
+        "description": "List all specialist swarm agents (44 across business, personal, scientific, comms, talent, trading, tech, recursive, intelligence, creative domains) with their IDs and descriptions.",
         "input_schema": {"type": "object", "properties": {}}
     },
     {
@@ -1673,7 +1721,7 @@ def vision(image_path, question="Describe what you see in detail."):
 
         client = anthropic.Anthropic(api_key=API_KEY)
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=MODEL,
             max_tokens=1024,
             messages=[{
                 "role": "user",
@@ -2746,6 +2794,11 @@ def execute_tool(name, input_data):
         status = agent_status()
         print_output(json.dumps(status, indent=2), CYAN)
         return json.dumps(status, indent=2)
+    elif name == "swarm_roster":
+        print_tool("swarm_roster", "")
+        roster = _swarm_roster()
+        print_output(json.dumps({"count": roster.get("count"), "domains": roster.get("domains")}, indent=2), CYAN)
+        return json.dumps(roster, indent=2)
     elif name == "agent_watch":
         if not AGENTS_AVAILABLE:
             return "Agents not available"
@@ -2931,6 +2984,7 @@ def chat(message):
 
     print(f"\n{DIM}Processing...{RESET}")
 
+    _api_retries = 0
     while True:
         try:
             # Use streaming for real-time output
@@ -2966,7 +3020,7 @@ def chat(message):
                                 in_text = True
                                 current_text = ""
                                 if not printed_name:
-                                    print(f"\n{MAGENTA}{BOLD}HyperClaw:{RESET} ", end="", flush=True)
+                                    print(f"\n{MAGENTA}{BOLD}{AI_NAME}:{RESET} ", end="", flush=True)
                                     printed_name = True
                             elif event.content_block.type == "tool_use":
                                 current_tool = {
@@ -3053,7 +3107,20 @@ def chat(message):
 
         except anthropic.APIError as e:
             print(f"{RED}API Error: {str(e)[:200]}{RESET}")
+            status = getattr(e, "status_code", None)
+            # 4xx errors (bad model, bad auth, bad request) won't fix
+            # themselves — retrying just hammers the API. Fail fast.
+            if status is not None and 400 <= status < 500 and status != 429:
+                if status == 404:
+                    print(f"{YELLOW}Model '{MODEL}' not found — it may be retired. "
+                          f"Set HYPERCLAW_MODEL to a current model (e.g. claude-sonnet-4-6).{RESET}")
+                break
             print(f"{YELLOW}Retrying...{RESET}")
+            time.sleep(min(2 ** _api_retries, 30))
+            _api_retries += 1
+            if _api_retries > 5:
+                print(f"{RED}Giving up after {_api_retries} retries.{RESET}")
+                break
             continue
 
         except Exception as e:

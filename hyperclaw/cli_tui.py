@@ -291,10 +291,10 @@ Current time: {datetime.now().strftime('%Y-%m-%d %H:%M')}
         model_map = {
             "chatjimmy": "claude-haiku-4-5-20251001",  # Fallback if ChatJimmy unavailable
             "claude-haiku": "claude-haiku-4-5-20251001",
-            "claude-sonnet": "claude-sonnet-4-20250514",
-            "claude-opus": "claude-opus-4-20250514",
+            "claude-sonnet": "claude-sonnet-4-6",
+            "claude-opus": "claude-opus-4-8",
         }
-        model = model_map.get(model_id, "claude-sonnet-4-20250514")
+        model = model_map.get(model_id, "claude-sonnet-4-6")
 
         full_response = []
         start_time = time.time()

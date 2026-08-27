@@ -369,7 +369,7 @@ class AnthropicVisionProvider(VisionProvider):
         self,
         image: bytes | str | Path,
         prompt: str = "Describe this image in detail.",
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "claude-sonnet-4-6",
         **kwargs,
     ) -> VisionResult:
         import base64

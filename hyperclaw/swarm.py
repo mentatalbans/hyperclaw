@@ -120,7 +120,7 @@ class SwarmAgent:
         """Resolve model preference to actual model ID."""
         model_map = {
             "claude-sonnet-4-6": "claude-sonnet-4-6",
-            "claude-sonnet-4-5": "claude-sonnet-4-5-20241022",
+            "claude-sonnet-4-5": "claude-sonnet-4-5",
             "claude-opus-4-5": "claude-opus-4-5",
             "claude-opus-4-6": "claude-opus-4-6",
             "claude-haiku-4-5": "claude-haiku-4-5-20251001",

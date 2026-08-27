@@ -21,6 +21,7 @@ INSTINCTS_FILE = HYPERCLAW_ROOT / "memory" / "instincts.md"
 
 def init_db():
     """Initialize the learning database."""
+    LEARNING_DB.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(LEARNING_DB))
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS interactions (
@@ -62,7 +63,12 @@ def init_db():
     conn.close()
 
 
-init_db()
+# Never let a storage problem kill the import — callers can retry lazily.
+try:
+    init_db()
+except sqlite3.OperationalError as _e:
+    import logging
+    logging.getLogger(__name__).warning("learning db unavailable: %s", _e)
 
 
 def log_interaction(

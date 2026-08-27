@@ -20,7 +20,7 @@ HYPERCLAW_ROOT = Path(os.environ.get("HYPERCLAW_ROOT", Path.home() / ".hyperclaw
 WORKSPACE_PATH = HYPERCLAW_ROOT / "workspace"
 MEMORY_PATH = HYPERCLAW_ROOT / "memory"
 
-MODEL = os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-20250514")
+MODEL = os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-6")
 MAX_TOKENS = int(os.environ.get("HYPERCLAW_MAX_TOKENS", 4096))
 MAX_HISTORY = 20
 
