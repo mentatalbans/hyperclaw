@@ -68,8 +68,6 @@ except ImportError:
     def learning_advice(*args, **kwargs): return "Learning not available"
     def learning_feedback(*args, **kwargs): return "Learning not available"
 
-MODEL = os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-6")
-
 # Paths - use ~/.hyperclaw or HYPERCLAW_ROOT env var
 HYPERCLAW_ROOT = Path(os.environ.get("HYPERCLAW_ROOT", Path.home() / ".hyperclaw"))
 
@@ -85,7 +83,25 @@ def load_env():
 
 load_env()
 
+def env_var(key, default=""):
+    """Get a config value, re-reading ~/.hyperclaw/.env on a miss so
+    credentials added mid-session work without a restart."""
+    val = os.environ.get(key, "")
+    if val:
+        return val
+    env_file = HYPERCLAW_ROOT / ".env"
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if line.startswith(key + "="):
+                val = line.split("=", 1)[1].strip().strip('"')
+                if val:
+                    os.environ[key] = val
+                    return val
+    return default
+
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+MODEL = os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-6")
 WORKSPACE = HYPERCLAW_ROOT / "workspace"
 MEMORY_DIR = HYPERCLAW_ROOT / "memory"
 SESSION_FILE = HYPERCLAW_ROOT / "session_history.json"
@@ -1510,8 +1526,8 @@ def telegram(message, file=None):
             return f"Error sending file: {e}"
     try:
         # Load bot token and chat ID from env or config
-        bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-        chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+        bot_token = env_var("TELEGRAM_BOT_TOKEN")
+        chat_id = env_var("TELEGRAM_CHAT_ID")
 
         if not bot_token:
             # Try loading from secrets
@@ -1672,7 +1688,7 @@ def imessage_read(recipient=None, count=10):
 def speak(text):
     """Text-to-speech using ElevenLabs."""
     try:
-        api_key = os.environ.get("ELEVENLABS_API_KEY", "")
+        api_key = env_var("ELEVENLABS_API_KEY")
         if not api_key:
             secrets_file = HYPERCLAW_ROOT / "workspace" / "secrets" / ".env"
             if secrets_file.exists():
@@ -1892,7 +1908,7 @@ def python_exec(code):
 def github(action, owner=None, repo=None, query=None, title=None):
     """GitHub API access."""
     try:
-        token = os.environ.get("GITHUB_TOKEN", "")
+        token = env_var("GITHUB_TOKEN")
         headers = {"Accept": "application/vnd.github.v3+json"}
         if token:
             headers["Authorization"] = f"token {token}"
@@ -2224,7 +2240,7 @@ def pdf_read_op(path, pages="all"):
 def image_generate_op(prompt, size="1024x1024", save_path=None):
     """Generate image with DALL-E."""
     try:
-        api_key = os.environ.get("OPENAI_API_KEY", "")
+        api_key = env_var("OPENAI_API_KEY")
         if not api_key:
             return "Set OPENAI_API_KEY environment variable"
 
@@ -2335,7 +2351,7 @@ def wayback_lookup(url):
 def slack_send(message, channel=None):
     """Send Slack message via webhook."""
     try:
-        webhook_url = os.environ.get("SLACK_WEBHOOK_URL", "")
+        webhook_url = env_var("SLACK_WEBHOOK_URL")
         if not webhook_url:
             return "Set SLACK_WEBHOOK_URL environment variable"
         payload = {"text": message}
@@ -2350,7 +2366,7 @@ def slack_send(message, channel=None):
 def discord_send(message):
     """Send Discord message via webhook."""
     try:
-        webhook_url = os.environ.get("DISCORD_WEBHOOK_URL", "")
+        webhook_url = env_var("DISCORD_WEBHOOK_URL")
         if not webhook_url:
             return "Set DISCORD_WEBHOOK_URL environment variable"
         with httpx.Client(timeout=10) as client:
@@ -2930,49 +2946,69 @@ def execute_tool(name, input_data):
 
 def clean_history(history):
     """
-    Clean history to remove orphaned tool_results.
-    Tool results must have a corresponding tool_use in the same conversation.
+    Repair history so it satisfies the Messages API tool contract:
+    - a tool_result is only valid if the IMMEDIATELY preceding assistant
+      message contains the matching tool_use (a global ID lookup is not
+      enough — ordering and adjacency matter to the API);
+    - an assistant tool_use is only valid if the NEXT message answers it
+      with a matching tool_result;
+    - history must start with a user message and contain no empty messages.
     """
     if not history:
         return []
 
-    # Collect all tool_use IDs from assistant messages
-    tool_use_ids = set()
-    for msg in history:
-        if msg["role"] == "assistant" and isinstance(msg.get("content"), list):
-            for block in msg["content"]:
-                if isinstance(block, dict) and block.get("type") == "tool_use":
-                    tool_use_ids.add(block.get("id"))
-
-    # Filter out orphaned tool_results from user messages
+    # Pass 1: drop tool_results not answered by the directly preceding
+    # assistant message.
     cleaned = []
     for msg in history:
-        if msg["role"] == "user" and isinstance(msg.get("content"), list):
-            # Filter tool_results to only those with valid tool_use_ids
-            valid_content = []
-            for block in msg["content"]:
-                if isinstance(block, dict) and block.get("type") == "tool_result":
-                    if block.get("tool_use_id") in tool_use_ids:
-                        valid_content.append(block)
-                    # Skip orphaned tool_results
-                else:
-                    valid_content.append(block)
+        role = msg.get("role")
+        content = msg.get("content")
+        if role == "user" and isinstance(content, list):
+            prev = cleaned[-1] if cleaned else None
+            valid_ids = set()
+            if prev and prev.get("role") == "assistant" and isinstance(prev.get("content"), list):
+                valid_ids = {b.get("id") for b in prev["content"]
+                             if isinstance(b, dict) and b.get("type") == "tool_use"}
+            kept = [b for b in content
+                    if not (isinstance(b, dict) and b.get("type") == "tool_result"
+                            and b.get("tool_use_id") not in valid_ids)]
+            if kept:
+                cleaned.append({"role": "user", "content": kept})
+        elif content:
+            cleaned.append(dict(msg))
 
-            if valid_content:
-                cleaned.append({"role": "user", "content": valid_content})
-            # Skip empty user messages
+    # Pass 2: strip assistant tool_use blocks that the next message never
+    # answers (e.g. the tail of the window was trimmed mid-exchange).
+    for i, msg in enumerate(cleaned):
+        if msg.get("role") == "assistant" and isinstance(msg.get("content"), list):
+            nxt = cleaned[i + 1] if i + 1 < len(cleaned) else None
+            answered = set()
+            if nxt and nxt.get("role") == "user" and isinstance(nxt.get("content"), list):
+                answered = {b.get("tool_use_id") for b in nxt["content"]
+                            if isinstance(b, dict) and b.get("type") == "tool_result"}
+            msg["content"] = [b for b in msg["content"]
+                              if not (isinstance(b, dict) and b.get("type") == "tool_use"
+                                      and b.get("id") not in answered)]
+
+    # Pass 3: drop empties, merge consecutive same-role messages, and make
+    # sure the conversation starts with a user message.
+    merged = []
+    for msg in cleaned:
+        if not msg.get("content"):
+            continue
+        if merged and merged[-1]["role"] == msg["role"]:
+            a, b = merged[-1]["content"], msg["content"]
+            if isinstance(a, str) and isinstance(b, str):
+                merged[-1]["content"] = a + "\n" + b
+            else:
+                a = a if isinstance(a, list) else [{"type": "text", "text": a}]
+                b = b if isinstance(b, list) else [{"type": "text", "text": b}]
+                merged[-1]["content"] = a + b
         else:
-            cleaned.append(msg)
-
-    # Ensure history starts with user message
-    while cleaned and cleaned[0]["role"] != "user":
-        cleaned.pop(0)
-
-    # If cleaning removed everything, return empty
-    if not cleaned:
-        return []
-
-    return cleaned
+            merged.append(msg)
+    while merged and merged[0]["role"] != "user":
+        merged.pop(0)
+    return merged
 
 
 def chat(message):
@@ -3100,9 +3136,17 @@ def chat(message):
                 if HISTORY:
                     continue
 
-            # Last resort: reset
-            print(f"{RED}Resetting conversation{RESET}")
-            HISTORY = [{"role": "user", "content": message}]
+            # Last resort: reset, but carry over recent plain-text turns
+            # so the model keeps conversational context ("fix that" must
+            # still mean something after a reset).
+            print(f"{RED}Resetting conversation (keeping recent context){RESET}")
+            recent_text = [m for m in HISTORY
+                           if isinstance(m.get("content"), str) and m["content"].strip()][-6:]
+            while recent_text and recent_text[0]["role"] != "user":
+                recent_text.pop(0)
+            HISTORY = recent_text
+            if not HISTORY or HISTORY[-1].get("content") != message:
+                HISTORY.append({"role": "user", "content": message})
             continue
 
         except anthropic.APIError as e:

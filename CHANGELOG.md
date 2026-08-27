@@ -4,6 +4,20 @@ All notable changes to HyperClaw will be documented in this file.
 
 ## [1.1.0] - 2026-08-27
 
+### Fixed
+- TUI conversation repair (`clean_history`) now enforces the Messages API tool
+  contract — ordering and adjacency of `tool_use`/`tool_result` pairs — instead
+  of a global ID lookup. Fixes recurring 400 `unexpected tool_use_id` errors on
+  resumed or trimmed sessions.
+- Conversation reset preserves recent plain-text turns instead of wiping all
+  context.
+- Integration credentials (Telegram, ElevenLabs, GitHub, OpenAI, Slack, Discord)
+  added to `~/.hyperclaw/.env` mid-session are picked up on the next tool call
+  via `env_var()` — no restart or manual export needed. `HYPERCLAW_MODEL` is now
+  read after `.env` loads, so it can live in the file.
+- Onboarding rejects Supabase database URLs still containing the
+  `[YOUR-PASSWORD]` template placeholder and re-prompts.
+
 ### Added
 - `swarm_roster` TUI tool: lists all 44 specialist swarm agents by domain without
   instantiating them; `agent_status` description now points to it for the full swarm.

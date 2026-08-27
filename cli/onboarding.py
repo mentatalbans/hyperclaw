@@ -165,6 +165,14 @@ def setup_database():
         return None
 
     db_url = Prompt.ask("[cyan]Paste your database URL[/cyan]")
+    while "[YOUR-PASSWORD]" in db_url or "[YOUR-" in db_url:
+        rprint("[yellow]That URL still contains the [YOUR-PASSWORD] placeholder from "
+               "Supabase's template. Replace it with your actual database password "
+               "(Supabase: Settings > Database).[/yellow]")
+        db_url = Prompt.ask("[cyan]Paste your database URL (or press Enter to skip)[/cyan]", default="")
+        if not db_url:
+            rprint("[dim]Skipping database setup — you can add DATABASE_URL to ~/.hyperclaw/.env later.[/dim]")
+            return None
     return db_url
 
 
