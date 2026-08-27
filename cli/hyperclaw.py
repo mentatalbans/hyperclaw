@@ -39,12 +39,12 @@ BANNER = """\
  ██╔══██║  ╚██╔╝  ██╔═══╝ ██╔══╝  ██╔══██╗██║     ██║     ██╔══██║██║███╗██║
  ██║  ██║   ██║   ██║     ███████╗██║  ██║╚██████╗███████╗██║  ██║╚███╔███╔╝
  ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝╚═╝  ╚═╝ ╚══╝╚══╝
- The AI that actually takes over. v0.1.0-alpha\
+ The AI that actually takes over. v1.1.0\
 """
 
 DEFAULT_CONFIG = """\
 # HyperClaw Configuration
-version: "0.1.0-alpha"
+version: "1.1.0"
 
 database:
   url: "postgresql://localhost/hyperclaw"

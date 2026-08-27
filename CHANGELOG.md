@@ -2,6 +2,32 @@
 
 All notable changes to HyperClaw will be documented in this file.
 
+## [1.1.0] - 2026-08-27
+
+### Added
+- `swarm_roster` TUI tool: lists all 44 specialist swarm agents by domain without
+  instantiating them; `agent_status` description now points to it for the full swarm.
+- `HYPERCLAW_MODEL` env override honored by the TUI (previously hardcoded).
+
+### Fixed
+- Replaced retired model IDs (`claude-sonnet-4-20250514`, `claude-opus-4-20250514`,
+  `claude-sonnet-4-5-20241022`) with current ones (`claude-sonnet-4-6`,
+  `claude-opus-4-8`, `claude-sonnet-4-5`) across the TUI, server, prometheus,
+  solomon, swarm, and vision provider.
+- `agents/learning.py` no longer crashes at import when the db directory is missing:
+  parent dir is created and storage errors are logged instead of raised.
+- Onboarding creates the full `~/.hyperclaw` subtree (memory, workspace, secrets,
+  logs, config), not just the root.
+- Added missing `__init__.py` to `swarm/agents/{comms,intelligence,trading}`.
+- TUI: bounded API retry with exponential backoff and fail-fast on 4xx (clear
+  retired-model hint on 404); silenced noisy HTTP client loggers; prompt shows the
+  configured AI name.
+
+### Changed
+- Unified the version to 1.1.0 everywhere: `pyproject.toml` said 0.2.0,
+  `hyperclaw/__init__.py` said 1.0.9 (the last published dist), and the CLI banner
+  said 0.1.0-alpha.
+
 ## [0.2.0] - 2026-08-20
 
 ### Added
