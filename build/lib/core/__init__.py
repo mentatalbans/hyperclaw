@@ -1,1 +1,0 @@
-# HyperClaw Core — HyperCore Foundation
