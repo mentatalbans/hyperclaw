@@ -17,6 +17,21 @@ from typing import Optional
 from datetime import datetime
 import anthropic
 
+
+def _load_env():
+    """Populate os.environ from ~/.hyperclaw/.env so the listener works
+    under launchd, where no shell profile runs. Existing env vars win."""
+    env_file = Path.home() / ".hyperclaw" / ".env"
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, _, v = line.partition("=")
+                os.environ.setdefault(k.strip(), v.strip().strip('"'))
+
+
+_load_env()
+
 # ── Config ─────────────────────────────────────────────────────────────────────
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 ALLOWED_CHAT_IDS = [int(x) for x in os.environ.get("TELEGRAM_ALLOWED_IDS", "0").split(",") if x]
@@ -359,8 +374,15 @@ async def poll():
                 await asyncio.sleep(5)
 
 # ── Entry point ────────────────────────────────────────────────────────────────
-if __name__ == "__main__":
+def main():
+    if not BOT_TOKEN:
+        log.error("TELEGRAM_BOT_TOKEN is not set (env or ~/.hyperclaw/.env) — exiting")
+        sys.exit(1)
     try:
         asyncio.run(poll())
     except KeyboardInterrupt:
         log.info("Assistant Telegram Listener stopped")
+
+
+if __name__ == "__main__":
+    main()

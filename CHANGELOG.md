@@ -19,6 +19,8 @@ All notable changes to HyperClaw will be documented in this file.
   `[YOUR-PASSWORD]` template placeholder and re-prompts.
 
 ### Added
+- `hyperclaw-telegram` console script: the Telegram listener is now packaged and
+  installable (runs under launchd; loads config from `~/.hyperclaw/.env`).
 - `swarm_roster` TUI tool: lists all 44 specialist swarm agents by domain without
   instantiating them; `agent_status` description now points to it for the full swarm.
 - `HYPERCLAW_MODEL` env override honored by the TUI (previously hardcoded).
