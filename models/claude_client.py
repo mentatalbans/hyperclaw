@@ -8,6 +8,8 @@ import logging
 import time
 from typing import AsyncIterator
 
+import os
+
 import anthropic
 
 log = logging.getLogger("hyperclaw.claude_client")
@@ -30,8 +32,26 @@ class ClaudeClient:
         api_key: str,
         model: str = "claude-sonnet-4-6",
         max_tokens: int = 4096,
+        base_url: str | None = None,
     ) -> None:
-        self._client = anthropic.AsyncAnthropic(api_key=api_key)
+        resolved_base_url = base_url or os.environ.get("OPENAI_BASE_URL")
+        prov = os.environ.get("LLM_PROVIDER", "anthropic")
+        self._provider = prov
+        if prov == "bedrock":
+            pass  # no client needed — uses boto3 per-call
+        elif prov == "openai_compat":
+            import openai as _oai
+            self._oai_client = _oai.AsyncOpenAI(
+                api_key=api_key or os.environ.get("OPENAI_API_KEY", "placeholder"),
+                base_url=resolved_base_url or os.environ.get("OPENAI_BASE_URL"),
+            )
+        else:
+            # anthropic or anthropic_compat
+            kwargs: dict = {"api_key": api_key}
+            base = resolved_base_url or os.environ.get("ANTHROPIC_BASE_URL")
+            if base:
+                kwargs["base_url"] = base
+            self._client = anthropic.AsyncAnthropic(**kwargs)
         self.model = model
         self.max_tokens = max_tokens
 
@@ -61,6 +81,10 @@ class ClaudeClient:
         raise last_error or RuntimeError("Claude chat failed after 3 attempts")
 
     async def _do_chat(self, messages: list[dict], system: str) -> str:
+        if self._provider == "bedrock":
+            return await self._do_chat_bedrock(messages, system)
+        if self._provider == "openai_compat":
+            return await self._do_chat_openai(messages, system)
         t0 = time.time()
         kwargs: dict = dict(
             model=self.model,
@@ -91,6 +115,52 @@ class ClaudeClient:
             f"latency={latency_ms:.0f}ms | cost=${cost:.5f}"
         )
         return text
+
+    async def _do_chat_bedrock(self, messages: list[dict], system: str) -> str:
+        from hyperclaw.core.providers.llm import BedrockProvider, Message as BMsg
+        t0 = time.time()
+        provider = BedrockProvider(
+            access_key=os.environ.get("AWS_ACCESS_KEY_ID"),
+            secret_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+            region=os.environ.get("AWS_REGION", "us-east-1"),
+        )
+        bedrock_model = os.environ.get("BEDROCK_MODEL", "anthropic.claude-sonnet-5")
+        bmsgs = [BMsg(role=m["role"], content=m["content"]) for m in messages]
+        response = await provider.complete(
+            messages=bmsgs,
+            model=bedrock_model,
+            max_tokens=self.max_tokens,
+            system=system or None,
+        )
+        latency_ms = (time.time() - t0) * 1000
+        log.info(
+            f"Bedrock call | model={bedrock_model} | "
+            f"in={response.input_tokens} out={response.output_tokens} | "
+            f"latency={latency_ms:.0f}ms"
+        )
+        return response.content
+
+    async def _do_chat_openai(self, messages: list[dict], system: str) -> str:
+        t0 = time.time()
+        oai_messages = []
+        if system:
+            oai_messages.append({"role": "system", "content": system})
+        oai_messages.extend(messages)
+        model = os.environ.get("OPENAI_MODEL", self.model)
+        response = await self._oai_client.chat.completions.create(
+            model=model,
+            messages=oai_messages,
+            max_tokens=self.max_tokens,
+        )
+        latency_ms = (time.time() - t0) * 1000
+        usage = response.usage
+        log.info(
+            f"OpenAI-compat call | model={model} | "
+            f"in={usage.prompt_tokens if usage else '?'} "
+            f"out={usage.completion_tokens if usage else '?'} | "
+            f"latency={latency_ms:.0f}ms"
+        )
+        return response.choices[0].message.content or ""
 
     async def chat_stream(
         self,
