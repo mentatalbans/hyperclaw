@@ -34,7 +34,10 @@ _load_env()
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-ALLOWED_CHAT_IDS = [int(x) for x in os.environ.get("TELEGRAM_ALLOWED_IDS", "0").split(",") if x]
+# No explicit allowlist -> trust the owner's own chat (TELEGRAM_CHAT_ID),
+# so a fresh install isn't locked out of its own bot.
+_allowed = os.environ.get("TELEGRAM_ALLOWED_IDS", "") or os.environ.get("TELEGRAM_CHAT_ID", "0")
+ALLOWED_CHAT_IDS = [int(x) for x in _allowed.split(",") if x.strip()]
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 FILE_URL = f"https://api.telegram.org/file/bot{BOT_TOKEN}"
