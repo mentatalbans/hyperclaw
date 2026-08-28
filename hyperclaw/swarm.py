@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Optional, Any
 
 import anthropic
+from hyperclaw.api_utils import extract_text
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -60,7 +61,8 @@ the user → Assistant → SOLOMON → [Specialist Agents]
 
 def _load_agent_registry() -> dict:
     """Load all 50 agents from agents.yaml."""
-    config_file = CONFIG_PATH / "agents.yaml"
+    from hyperclaw.api_utils import find_config
+    config_file = find_config("agents.yaml")
     if not config_file.exists():
         return {}
     with open(config_file) as f:
@@ -170,7 +172,7 @@ Current date/time: {now}
                 system=self.system_prompt,
                 messages=[{"role": "user", "content": message}]
             )
-            return response.content[0].text
+            return extract_text(response)
         except Exception as e:
             logger.error(f"Agent {self.id} error: {e}")
             return f"[{self.name} ERROR: {e}]"

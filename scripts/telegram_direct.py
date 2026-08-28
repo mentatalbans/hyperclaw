@@ -438,7 +438,7 @@ class GilTelegramBot:
                 }]
             )
 
-            return response.content[0].text if response.content else "Could not analyze image."
+            return next((b.text for b in (response.content or []) if getattr(b, "type", "") == "text"), "Could not analyze image.")
 
         except Exception as e:
             logger.error(f"Image analysis error: {e}")
@@ -478,7 +478,7 @@ class GilTelegramBot:
                             max_tokens=1000,
                             messages=[{"role": "user", "content": prompt}]
                         )
-                        return response.content[0].text if response.content else f"PDF extracted. Content: {text[:500]}..."
+                        return next((b.text for b in (response.content or []) if getattr(b, "type", "") == "text"), f"PDF extracted. Content: {text[:500]}...")
                     else:
                         return "PDF appears to be image-based. Text extraction not available."
                 except ImportError:
@@ -494,7 +494,7 @@ class GilTelegramBot:
                     max_tokens=1000,
                     messages=[{"role": "user", "content": prompt}]
                 )
-                return response.content[0].text if response.content else f"File content:\n{content[:1000]}"
+                return next((b.text for b in (response.content or []) if getattr(b, "type", "") == "text"), f"File content:\n{content[:1000]}")
 
             elif mime_type.startswith("audio/") or file_name.endswith(('.mp3', '.m4a', '.wav', '.ogg', '.opus', '.flac', '.aac')):
                 # Transcribe audio files

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 import anthropic
+from hyperclaw.api_utils import extract_text
 
 
 def _load_env():
@@ -174,7 +175,7 @@ Address him as user.""",
                 }
             ],
         )
-        return response.content[0].text
+        return extract_text(response)
     except Exception as e:
         log.error(f"Image processing failed: {e}")
         return f"Image saved to {image_path} — vision analysis failed: {e}"
@@ -215,7 +216,7 @@ Current date: 2026-03-28"""
         messages=conversation_history
     )
     
-    reply = response.content[0].text
+    reply = extract_text(response)
     conversation_history.append({"role": "assistant", "content": reply})
     return reply
 

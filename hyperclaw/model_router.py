@@ -6,6 +6,7 @@ Routes simple tasks to ChatJimmy, complex tasks to Claude.
 
 import logging
 import os
+from hyperclaw.api_utils import extract_text
 import re
 import time
 from dataclasses import dataclass, field
@@ -393,7 +394,7 @@ class ModelRouter:
             messages=messages,
         )
 
-        return response.content[0].text, {
+        return extract_text(response), {
             "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
         }

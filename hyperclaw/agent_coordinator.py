@@ -104,7 +104,8 @@ class AgentCoordinator:
 
     def _load_agents(self):
         """Load agent configurations from YAML."""
-        agents_file = CONFIG_DIR / "agents.yaml"
+        from hyperclaw.api_utils import find_config
+        agents_file = find_config("agents.yaml")
 
         if not agents_file.exists():
             logger.warning(f"Agents config not found: {agents_file}")

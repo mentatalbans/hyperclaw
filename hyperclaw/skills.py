@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Optional, Callable, Any
 
 import anthropic
+from hyperclaw.api_utils import extract_text
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -634,7 +635,7 @@ Current context: {context}
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            raw = response.content[0].text.strip()
+            raw = extract_text(response)
             # Clean up any markdown code blocks
             if raw.startswith("```"):
                 raw = raw.split("```")[1]

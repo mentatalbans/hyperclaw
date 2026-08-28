@@ -41,6 +41,9 @@ hyperclaw-telegram = "telegram_listener:main"
 [tool.setuptools]
 py-modules = ["telegram_listener"]
 
+[tool.setuptools.package-data]
+hyperclaw = ["default_config/*.yaml"]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["hyperclaw*", "core*", "memory*", "models*", "swarm*", "security*", "ui*", "recursive*", "cli*", "agents*", "integrations*", "civilization*"]

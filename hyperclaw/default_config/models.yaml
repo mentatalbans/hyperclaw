@@ -1,0 +1,68 @@
+# HyperClaw Model Registry
+models:
+  claude-fable-5:
+    provider: anthropic
+    cost_per_1k_input: 0.010
+    cost_per_1k_output: 0.050
+    latency_ms: 6000
+    max_tokens: 16000
+    suitable_tasks: [research, analysis, synthesis, planning, code, health, finance, scientific]
+    note: "Top tier — hardest multi-step work. Thinking always on."
+
+  claude-sonnet-5:
+    provider: anthropic
+    cost_per_1k_input: 0.002
+    cost_per_1k_output: 0.010
+    latency_ms: 2000
+    max_tokens: 16000
+    suitable_tasks: [research, analysis, synthesis, planning, code, health, finance, scientific]
+
+  claude-opus-5:
+    provider: anthropic
+    cost_per_1k_input: 0.005
+    cost_per_1k_output: 0.025
+    latency_ms: 4000
+    max_tokens: 16000
+    suitable_tasks: [research, analysis, synthesis, planning, code, health, finance, scientific]
+
+  claude-haiku-4-5:
+    provider: anthropic
+    cost_per_1k_input: 0.001
+    cost_per_1k_output: 0.005
+    latency_ms: 500
+    max_tokens: 4096
+    suitable_tasks: [routing, classification, quick_lookup, summarization, draft, triage, status_check]
+
+  claude-code:
+    provider: anthropic
+    cost_per_1k_input: 0.003
+    cost_per_1k_output: 0.015
+    latency_ms: 3000
+    max_tokens: 8192
+    suitable_tasks: [code]
+
+  chatjimmy:
+    provider: chatjimmy
+    cost_per_1k_input: 0.000001
+    cost_per_1k_output: 0.000001
+    latency_ms: 50
+    max_tokens: 2048
+    suitable_tasks: [routing, classification, quick_lookup, summarization, draft, triage, status_check]
+    note: "Powered by Taalas HC1 silicon — Llama 3.1 8B at 17,000 tokens/sec. Never auto-certified."
+
+  nim-local:
+    provider: nim
+    cost_per_1k_input: 0.0
+    cost_per_1k_output: 0.0
+    latency_ms: 500
+    max_tokens: 4096
+    suitable_tasks: [research, analysis, code]
+
+  zimage-turbo:
+    provider: replicate
+    type: image_generation
+    cost_per_image: 0.004
+    latency_ms: 1000
+    max_resolution: 1024x1024
+    suitable_tasks: [image_generation, illustration, diagram, visualization, creative_art, mockup, logo]
+    note: "Zimage Turbo via Replicate — 6B params, sub-second generation, strong text rendering"

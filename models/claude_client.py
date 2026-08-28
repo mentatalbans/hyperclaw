@@ -76,7 +76,14 @@ class ClaudeClient:
         input_tokens = response.usage.input_tokens
         output_tokens = response.usage.output_tokens
         cost = (input_tokens / 1000 * _INPUT_COST_PER_1K) + (output_tokens / 1000 * _OUTPUT_COST_PER_1K)
-        text = response.content[0].text if response.content else ""
+        # Handle text and thinking content blocks
+        text = ""
+        for block in (response.content or []):
+            if hasattr(block, "type") and block.type == "text":
+                text = block.text
+                break
+        if not text and response.content:
+            text = getattr(response.content[0], "text", "") or ""
 
         log.info(
             f"Claude call | model={self.model} | "

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import AsyncIterator, Optional
 
 import anthropic
+from hyperclaw.api_utils import extract_text
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -102,7 +103,7 @@ class ChatAgent:
                 system=self.system_prompt,
                 messages=messages,
             )
-            return response.content[0].text
+            return extract_text(response)
         except anthropic.APIError as e:
             return f"[Error: {e}]"
         except Exception as e:

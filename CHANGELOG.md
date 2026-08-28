@@ -11,6 +11,15 @@ All notable changes to HyperClaw will be documented in this file.
 ## [1.1.0] - 2026-08-27
 
 ### Fixed
+- **Thinking-block-safe response parsing**: reading `response.content[0].text`
+  crashes on adaptive-thinking models (Claude 5 family, Opus/Sonnet 4.6+) whose
+  first content block can be a thinking block. All 15 call sites now go through
+  `hyperclaw.api_utils.extract_text()` / `extract_json()`, which join text
+  blocks and skip thinking/tool_use blocks.
+- **Swarm agents failing to load (0 of 56)**: `agents.yaml` was looked up at
+  hardcoded paths that a fresh install never populates. Config files now ship
+  inside the package (`hyperclaw/default_config/`) and `find_config()` seeds
+  `~/.hyperclaw/config/` on first access; all four loaders use it.
 - TUI conversation repair (`clean_history`) now enforces the Messages API tool
   contract — ordering and adjacency of `tool_use`/`tool_result` pairs — instead
   of a global ID lookup. Fixes recurring 400 `unexpected tool_use_id` errors on

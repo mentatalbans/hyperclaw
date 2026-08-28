@@ -19,6 +19,7 @@ from pathlib import Path
 from datetime import datetime
 
 import anthropic
+from hyperclaw.api_utils import extract_text
 import httpx
 
 # Import vector memory
@@ -1747,7 +1748,7 @@ def vision(image_path, question="Describe what you see in detail."):
                 ]
             }]
         )
-        return response.content[0].text
+        return extract_text(response)
     except Exception as e:
         return f"Error: {e}"
 

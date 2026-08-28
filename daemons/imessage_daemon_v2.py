@@ -436,7 +436,7 @@ class iMessageDaemonV2:
                                     ]
                                 }]
                             )
-                            analysis = vision_response.content[0].text if vision_response.content else "Image received"
+                            analysis = next((b.text for b in (vision_response.content or []) if getattr(b, "type", "") == "text"), "Image received")
                             image_analyses.append(analysis)
                             logger.info(f"Image analyzed: {analysis[:50]}...")
                     except Exception as e:
@@ -503,7 +503,7 @@ class iMessageDaemonV2:
                 messages=self.conversation_history[sender]
             )
 
-            reply = response.content[0].text
+            reply = next((b.text for b in (response.content or []) if getattr(b, "type", "") == "text"), "")
             self.conversation_history[sender].append({"role": "assistant", "content": reply})
             return reply
 

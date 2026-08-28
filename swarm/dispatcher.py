@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Callable, Coroutine
 
 import anthropic
+from hyperclaw.api_utils import extract_text
 import yaml
 
 log = logging.getLogger("hyperclaw.dispatcher")
@@ -67,7 +68,10 @@ class AgentCapability:
 class AgentRegistry:
     """Loads all 56 agents from agents.yaml and makes them queryable."""
 
-    def __init__(self, config_path: str = str(Path.home() / ".hyperclaw/config/agents.yaml")):
+    def __init__(self, config_path: str | None = None):
+        if config_path is None:
+            from hyperclaw.api_utils import find_config
+            config_path = str(find_config("agents.yaml"))
         self.agents: dict[str, AgentCapability] = {}
         self._load(config_path)
 
@@ -187,7 +191,7 @@ REPORTING FORMAT:
                 system=system,
                 messages=[{"role": "user", "content": user_msg}],
             )
-            return response.content[0].text
+            return extract_text(response)
         except anthropic.RateLimitError as e:
             log.warning(f"[{self.cap.agent_id}] Rate limit hit, waiting 30s: {e}")
             import time
@@ -199,7 +203,7 @@ REPORTING FORMAT:
                 system=system,
                 messages=[{"role": "user", "content": user_msg}],
             )
-            return response.content[0].text
+            return extract_text(response)
         except anthropic.APIError as e:
             error_str = str(e).lower()
             if 'tool' in error_str or 'limit' in error_str:
@@ -322,7 +326,7 @@ class Dispatcher:
     def __init__(
         self,
         api_key: str,
-        config_path: str = str(Path.home() / ".hyperclaw/config/agents.yaml"),
+        config_path: str | None = None,
         max_concurrent: int = 10,
     ):
         self.client = anthropic.Anthropic(api_key=api_key)

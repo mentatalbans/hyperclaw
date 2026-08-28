@@ -387,7 +387,8 @@ async def list_agents():
     # Try to load from agent config
     try:
         import yaml
-        agents_config = ROOT_DIR / "config" / "agents.yaml"
+        from hyperclaw.api_utils import find_config
+        agents_config = find_config("agents.yaml")
         if agents_config.exists():
             with open(agents_config) as f:
                 config = yaml.safe_load(f)

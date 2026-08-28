@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 import anthropic
+from hyperclaw.api_utils import extract_text
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -134,7 +135,7 @@ LOGS:
                 max_tokens=MAX_TOKENS,
                 messages=[{"role": "user", "content": prompt}],
             )
-            text = response.content[0].text.strip()
+            text = extract_text(response)
 
             if text == "NONE":
                 return []
