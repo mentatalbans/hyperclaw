@@ -38,6 +38,15 @@ class FakeClient:
         self.messages = FakeMessages(script)
 
 
+@pytest.fixture(autouse=True)
+def _clear_tier_env(monkeypatch):
+    # The failover chain is env-driven; the host's ~/.hyperclaw/.env (loaded
+    # at import by telegram_bot) or shell exports must not leak into these
+    # tests' expected default ladder.
+    for var in ("FABLE_MODEL", "HYPERCLAW_OPUS_MODEL", "HYPERCLAW_SONNET_MODEL", "HYPERCLAW_MODEL"):
+        monkeypatch.delenv(var, raising=False)
+
+
 def _bridge():
     return TUIBridge.__new__(TUIBridge)
 

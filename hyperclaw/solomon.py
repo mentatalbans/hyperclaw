@@ -109,6 +109,34 @@ class ChatAgent:
         except Exception as e:
             return f"[Error: {e}]"
 
+    async def stream_events(self, message: str, history: list[dict]) -> AsyncIterator[tuple]:
+        """Stream ("thinking", delta) and ("text", delta) tuples.
+
+        Lets UIs render the model's thinking while it works (GIL-style UX)
+        and then stream the answer. Thinking deltas only occur on models
+        with adaptive thinking; text-only models just yield text tuples.
+        """
+        messages = self._prepare_messages(message, history)
+        try:
+            async_client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+            async with async_client.messages.stream(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=self.system_prompt,
+                messages=messages,
+            ) as stream:
+                async for event in stream:
+                    if event.type == "content_block_delta":
+                        dtype = getattr(event.delta, "type", "")
+                        if dtype == "thinking_delta":
+                            yield ("thinking", event.delta.thinking)
+                        elif dtype == "text_delta":
+                            yield ("text", event.delta.text)
+        except anthropic.APIError as e:
+            yield ("text", f"[Error: {e}]")
+        except Exception as e:
+            yield ("text", f"[Error: {e}]")
+
     async def stream_chat(self, message: str, history: list[dict]) -> AsyncIterator[str]:
         """Stream a response token by token."""
         messages = self._prepare_messages(message, history)

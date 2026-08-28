@@ -24,6 +24,7 @@ dependencies = [
     "uvicorn[standard]>=0.27",
     "aiohttp>=3.9",
     "aiofiles>=23.0",
+    "python-telegram-bot>=20.0",
 ]
 
 [project.optional-dependencies]
@@ -36,7 +37,7 @@ dev = [
 [project.scripts]
 hyperclaw = "cli.hyperclaw:main"
 hyperclaw-tui = "hyperclaw.tui:main"
-hyperclaw-telegram = "telegram_listener:main"
+hyperclaw-telegram = "hyperclaw.telegram_bot:main"
 
 [tool.setuptools]
 py-modules = ["telegram_listener"]

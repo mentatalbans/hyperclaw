@@ -22,18 +22,35 @@ from telegram.ext import (
 
 from .solomon import get_solomon
 
+from pathlib import Path
+
+HYPERCLAW_ROOT = Path(os.environ.get("HYPERCLAW_ROOT", Path.home() / ".hyperclaw"))
+# ~/.hyperclaw/.env is where onboarding saves credentials; CWD .env as fallback
+load_dotenv(HYPERCLAW_ROOT / ".env")
 load_dotenv()
 
 logger = logging.getLogger("hyperclaw.telegram")
 
+
+def _allowed_chat_ids() -> set:
+    """Union of TELEGRAM_ALLOWED_CHAT_IDS (comma list) and TELEGRAM_CHAT_ID
+    (single ID written by onboarding). Deny-by-default when both are empty."""
+    ids = set()
+    for var in ("TELEGRAM_ALLOWED_CHAT_IDS", "TELEGRAM_CHAT_ID"):
+        for cid in os.environ.get(var, "").split(","):
+            cid = cid.strip()
+            if cid.lstrip("-").isdigit():
+                ids.add(int(cid))
+    return ids
+
+
 # Config
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-ALLOWED_CHAT_IDS = set(
-    int(cid.strip())
-    for cid in os.environ.get("TELEGRAM_ALLOWED_CHAT_IDS", "").split(",")
-    if cid.strip()
-)
+ALLOWED_CHAT_IDS = _allowed_chat_ids()
 MAX_HISTORY = 20
+# Show the model's thinking live in an italic preview before the answer
+# streams in (GIL-style). Set TELEGRAM_SHOW_THINKING=0 to disable.
+SHOW_THINKING = os.environ.get("TELEGRAM_SHOW_THINKING", "1") not in ("0", "false", "no")
 
 
 class TelegramBot:
@@ -133,24 +150,70 @@ class TelegramBot:
 
         logger.info(f"[{chat_id}] User: {user_message[:50]}...")
 
-        # Send typing indicator
-        await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
-
         # Get history for this chat
         history = self.conversation_history[chat_id]
 
+        # Telegram expires the typing indicator after ~5s — keep it alive for
+        # the whole turn so the user always sees the bot working.
+        import asyncio as _asyncio
+
+        typing_alive = True
+
+        # First indicator immediately — the refresh task only keeps it alive.
         try:
-            # Send placeholder — user sees something immediately
-            placeholder = await update.message.reply_text("⚡")
+            await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+        except Exception:
+            pass
+
+        async def _keep_typing():
+            while typing_alive:
+                await _asyncio.sleep(4)
+                if not typing_alive:
+                    break
+                try:
+                    await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+                except Exception:
+                    pass
+
+        typing_task = _asyncio.create_task(_keep_typing())
+
+        try:
+            # Placeholder — the user sees activity from the first moment
+            placeholder = await update.message.reply_text("💭 thinking…")
 
             buffer = ""
             last_edit = ""
             full_response = []
+            thinking_buf = []
+            answer_started = False
             EDIT_THRESHOLD = 60   # chars accumulated before pushing an edit
             edit_count = 0
             MAX_EDITS = 60        # stay well under Telegram rate limits (~20 edits/msg practical limit)
 
-            async for chunk in self.solomon.stream_chat(user_message, history):
+            async for kind, chunk in self.solomon.stream_events(user_message, history):
+                if kind == "thinking":
+                    if not SHOW_THINKING or answer_started:
+                        continue
+                    thinking_buf.append(chunk)
+                    buffer += chunk
+                    # Update the italic thinking preview at the same cadence
+                    if len(buffer) >= EDIT_THRESHOLD and edit_count < MAX_EDITS:
+                        preview = "".join(thinking_buf)[-800:]
+                        text = f"💭 _{preview}_"
+                        if text != last_edit:
+                            try:
+                                await placeholder.edit_text(text, parse_mode="Markdown")
+                                last_edit = text
+                                edit_count += 1
+                                buffer = ""
+                            except Exception:
+                                pass
+                    continue
+
+                # kind == "text" — the answer itself
+                if not answer_started:
+                    answer_started = True
+                    buffer = ""
                 buffer += chunk
                 full_response.append(chunk)
 
@@ -202,6 +265,9 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"[{chat_id}] Error: {e}", exc_info=True)
             await update.message.reply_text(f"⚡ Error: {e}")
+        finally:
+            typing_alive = False
+            typing_task.cancel()
 
     async def send_message(self, chat_id: int, text: str) -> bool:
         """Send a message to a specific chat (for scheduler alerts)."""
@@ -246,3 +312,29 @@ def get_telegram_bot() -> TelegramBot:
     if _bot is None:
         _bot = TelegramBot()
     return _bot
+
+
+def main() -> None:
+    """Run the HyperClaw Telegram bot (entry point: hyperclaw-telegram)."""
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    for noisy in ("httpx", "httpcore", "telegram.ext"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
+    if not BOT_TOKEN:
+        raise SystemExit("TELEGRAM_BOT_TOKEN is not set. Add it to ~/.hyperclaw/.env "
+                         "(get a token from @BotFather with /newbot).")
+    if not ALLOWED_CHAT_IDS:
+        raise SystemExit("No allowed chats configured. Set TELEGRAM_CHAT_ID or "
+                         "TELEGRAM_ALLOWED_CHAT_IDS in ~/.hyperclaw/.env — "
+                         "the bot denies all messages otherwise.")
+
+    bot = get_telegram_bot()
+    app = bot.build()
+    logger.info(f"HyperClaw Telegram bot starting — {len(ALLOWED_CHAT_IDS)} allowed chat(s), "
+                f"thinking preview {'on' if SHOW_THINKING else 'off'}")
+    app.run_polling(drop_pending_updates=True)
+
+
+if __name__ == "__main__":
+    main()
