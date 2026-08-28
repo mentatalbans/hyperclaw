@@ -2,6 +2,12 @@
 
 All notable changes to HyperClaw will be documented in this file.
 
+> **Versioning note:** entries up to and including [0.2.0] (git tag `v0.2.0`)
+> follow the repository's original 0.x scheme, while packages published to
+> PyPI used 1.0.x numbering. From [1.1.0] onward the repository and package
+> versions are unified in a single 1.x lineage; `v0.2.0` maps into it as the
+> release immediately preceding 1.1.0.
+
 ## [1.1.0] - 2026-08-27
 
 ### Fixed
