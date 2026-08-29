@@ -112,15 +112,59 @@ def explain_system(user_name: str, ai_name: str):
     console.print()
 
 
-def setup_api_key():
-    """Guide through API key setup."""
+def setup_api_key() -> dict:
+    """Guide through API key setup. Returns provider config dict."""
     time.sleep(0.3)
-    rprint("[white]First thing I need is an [bold]Anthropic API key[/bold].[/white]")
-    rprint("[dim]This powers the AI brain behind everything.[/dim]")
+    rprint("[white]First thing I need is an [bold]AI model[/bold].[/white]")
+    rprint("[dim]Choose a provider:[/dim]")
     console.print()
 
-    rprint("[white]If you don't have one:[/white]")
-    rprint("[cyan]  1. Go to [link=https://console.anthropic.com]console.anthropic.com[/link][/cyan]")
+    rprint("[white]Options:[/white]")
+    rprint("[cyan]  1. Anthropic API key      (console.anthropic.com)[/cyan]")
+    rprint("[cyan]  2. AWS Bedrock            (IAM/credentials — no direct Anthropic billing)[/cyan]")
+    rprint("[cyan]  3. OpenAI-compatible      (OpenAI, Azure, LiteLLM, etc. — /chat/completions)[/cyan]")
+    rprint("[cyan]  4. Anthropic-compatible   (vLLM, custom proxy speaking Messages API)[/cyan]")
+    console.print()
+
+    choice = Prompt.ask("[cyan]Choose[/cyan]", choices=["1", "2", "3", "4"], default="1")
+
+    if choice == "2":
+        console.print()
+        rprint("[white]AWS Bedrock needs credentials and a region.[/white]")
+        rprint("[dim]Leave blank to use environment variables / IAM role.[/dim]")
+        console.print()
+        access_key = Prompt.ask("[cyan]AWS Access Key ID     (Enter to use env/IAM)[/cyan]", default="")
+        secret_key = Prompt.ask("[cyan]AWS Secret Access Key (Enter to use env/IAM)[/cyan]",
+                                password=True, default="")
+        region = Prompt.ask("[cyan]AWS Region[/cyan]", default="us-east-1")
+        return {"provider": "bedrock", "access_key": access_key or None,
+                "secret_key": secret_key or None, "region": region}
+
+    if choice == "3":
+        console.print()
+        base_url = Prompt.ask("[cyan]Base URL[/cyan]", default="https://api.openai.com/v1")
+        api_key = Prompt.ask("[cyan]API key[/cyan]", password=True)
+        model = Prompt.ask("[cyan]Model name[/cyan]", default="gpt-4o")
+        if not base_url or not api_key:
+            rprint("[yellow]Base URL and API key are both required.[/yellow]")
+            return {}
+        return {"provider": "openai_compat", "api_key": api_key, "base_url": base_url,
+                "model": model}
+
+    if choice == "4":
+        console.print()
+        base_url = Prompt.ask("[cyan]Base URL (Anthropic Messages API)[/cyan]",
+                              default="http://localhost:8000")
+        api_key = Prompt.ask("[cyan]API key (or any placeholder)[/cyan]", password=True)
+        if not base_url or not api_key:
+            rprint("[yellow]Base URL and API key are both required.[/yellow]")
+            return {}
+        return {"provider": "anthropic_compat", "api_key": api_key, "base_url": base_url}
+
+    # Anthropic path
+    console.print()
+    rprint("[white]If you don't have an Anthropic key:[/white]")
+    rprint("[cyan]  1. Go to console.anthropic.com[/cyan]")
     rprint("[cyan]  2. Create an account (or sign in)[/cyan]")
     rprint("[cyan]  3. Go to API Keys and create a new one[/cyan]")
     console.print()
@@ -130,17 +174,17 @@ def setup_api_key():
     if not has_key:
         rprint("\n[white]No problem. Come back when you have it.[/white]")
         rprint("[dim]Run [bold]hyperclaw init[/bold] again when ready.[/dim]")
-        return None
+        return {}
 
     console.print()
-    api_key = Prompt.ask("[cyan]Paste your API key[/cyan]", password=True)
+    api_key = Prompt.ask("[cyan]Paste your Anthropic API key[/cyan]", password=True)
 
     if not api_key.startswith("sk-ant-"):
-        rprint("[yellow]That doesn't look quite right. API keys start with 'sk-ant-'.[/yellow]")
+        rprint("[yellow]That doesn't look right — Anthropic keys start with 'sk-ant-'.[/yellow]")
         rprint("[dim]Double-check and try again.[/dim]")
-        return None
+        return {}
 
-    return api_key
+    return {"provider": "anthropic", "api_key": api_key}
 
 
 def setup_database():
@@ -201,7 +245,7 @@ def setup_integrations():
     rprint("[dim]Run [bold]hyperclaw integrations list[/bold] to see all options.[/dim]")
 
 
-def write_config(user_name: str, ai_name: str, api_key: str | None, db_url: str | None):
+def write_config(user_name: str, ai_name: str, provider_cfg: dict, db_url: str | None):
     """Write configuration files."""
     import json
 
@@ -254,9 +298,38 @@ You are a J.A.R.V.I.S-level system — not a chatbot. Precise, capable, proactiv
     env_path = hyperclaw_dir / ".env"
     env_content = []
 
-    if api_key:
-        env_content.append(f"ANTHROPIC_API_KEY={api_key}")
-        os.environ["ANTHROPIC_API_KEY"] = api_key
+    prov = provider_cfg.get("provider")
+    if prov == "bedrock":
+        env_content.append("LLM_PROVIDER=bedrock")
+        if provider_cfg.get("access_key"):
+            env_content.append(f"AWS_ACCESS_KEY_ID={provider_cfg['access_key']}")
+            os.environ["AWS_ACCESS_KEY_ID"] = provider_cfg["access_key"]
+        if provider_cfg.get("secret_key"):
+            env_content.append(f"AWS_SECRET_ACCESS_KEY={provider_cfg['secret_key']}")
+            os.environ["AWS_SECRET_ACCESS_KEY"] = provider_cfg["secret_key"]
+        env_content.append(f"AWS_REGION={provider_cfg.get('region', 'us-east-1')}")
+        os.environ["AWS_REGION"] = provider_cfg.get("region", "us-east-1")
+        os.environ["LLM_PROVIDER"] = "bedrock"
+    elif prov == "openai_compat":
+        env_content.append("LLM_PROVIDER=openai_compat")
+        env_content.append(f"OPENAI_API_KEY={provider_cfg['api_key']}")
+        env_content.append(f"OPENAI_BASE_URL={provider_cfg['base_url']}")
+        if provider_cfg.get("model"):
+            env_content.append(f"OPENAI_MODEL={provider_cfg['model']}")
+            os.environ["OPENAI_MODEL"] = provider_cfg["model"]
+        os.environ["LLM_PROVIDER"] = "openai_compat"
+        os.environ["OPENAI_API_KEY"] = provider_cfg["api_key"]
+        os.environ["OPENAI_BASE_URL"] = provider_cfg["base_url"]
+    elif prov == "anthropic_compat":
+        env_content.append("LLM_PROVIDER=anthropic_compat")
+        env_content.append(f"ANTHROPIC_API_KEY={provider_cfg['api_key']}")
+        env_content.append(f"ANTHROPIC_BASE_URL={provider_cfg['base_url']}")
+        os.environ["LLM_PROVIDER"] = "anthropic_compat"
+        os.environ["ANTHROPIC_API_KEY"] = provider_cfg["api_key"]
+        os.environ["ANTHROPIC_BASE_URL"] = provider_cfg["base_url"]
+    elif prov == "anthropic":
+        env_content.append(f"ANTHROPIC_API_KEY={provider_cfg['api_key']}")
+        os.environ["ANTHROPIC_API_KEY"] = provider_cfg["api_key"]
 
     if db_url:
         env_content.append(f"DATABASE_URL={db_url}")
@@ -274,7 +347,7 @@ You are a J.A.R.V.I.S-level system — not a chatbot. Precise, capable, proactiv
     rprint(f"\n[green]Created [bold]{ai_name}[/bold] at ~/.hyperclaw[/green]")
 
 
-def final_message(user_name: str, ai_name: str, api_key: str | None):
+def final_message(user_name: str, ai_name: str, provider_cfg: dict):
     """Wrap up the onboarding."""
     console.print()
     console.print(Panel.fit(
@@ -283,7 +356,7 @@ def final_message(user_name: str, ai_name: str, api_key: str | None):
     ))
     console.print()
 
-    if not api_key:
+    if not provider_cfg.get("provider"):
         rprint("[white]Once you have your API key:[/white]")
         rprint("[cyan]  hyperclaw init[/cyan]       — Run setup again")
         console.print()
@@ -312,15 +385,15 @@ def run_onboarding():
     ai_name = get_ai_name(user_name)
     explain_system(user_name, ai_name)
 
-    api_key = setup_api_key()
+    provider_cfg = setup_api_key()
     db_url = None
 
-    if api_key:
+    if provider_cfg.get("provider"):
         db_url = setup_database()
         setup_integrations()
 
-    write_config(user_name, ai_name, api_key, db_url)
-    final_message(user_name, ai_name, api_key)
+    write_config(user_name, ai_name, provider_cfg, db_url)
+    final_message(user_name, ai_name, provider_cfg)
 
 
 if __name__ == "__main__":
