@@ -88,18 +88,25 @@ def init(
     db_url: str = typer.Option("", "--db-url", envvar="DATABASE_URL",
                                 help="PostgreSQL connection string (or set DATABASE_URL env var)"),
     quick: bool = typer.Option(False, "--quick", "-q", help="Skip interactive onboarding"),
+    reset: bool = typer.Option(False, "--reset", "-r", help="Re-run onboarding even if already configured"),
 ) -> None:
     """Initialize HyperClaw: guided setup for first-time users."""
     import os
 
-    # Check if already configured
+    # Check if already configured (any supported provider)
     hyperclaw_env = Path.home() / ".hyperclaw" / ".env"
-    api_key_set = os.environ.get("ANTHROPIC_API_KEY") or (
-        hyperclaw_env.exists() and "ANTHROPIC_API_KEY" in hyperclaw_env.read_text()
+    _env_text = hyperclaw_env.read_text() if hyperclaw_env.exists() else ""
+    api_key_set = (
+        os.environ.get("ANTHROPIC_API_KEY")
+        or os.environ.get("OPENAI_API_KEY")
+        or os.environ.get("AWS_ACCESS_KEY_ID")
+        or os.environ.get("LLM_PROVIDER")
+        or any(k in _env_text for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY",
+                                         "AWS_ACCESS_KEY_ID", "LLM_PROVIDER"))
     )
 
-    # Run interactive onboarding for first-time users
-    if not quick and not api_key_set:
+    # Run interactive onboarding for first-time users (or when --reset)
+    if not quick and (not api_key_set or reset):
         try:
             from cli.onboarding import run_onboarding
             run_onboarding()
