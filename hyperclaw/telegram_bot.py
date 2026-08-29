@@ -59,6 +59,8 @@ class TelegramBot:
     def __init__(self):
         self.application: Optional[Application] = None
         self.conversation_history: dict[int, list[dict]] = defaultdict(list)
+        # Files received but not yet consumed by a text turn, per chat
+        self.pending_attachments: dict[int, list] = defaultdict(list)
         self.solomon = get_solomon()
 
     def _is_allowed(self, chat_id: int) -> bool:
@@ -133,6 +135,79 @@ class TelegramBot:
         self.conversation_history[chat_id] = []
         await update.message.reply_text("Conversation history cleared.")
 
+    MAX_FILE_BYTES = 20 * 1024 * 1024  # Telegram bot API download cap
+
+    async def handle_file(self, update, context) -> None:
+        """Receive a document or photo and stage it for the next model turn.
+
+        PDFs and images go to the model natively as Anthropic content
+        blocks; small text files are inlined; anything else is noted by
+        name so the model can at least acknowledge it."""
+        chat_id = update.effective_chat.id
+        if chat_id not in ALLOWED_CHAT_IDS:
+            return
+        import base64
+
+        msg = update.message
+        try:
+            if msg.photo:
+                tg_file = await msg.photo[-1].get_file()
+                raw = bytes(await tg_file.download_as_bytearray())
+                block = {"type": "image",
+                         "source": {"type": "base64", "media_type": "image/jpeg",
+                                    "data": base64.b64encode(raw).decode()}}
+                label = "photo"
+            else:
+                doc = msg.document
+                if doc.file_size and doc.file_size > self.MAX_FILE_BYTES:
+                    await msg.reply_text(f"That file is too large for me to pull down "
+                                         f"({doc.file_size // (1024*1024)} MB - limit 20 MB).")
+                    return
+                tg_file = await doc.get_file()
+                raw = bytes(await tg_file.download_as_bytearray())
+                name = doc.file_name or "file"
+                mime = (doc.mime_type or "").lower()
+                if mime == "application/pdf" or name.lower().endswith(".pdf"):
+                    block = {"type": "document",
+                             "source": {"type": "base64", "media_type": "application/pdf",
+                                        "data": base64.b64encode(raw).decode()}}
+                elif mime.startswith("image/"):
+                    block = {"type": "image",
+                             "source": {"type": "base64", "media_type": mime,
+                                        "data": base64.b64encode(raw).decode()}}
+                elif mime.startswith("text/") or name.lower().endswith(
+                        (".txt", ".md", ".csv", ".json", ".yaml", ".yml", ".py", ".log")):
+                    text = raw.decode("utf-8", errors="replace")[:100_000]
+                    block = {"type": "text", "text": f"[Contents of {name}]\n\n{text}"}
+                else:
+                    block = {"type": "text",
+                             "text": f"[The user sent a file named {name} ({mime or 'unknown type'}) "
+                                     f"that could not be read directly.]"}
+                label = name
+            self.pending_attachments[chat_id].append(block)
+            logger.info(f"[{chat_id}] staged attachment: {label}")
+        except Exception as e:
+            logger.error(f"[{chat_id}] file intake failed: {e}", exc_info=True)
+            await msg.reply_text(f"Couldn't read that file: {e}")
+            return
+
+        caption = (msg.caption or "").strip()
+        if caption:
+            # A caption is a question about the file - answer it immediately.
+            # PTB Message objects are frozen; bypass to inject the caption as text.
+            object.__setattr__(update.message, "text", caption)
+            await self.handle_message(update, context)
+        else:
+            await msg.reply_text(f"Got it - {label} received. Ask me anything about it.")
+
+    async def _finalize_markdown(self, placeholder, text: str) -> None:
+        """Re-render the finished answer with Markdown; keep the plain-text
+        version if Telegram rejects the entities (unbalanced markers)."""
+        try:
+            await placeholder.edit_text(text, parse_mode="Markdown")
+        except Exception:
+            pass
+
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle incoming text messages — stream response from SOLOMON."""
         if not update.effective_chat or not self._is_allowed(update.effective_chat.id):
@@ -190,7 +265,9 @@ class TelegramBot:
             edit_count = 0
             MAX_EDITS = 60        # stay well under Telegram rate limits (~20 edits/msg practical limit)
 
-            async for kind, chunk in self.solomon.stream_events(user_message, history):
+            attachments = self.pending_attachments.pop(chat_id, [])
+            async for kind, chunk in self.solomon.stream_events(
+                    user_message, history, attachments=attachments):
                 if kind == "thinking":
                     if not SHOW_THINKING or answer_started:
                         continue
@@ -237,12 +314,18 @@ class TelegramBot:
             # Final edit with complete response
             response = "".join(full_response)
 
-            if response != last_edit:
-                if len(response) <= 4096:
+            if len(response) <= 4096:
+                # Push the complete text, then re-render with Markdown so
+                # **bold** and lists display properly instead of raw markers.
+                if response != last_edit:
                     try:
                         await placeholder.edit_text(response)
                     except Exception:
                         pass
+                await self._finalize_markdown(placeholder, response)
+            if response != last_edit:
+                if len(response) <= 4096:
+                    pass
                 else:
                     # Response too long — delete placeholder, send in chunks
                     try:
@@ -297,6 +380,9 @@ class TelegramBot:
         self.application.add_handler(CommandHandler("clear", self.clear_command))
         self.application.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message)
+        )
+        self.application.add_handler(
+            MessageHandler(filters.Document.ALL | filters.PHOTO, self.handle_file)
         )
 
         return self.application

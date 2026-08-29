@@ -42,6 +42,15 @@ All notable changes to HyperClaw will be documented in this file.
   `[YOUR-PASSWORD]` template placeholder and re-prompts.
 
 ### Added
+- **Telegram file understanding**: send a document or photo and ask about it.
+  PDFs and images reach the model as native Anthropic content blocks, small
+  text files are inlined, oversized files (>20 MB Telegram cap) get an honest
+  refusal. A caption on the upload is answered immediately; otherwise the file
+  is staged for your next message. Final answers re-render with Markdown.
+- **Identity & persona**: the assistant introduces itself from
+  `~/.hyperclaw/config.json` (ai_name/user_name, with `config/settings.json`
+  fallback), loads `~/.hyperclaw/CLAUDE.md` as persona/standing instructions,
+  and states its backing model when asked.
 - `hyperclaw-telegram` now runs the full Telegram bot (`hyperclaw.telegram_bot`)
   with a live thinking preview (italic, GIL-style; `TELEGRAM_SHOW_THINKING=0`
   disables), a typing indicator kept alive for the whole turn, and streaming

@@ -33,17 +33,24 @@ CONTEXT_FILES = [
 ]
 
 
+def _get_identity() -> tuple:
+    """(ai_name, user_name) — onboarding writes ~/.hyperclaw/config.json;
+    older builds used config/settings.json. Check both, in that order."""
+    import json
+    for cf in (HYPERCLAW_ROOT / "config.json",
+               HYPERCLAW_ROOT / "config" / "settings.json"):
+        if cf.exists():
+            try:
+                config = json.loads(cf.read_text())
+                return (config.get("ai_name") or os.environ.get("HYPERCLAW_AI_NAME", "Assistant"),
+                        config.get("user_name") or "")
+            except Exception:
+                continue
+    return (os.environ.get("HYPERCLAW_AI_NAME", "Assistant"), "")
+
+
 def _get_ai_name() -> str:
-    """Get AI name from config or default."""
-    config_file = HYPERCLAW_ROOT / "config" / "settings.json"
-    if config_file.exists():
-        try:
-            import json
-            config = json.loads(config_file.read_text())
-            return config.get("ai_name", "Assistant")
-        except Exception:
-            pass
-    return os.environ.get("HYPERCLAW_AI_NAME", "Assistant")
+    return _get_identity()[0]
 
 
 class ChatAgent:
@@ -51,13 +58,18 @@ class ChatAgent:
 
     def __init__(self):
         self.client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-        self.ai_name = _get_ai_name()
+        self.ai_name, self.user_name = _get_identity()
         self.system_prompt = self._load_system_prompt()
 
     def _load_system_prompt(self) -> str:
         """Load workspace context files into system prompt."""
+        whose = (f", the personal AI assistant to {self.user_name}"
+                 if self.user_name else ", a helpful AI assistant")
         parts = [
-            f"You are {self.ai_name}, a helpful AI assistant.",
+            f"You are {self.ai_name}{whose}.",
+            (f"You run on HyperClaw, powered by the Anthropic model `{MODEL}`. "
+             f"If asked your name, you are {self.ai_name}; if asked what model "
+             f"you use, say so plainly."),
             "",
             "## Core Behaviors",
             "- Be helpful, accurate, and concise",
@@ -68,6 +80,15 @@ class ChatAgent:
             f"Current date: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
             "",
         ]
+
+        # The TUI persona file is the primary source of custom behavior
+        claude_md = HYPERCLAW_ROOT / "CLAUDE.md"
+        if claude_md.exists():
+            try:
+                parts.append("## Persona & standing instructions\n"
+                             + claude_md.read_text(encoding="utf-8") + "\n")
+            except Exception:
+                pass
 
         # Load custom context files if they exist
         for filename in CONTEXT_FILES:
@@ -109,14 +130,15 @@ class ChatAgent:
         except Exception as e:
             return f"[Error: {e}]"
 
-    async def stream_events(self, message: str, history: list[dict]) -> AsyncIterator[tuple]:
+    async def stream_events(self, message: str, history: list[dict],
+                            attachments: list | None = None) -> AsyncIterator[tuple]:
         """Stream ("thinking", delta) and ("text", delta) tuples.
 
         Lets UIs render the model's thinking while it works (GIL-style UX)
         and then stream the answer. Thinking deltas only occur on models
         with adaptive thinking; text-only models just yield text tuples.
         """
-        messages = self._prepare_messages(message, history)
+        messages = self._prepare_messages(message, history, attachments)
         try:
             async_client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
             async with async_client.messages.stream(
@@ -157,9 +179,17 @@ class ChatAgent:
         except Exception as e:
             yield f"[Error: {e}]"
 
-    def _prepare_messages(self, message: str, history: list[dict]) -> list[dict]:
-        """Prepare messages for the API call, trimming to MAX_HISTORY."""
+    def _prepare_messages(self, message: str, history: list[dict],
+                          attachments: list | None = None) -> list[dict]:
+        """Prepare messages for the API call, trimming to MAX_HISTORY.
+
+        attachments: optional Anthropic content blocks (document / image)
+        that ride along with the user's text — how Telegram file uploads
+        reach the model."""
         recent = history[-MAX_HISTORY:] if len(history) > MAX_HISTORY else history
+        if attachments:
+            content = list(attachments) + [{"type": "text", "text": message or "(see attached)"}]
+            return list(recent) + [{"role": "user", "content": content}]
         return list(recent) + [{"role": "user", "content": message}]
 
     def reload_context(self) -> None:
