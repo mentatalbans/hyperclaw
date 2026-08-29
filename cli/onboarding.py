@@ -78,7 +78,7 @@ def warm_greeting():
 
     rprint("[dim]Setup will take about 2 minutes:[/dim]")
     rprint("[white]  1. Your name and what to call your AI[/white]")
-    rprint("[white]  2. Anthropic API key (powers the AI)[/white]")
+    rprint("[white]  2. AI provider (Anthropic, Bedrock, or custom endpoint)[/white]")
     rprint("[white]  3. Optional: Database for persistent memory[/white]")
     console.print()
     time.sleep(0.5)
