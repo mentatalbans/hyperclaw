@@ -375,7 +375,7 @@ This request is coming via a chat channel. Keep responses under 2000 characters.
 
     # Failover ladder: on overload/rate-limit/transient errors (and policy refusals), walk
     # down the Claude 5 family instead of failing the turn. Chain is built from the env-driven
-    # tier config (FABLE_MODEL / GIL_OPUS_MODEL / GIL_SONNET_MODEL) so operator overrides in
+    # tier config (FABLE_MODEL / HYPERCLAW_OPUS_MODEL / HYPERCLAW_SONNET_MODEL) so operator overrides in
     # .env apply to failover too, not just the primary pick.
     _FAILOVER_CHAIN = ["claude-fable-5", "claude-opus-5", "claude-sonnet-5"]  # fallback if model_selector unavailable
 

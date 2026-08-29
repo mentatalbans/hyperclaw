@@ -49,7 +49,7 @@ BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 ALLOWED_CHAT_IDS = _allowed_chat_ids()
 MAX_HISTORY = 20
 # Show the model's thinking live in an italic preview before the answer
-# streams in (GIL-style). Set TELEGRAM_SHOW_THINKING=0 to disable.
+# streams in. Set TELEGRAM_SHOW_THINKING=0 to disable.
 SHOW_THINKING = os.environ.get("TELEGRAM_SHOW_THINKING", "1") not in ("0", "false", "no")
 
 

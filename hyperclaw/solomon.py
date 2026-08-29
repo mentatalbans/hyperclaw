@@ -134,7 +134,7 @@ class ChatAgent:
                             attachments: list | None = None) -> AsyncIterator[tuple]:
         """Stream ("thinking", delta) and ("text", delta) tuples.
 
-        Lets UIs render the model's thinking while it works (GIL-style UX)
+        Lets UIs render the model's thinking while it works
         and then stream the answer. Thinking deltas only occur on models
         with adaptive thinking; text-only models just yield text tuples.
         """
