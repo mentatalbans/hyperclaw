@@ -11,6 +11,14 @@ All notable changes to HyperClaw will be documented in this file.
 ## [1.1.0] - 2026-08-27
 
 ### Fixed
+- **Swarm registry: dynamic agent discovery.** The hand-maintained import list
+  silently dropped agents added later (VENTURE, the trading trio, ARBITER,
+  SENTINEL). `AgentRegistry.build_default()` now walks `swarm.agents` and
+  registers every `BaseAgent` subclass — 44 agents total — and agent_id
+  collisions are domain-qualified (`HERALD-COMMS`, `SCOUT-TALENT`) instead of
+  silently overwritten. Trading agents accept the shared dependency set.
+- CLI and TUI banners report the real package version instead of a hardcoded
+  `0.1.0-alpha`.
 - **Thinking-block-safe response parsing**: reading `response.content[0].text`
   crashes on adaptive-thinking models (Claude 5 family, Opus/Sonnet 4.6+) whose
   first content block can be a thinking block. All 15 call sites now go through

@@ -30,7 +30,10 @@ app.add_typer(audit_app, name="audit")
 
 console = Console()
 
-VERSION = "0.1.0-alpha"
+try:
+    from hyperclaw import __version__ as VERSION
+except Exception:  # pragma: no cover
+    VERSION = "unknown"
 
 BANNER = """\
  ██╗  ██╗██╗   ██╗██████╗ ███████╗██████╗  ██████╗██╗      █████╗ ██╗    ██╗

@@ -16,8 +16,8 @@ class PolymarketTraderAgent(BaseAgent):
     supported_task_types = ["trade", "analyze", "position", "research"]
     preferred_model = "claude-sonnet-4-6"
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, model_router=None, state_manager=None, causal_graph=None, hyper_shield=None):
+        super().__init__(model_router, state_manager, causal_graph, hyper_shield)
         # Trading limits and risk management
         self.max_position_size = 100  # USD
         self.max_daily_risk = 500     # USD

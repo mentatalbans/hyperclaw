@@ -209,5 +209,6 @@ except ImportError:
         def run(self) -> None:
             print("TUI unavailable. Install textual: pip install 'hyperclaw[tui]'")
 
-    BANNER = "HyperClaw v0.1.0-alpha"
+    from hyperclaw import __version__ as _v
+    BANNER = f"HyperClaw v{_v}"
     AGENTS = []

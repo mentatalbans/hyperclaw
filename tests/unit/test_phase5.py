@@ -229,7 +229,7 @@ class TestAgentRegistry:
         deps = _make_deps()
         registry = AgentRegistry.build_default(*deps)
         all_agents = registry.list_all()
-        assert len(all_agents) == 36  # Core agent swarm (after dedup)
+        assert len(all_agents) == 44  # every agent class discovers and registers
 
     def test_no_duplicate_agent_ids(self):
         from swarm.registry import AgentRegistry
@@ -250,6 +250,14 @@ class TestAgentRegistry:
             "NEXUS", "OPS", "REVENUE", "SOVEREIGN",
             # Scientific
             "MEDICUS", "COSMOS", "GAIA", "ORACLE", "SCRIBE",
+            # Business (previously missing from the hand-list)
+            "VENTURE",
+            # Trading (previously missing)
+            "GLOBAL_PREDICTION_ENGINE", "POLYMARKET_TRADER", "PREDICTION_STRATEGIST",
+            # Intelligence (previously missing)
+            "ARBITER", "SENTINEL",
+            # Collision-qualified ids (never silently overwritten)
+            "HERALD-COMMS", "SCOUT-TALENT",
             # Creative
             "AUTHOR", "LENS",
             # Recursive

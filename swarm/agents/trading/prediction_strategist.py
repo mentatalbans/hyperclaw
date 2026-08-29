@@ -15,8 +15,8 @@ class PredictionStrategistAgent(BaseAgent):
     supported_task_types = ["strategy", "analyze", "coordinate", "research"]
     preferred_model = "claude-sonnet-4-6"
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, model_router=None, state_manager=None, causal_graph=None, hyper_shield=None):
+        super().__init__(model_router, state_manager, causal_graph, hyper_shield)
         self.active_strategies = {}
         self.market_themes = {
             "ai_development": {"weight": 0.9, "expertise": "high"},

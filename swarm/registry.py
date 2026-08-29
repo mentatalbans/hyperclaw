@@ -58,111 +58,55 @@ class AgentRegistry:
         registry = cls()
         deps = (model_router, state_manager, causal_graph, hyper_shield)
 
-        # ── PERSONAL (6) ─────────────────────────────────────────────────────
-        from swarm.agents.personal.atlas import AtlasAgent
-        from swarm.agents.personal.midas import MidasAgent
-        from swarm.agents.personal.vitals import VitalsAgent
-        from swarm.agents.personal.nourish import NourishAgent
-        from swarm.agents.personal.navigator import NavigatorAgent
-        from swarm.agents.personal.hearth import HearthAgent
+        # Discover every agent dynamically — a hand-maintained import list
+        # silently drops agents added later (VENTURE, trading, intelligence
+        # were all missing from the old list).
+        import importlib
+        import inspect
+        import pkgutil
 
-        # ── BUSINESS (10) ────────────────────────────────────────────────────
-        from swarm.agents.business.strategos import StrategosAgent
-        from swarm.agents.business.herald import HeraldAgent
-        from swarm.agents.business.pipeline import PipelineAgent
-        from swarm.agents.business.ledger import LedgerAgent
-        from swarm.agents.business.counsel import CounselAgent
-        from swarm.agents.business.talent import TalentAgent
-        from swarm.agents.business.nexus import NexusAgent
-        from swarm.agents.business.ops import OpsAgent
-        from swarm.agents.business.revenue import RevenueAgent
-        from swarm.agents.business.sovereign import SovereignAgent
+        import swarm.agents as _pkg
+        from swarm.agents.base import BaseAgent
 
-        # ── COMMS (5) ────────────────────────────────────────────────────────
-        from swarm.agents.comms.pulse import PulseAgent
-        from swarm.agents.comms.echo_comms import EchoCommsAgent
-        from swarm.agents.comms.envoy import EnvoyAgent
-        from swarm.agents.comms.cipher import CipherAgent
-        from swarm.agents.comms.herald_scheduler import HeraldSchedulerAgent
-
-        # ── SCIENTIFIC (5) ───────────────────────────────────────────────────
-        from swarm.agents.scientific.medicus import MedicusAgent
-        from swarm.agents.scientific.cosmos import CosmosAgent
-        from swarm.agents.scientific.gaia import GaiaAgent
-        from swarm.agents.scientific.oracle_agent import OracleAgent
-        from swarm.agents.scientific.scribe import ScribeAgent
-
-        # ── CREATIVE (2) ─────────────────────────────────────────────────────
-        from swarm.agents.creative.author import AuthorAgent
-        from swarm.agents.creative.lens import LensAgent
-
-        # ── RECURSIVE (3) ────────────────────────────────────────────────────
-        from swarm.agents.recursive.scout import ScoutAgent
-        from swarm.agents.recursive.alchemist import AlchemistAgent
-        from swarm.agents.recursive.calibrator import CalibratorAgent
-
-        # ── TECHNOLOGY (3) ───────────────────────────────────────────────────
-        from swarm.agents.tech.forge import ForgeAgent
-        from swarm.agents.tech.aegis import AegisAgent
-        from swarm.agents.tech.bridge import BridgeAgent
-
-        # ── TALENT VERTICAL (4) ──────────────────────────────────────────────
-        from swarm.agents.talent.scout import TalentScoutAgent
-        from swarm.agents.talent.deal import DealAgent
-        from swarm.agents.talent.roster import RosterAgent
-        from swarm.agents.talent.stage import StageAgent
-
-        all_agents = [
-            # Personal (6)
-            AtlasAgent(*deps),
-            MidasAgent(*deps),
-            VitalsAgent(*deps),
-            NourishAgent(*deps),
-            NavigatorAgent(*deps),
-            HearthAgent(*deps),
-            # Business (10)
-            StrategosAgent(*deps),
-            HeraldAgent(*deps),
-            PipelineAgent(*deps),
-            LedgerAgent(*deps),
-            CounselAgent(*deps),
-            TalentAgent(*deps),
-            NexusAgent(*deps),
-            OpsAgent(*deps),
-            RevenueAgent(*deps),
-            SovereignAgent(*deps),
-            # Comms (5)
-            PulseAgent(*deps),
-            EchoCommsAgent(*deps),
-            EnvoyAgent(*deps),
-            CipherAgent(*deps),
-            HeraldSchedulerAgent(*deps),
-            # Scientific (5)
-            MedicusAgent(*deps),
-            CosmosAgent(*deps),
-            GaiaAgent(*deps),
-            OracleAgent(*deps),
-            ScribeAgent(*deps),
-            # Creative (2)
-            AuthorAgent(*deps),
-            LensAgent(*deps),
-            # Recursive (3)
-            ScoutAgent(*deps),
-            AlchemistAgent(*deps),
-            CalibratorAgent(*deps),
-            # Technology (3)
-            ForgeAgent(*deps),
-            AegisAgent(*deps),
-            BridgeAgent(*deps),
-            # Talent Vertical (4)
-            TalentScoutAgent(*deps),
-            DealAgent(*deps),
-            RosterAgent(*deps),
-            StageAgent(*deps),
-        ]
-
-        for agent in all_agents:
-            registry.register(agent)
+        for mod_info in pkgutil.walk_packages(_pkg.__path__, _pkg.__name__ + "."):
+            try:
+                mod = importlib.import_module(mod_info.name)
+            except Exception as e:
+                log.warning(f"Agent module {mod_info.name} failed to import: {e}")
+                continue
+            for _, obj in inspect.getmembers(mod, inspect.isclass):
+                if not (issubclass(obj, BaseAgent) and obj is not BaseAgent
+                        and obj.__module__ == mod.__name__):
+                    continue
+                try:
+                    agent = obj(*deps)
+                except TypeError:
+                    # Older agents take no shared deps — construct bare and
+                    # attach the deps they understand.
+                    try:
+                        agent = obj()
+                        for attr, val in zip(
+                            ("model_router", "state_manager", "causal_graph", "hyper_shield"),
+                            deps,
+                        ):
+                            if not hasattr(agent, attr) or getattr(agent, attr) is None:
+                                setattr(agent, attr, val)
+                    except Exception as e:
+                        log.warning(f"{obj.__name__} failed to initialize: {e}")
+                        continue
+                except Exception as e:
+                    log.warning(f"{obj.__name__} failed to initialize: {e}")
+                    continue
+                if agent.agent_id in registry._agents:
+                    # Never silently overwrite — qualify with the domain.
+                    alt = f"{agent.agent_id}-{agent.domain.upper()}"
+                    log.warning(
+                        f"agent_id collision: '{agent.agent_id}' already registered "
+                        f"({registry._agents[agent.agent_id].__class__.__name__}); "
+                        f"registering {obj.__name__} as '{alt}'"
+                    )
+                    agent.agent_id = alt
+                registry.register(agent)
 
         log.info(f"AgentRegistry: {len(registry._agents)} agents registered — HyperSwarm ONLINE")
         return registry

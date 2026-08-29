@@ -18,8 +18,8 @@ class GlobalPredictionEngine(BaseAgent):
     supported_task_types = ["predict", "analyze", "coordinate", "trade", "intel"]
     preferred_model = "claude-sonnet-4-6"
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, model_router=None, state_manager=None, causal_graph=None, hyper_shield=None):
+        super().__init__(model_router, state_manager, causal_graph, hyper_shield)
         
         # Intelligence sources coordination
         self.intelligence_sources = {
