@@ -30,8 +30,10 @@ All notable changes to HyperClaw will be documented in this file.
   `~/.hyperclaw/config/` on first access; all four loaders use it.
 - TUI conversation repair (`clean_history`) now enforces the Messages API tool
   contract — ordering and adjacency of `tool_use`/`tool_result` pairs — instead
-  of a global ID lookup. Fixes recurring 400 `unexpected tool_use_id` errors on
-  resumed or trimmed sessions.
+  of a global ID lookup, and iterates the repair passes to a fixpoint — dropping
+  a leading assistant message can orphan a tool_result that was valid a sweep
+  earlier. Fixes recurring 400 `unexpected tool_use_id` errors on resumed or
+  trimmed sessions.
 - Conversation reset preserves recent plain-text turns instead of wiping all
   context.
 - Integration credentials (Telegram, ElevenLabs, GitHub, OpenAI, Slack, Discord)

@@ -2949,67 +2949,75 @@ def clean_history(history):
     """
     Repair history so it satisfies the Messages API tool contract:
     - a tool_result is only valid if the IMMEDIATELY preceding assistant
-      message contains the matching tool_use (a global ID lookup is not
-      enough — ordering and adjacency matter to the API);
-    - an assistant tool_use is only valid if the NEXT message answers it
-      with a matching tool_result;
+      message contains the matching tool_use;
+    - an assistant tool_use is only valid if the NEXT message answers it;
     - history must start with a user message and contain no empty messages.
+
+    The passes are iterated to a fixpoint: dropping a leading assistant
+    message (or merging neighbors) can orphan a tool_result that was valid
+    a moment earlier, so one sweep is not enough — repair until stable.
     """
+    def _sweep(msgs):
+        # Pass 1: drop tool_results not answered by the directly preceding
+        # assistant message.
+        cleaned = []
+        for msg in msgs:
+            role = msg.get("role")
+            content = msg.get("content")
+            if role == "user" and isinstance(content, list):
+                prev = cleaned[-1] if cleaned else None
+                valid_ids = set()
+                if prev and prev.get("role") == "assistant" and isinstance(prev.get("content"), list):
+                    valid_ids = {b.get("id") for b in prev["content"]
+                                 if isinstance(b, dict) and b.get("type") == "tool_use"}
+                kept = [b for b in content
+                        if not (isinstance(b, dict) and b.get("type") == "tool_result"
+                                and b.get("tool_use_id") not in valid_ids)]
+                if kept:
+                    cleaned.append({"role": "user", "content": kept})
+            elif content:
+                cleaned.append(dict(msg))
+
+        # Pass 2: strip assistant tool_use blocks the next message never answers.
+        for i, msg in enumerate(cleaned):
+            if msg.get("role") == "assistant" and isinstance(msg.get("content"), list):
+                nxt = cleaned[i + 1] if i + 1 < len(cleaned) else None
+                answered = set()
+                if nxt and nxt.get("role") == "user" and isinstance(nxt.get("content"), list):
+                    answered = {b.get("tool_use_id") for b in nxt["content"]
+                                if isinstance(b, dict) and b.get("type") == "tool_result"}
+                msg["content"] = [b for b in msg["content"]
+                                  if not (isinstance(b, dict) and b.get("type") == "tool_use"
+                                          and b.get("id") not in answered)]
+
+        # Pass 3: drop empties, merge consecutive same-role, start with user.
+        merged = []
+        for msg in cleaned:
+            if not msg.get("content"):
+                continue
+            if merged and merged[-1]["role"] == msg["role"]:
+                a, b = merged[-1]["content"], msg["content"]
+                if isinstance(a, str) and isinstance(b, str):
+                    merged[-1]["content"] = a + "\n" + b
+                else:
+                    a = a if isinstance(a, list) else [{"type": "text", "text": a}]
+                    b = b if isinstance(b, list) else [{"type": "text", "text": b}]
+                    merged[-1]["content"] = a + b
+            else:
+                merged.append(msg)
+        while merged and merged[0]["role"] != "user":
+            merged.pop(0)
+        return merged
+
     if not history:
         return []
-
-    # Pass 1: drop tool_results not answered by the directly preceding
-    # assistant message.
-    cleaned = []
-    for msg in history:
-        role = msg.get("role")
-        content = msg.get("content")
-        if role == "user" and isinstance(content, list):
-            prev = cleaned[-1] if cleaned else None
-            valid_ids = set()
-            if prev and prev.get("role") == "assistant" and isinstance(prev.get("content"), list):
-                valid_ids = {b.get("id") for b in prev["content"]
-                             if isinstance(b, dict) and b.get("type") == "tool_use"}
-            kept = [b for b in content
-                    if not (isinstance(b, dict) and b.get("type") == "tool_result"
-                            and b.get("tool_use_id") not in valid_ids)]
-            if kept:
-                cleaned.append({"role": "user", "content": kept})
-        elif content:
-            cleaned.append(dict(msg))
-
-    # Pass 2: strip assistant tool_use blocks that the next message never
-    # answers (e.g. the tail of the window was trimmed mid-exchange).
-    for i, msg in enumerate(cleaned):
-        if msg.get("role") == "assistant" and isinstance(msg.get("content"), list):
-            nxt = cleaned[i + 1] if i + 1 < len(cleaned) else None
-            answered = set()
-            if nxt and nxt.get("role") == "user" and isinstance(nxt.get("content"), list):
-                answered = {b.get("tool_use_id") for b in nxt["content"]
-                            if isinstance(b, dict) and b.get("type") == "tool_result"}
-            msg["content"] = [b for b in msg["content"]
-                              if not (isinstance(b, dict) and b.get("type") == "tool_use"
-                                      and b.get("id") not in answered)]
-
-    # Pass 3: drop empties, merge consecutive same-role messages, and make
-    # sure the conversation starts with a user message.
-    merged = []
-    for msg in cleaned:
-        if not msg.get("content"):
-            continue
-        if merged and merged[-1]["role"] == msg["role"]:
-            a, b = merged[-1]["content"], msg["content"]
-            if isinstance(a, str) and isinstance(b, str):
-                merged[-1]["content"] = a + "\n" + b
-            else:
-                a = a if isinstance(a, list) else [{"type": "text", "text": a}]
-                b = b if isinstance(b, list) else [{"type": "text", "text": b}]
-                merged[-1]["content"] = a + b
-        else:
-            merged.append(msg)
-    while merged and merged[0]["role"] != "user":
-        merged.pop(0)
-    return merged
+    current = list(history)
+    for _ in range(5):  # fixpoint in practice within 2-3 sweeps
+        swept = _sweep(current)
+        if swept == current:
+            break
+        current = swept
+    return current
 
 
 def chat(message):
