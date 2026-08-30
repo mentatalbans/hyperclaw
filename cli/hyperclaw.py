@@ -173,22 +173,37 @@ def start() -> None:
     """Start HyperClaw and chat with your AI."""
     import os
 
-    # Check for API key - also try loading from ~/.hyperclaw/.env
+    # Load all vars from ~/.hyperclaw/.env into the environment
     from pathlib import Path
     env_file = Path.home() / ".hyperclaw" / ".env"
     if env_file.exists():
         for line in env_file.read_text().splitlines():
-            if line.startswith("ANTHROPIC_API_KEY="):
-                key, val = line.split("=", 1)
-                os.environ.setdefault(key.strip(), val.strip().strip('"'))
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, val = line.split("=", 1)
+            os.environ.setdefault(key.strip(), val.strip().strip('"'))
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        console.print("[red]ANTHROPIC_API_KEY not set.[/red]")
-        console.print("\nRun [bold cyan]hyperclaw init[/bold cyan] to set up your API key.")
-        console.print("\nOr set it manually:")
-        console.print("  export ANTHROPIC_API_KEY=sk-ant-...")
-        raise typer.Exit(1)
+    provider = os.environ.get("LLM_PROVIDER", "anthropic")
+    if provider == "openai_compat":
+        if not os.environ.get("OPENAI_API_KEY"):
+            console.print("[red]OPENAI_API_KEY not set.[/red]")
+            console.print("\nRun [bold cyan]hyperclaw init --reset[/bold cyan] to reconfigure.")
+            raise typer.Exit(1)
+    elif provider == "bedrock":
+        pass  # boto3 uses IAM role or env creds — no explicit key required
+    elif provider in ("anthropic", "anthropic_compat"):
+        if not os.environ.get("ANTHROPIC_API_KEY"):
+            console.print("[red]ANTHROPIC_API_KEY not set.[/red]")
+            console.print("\nRun [bold cyan]hyperclaw init[/bold cyan] to set up your API key.")
+            console.print("\nOr set it manually:")
+            console.print("  export ANTHROPIC_API_KEY=sk-ant-...")
+            raise typer.Exit(1)
+    else:
+        if not os.environ.get("ANTHROPIC_API_KEY"):
+            console.print("[red]ANTHROPIC_API_KEY not set.[/red]")
+            console.print("\nRun [bold cyan]hyperclaw init[/bold cyan] to set up your API key.")
+            raise typer.Exit(1)
 
     # Launch TUI directly
     try:
@@ -226,15 +241,27 @@ def swarm_run(
         from swarm.bid_protocol import BidCoordinator
         from core.hyperrouter.bandit import HyperRouter
 
+        # Load all vars from ~/.hyperclaw/.env
+        from pathlib import Path as _Path
+        _env_file = _Path.home() / ".hyperclaw" / ".env"
+        if _env_file.exists():
+            for _line in _env_file.read_text().splitlines():
+                _line = _line.strip()
+                if not _line or _line.startswith("#") or "=" not in _line:
+                    continue
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip().strip('"'))
+
+        provider = os.environ.get("LLM_PROVIDER", "anthropic")
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not api_key:
+        if provider not in ("openai_compat", "bedrock") and not api_key:
             console.print("[red]ANTHROPIC_API_KEY not set[/red]")
             raise typer.Exit(1)
 
         console.print(f"\n[bold cyan]⚡ NEXUS orchestrating:[/bold cyan] {goal[:80]}")
         console.print(f"[dim]Domain: {domain}[/dim]\n")
 
-        claude = ClaudeClient(api_key=api_key)
+        claude = ClaudeClient(api_key=api_key or "placeholder")
         cj_key = os.environ.get("CHATJIMMY_API_KEY")
         cj = ChatJimmyClient() if cj_key else None
         model_router = ModelRouter(claude_client=claude, chatjimmy_client=cj)

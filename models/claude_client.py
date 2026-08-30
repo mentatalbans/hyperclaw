@@ -117,7 +117,12 @@ class ClaudeClient:
         return text
 
     async def _do_chat_bedrock(self, messages: list[dict], system: str) -> str:
-        from hyperclaw.core.providers.llm import BedrockProvider, Message as BMsg
+        try:
+            from core.providers.llm import BedrockProvider, Message as BMsg
+        except ImportError:
+            import sys as _sys, pathlib as _pl
+            _sys.path.insert(0, str(_pl.Path(__file__).parent.parent))
+            from core.providers.llm import BedrockProvider, Message as BMsg
         t0 = time.time()
         provider = BedrockProvider(
             access_key=os.environ.get("AWS_ACCESS_KEY_ID"),
@@ -147,11 +152,31 @@ class ClaudeClient:
             oai_messages.append({"role": "system", "content": system})
         oai_messages.extend(messages)
         model = os.environ.get("OPENAI_MODEL", self.model)
-        response = await self._oai_client.chat.completions.create(
-            model=model,
-            messages=oai_messages,
-            max_tokens=self.max_tokens,
-        )
+        try:
+            response = await self._oai_client.chat.completions.create(
+                model=model,
+                messages=oai_messages,
+                max_tokens=self.max_tokens,
+            )
+        except Exception as _e:
+            _err = str(_e).lower()
+            if any(k in _err for k in ("connection", "connect", "unreachable", "refused", "timeout")):
+                log.warning(f"OpenAI-compat unreachable ({_e}), falling back to Bedrock")
+                import re as _re
+                from pathlib import Path as _Path
+                _bedrock_model = os.environ.get("BEDROCK_MODEL", "us.anthropic.claude-sonnet-5")
+                os.environ["LLM_PROVIDER"] = "bedrock"
+                os.environ.setdefault("AWS_REGION", "us-west-2")
+                os.environ.setdefault("AWS_PROFILE", "hyper")
+                os.environ["BEDROCK_MODEL"] = _bedrock_model
+                _env_f = _Path.home() / ".hyperclaw" / ".env"
+                if _env_f.exists():
+                    _txt = _env_f.read_text()
+                    _txt = _re.sub(r'^LLM_PROVIDER=.*$', 'LLM_PROVIDER=bedrock', _txt, flags=_re.MULTILINE)
+                    _env_f.write_text(_txt)
+                self._provider = "bedrock"
+                return await self._do_chat_bedrock(messages, system)
+            raise
         latency_ms = (time.time() - t0) * 1000
         usage = response.usage
         log.info(
@@ -170,6 +195,31 @@ class ClaudeClient:
         """
         Stream a chat response. Yields text chunks as they arrive.
         """
+        if self._provider == "bedrock":
+            # BedrockProvider has no streaming; yield full response as single chunk
+            text = await self._do_chat_bedrock(messages, system)
+            yield text
+            return
+
+        if self._provider == "openai_compat":
+            oai_messages = []
+            if system:
+                oai_messages.append({"role": "system", "content": system})
+            oai_messages.extend(messages)
+            model = os.environ.get("OPENAI_MODEL", self.model)
+            async with self._oai_client.chat.completions.create(
+                model=model,
+                messages=oai_messages,
+                max_tokens=self.max_tokens,
+                stream=True,
+            ) as stream:
+                async for chunk in stream:
+                    delta = chunk.choices[0].delta.content if chunk.choices else None
+                    if delta:
+                        yield delta
+            return
+
+        # anthropic / anthropic_compat
         kwargs: dict = dict(
             model=self.model,
             max_tokens=self.max_tokens,

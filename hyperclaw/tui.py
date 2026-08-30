@@ -101,8 +101,16 @@ def env_var(key, default=""):
                     return val
     return default
 
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-MODEL = os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-6")
+def _resolve_api_key():
+    provider = os.environ.get("LLM_PROVIDER", "anthropic")
+    if provider == "openai_compat":
+        return os.environ.get("OPENAI_API_KEY", "")
+    if provider == "bedrock":
+        return ""
+    return os.environ.get("ANTHROPIC_API_KEY", "")
+
+API_KEY = _resolve_api_key()
+MODEL = os.environ.get("OPENAI_MODEL") or os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-6")
 WORKSPACE = HYPERCLAW_ROOT / "workspace"
 MEMORY_DIR = HYPERCLAW_ROOT / "memory"
 SESSION_FILE = HYPERCLAW_ROOT / "session_history.json"
@@ -3020,9 +3028,176 @@ def clean_history(history):
     return current
 
 
+def _switch_to_bedrock():
+    """Mutate env to Bedrock and persist to ~/.hyperclaw/.env. Called on hyperspeed connection failure."""
+    import re as _re
+    bedrock_model = os.environ.get("BEDROCK_MODEL", "us.anthropic.claude-sonnet-5")
+    os.environ["LLM_PROVIDER"] = "bedrock"
+    os.environ.setdefault("AWS_REGION", "us-west-2")
+    os.environ.setdefault("AWS_PROFILE", "hyper")
+    os.environ["BEDROCK_MODEL"] = bedrock_model
+
+    env_file = HYPERCLAW_ROOT / ".env"
+    if env_file.exists():
+        text = env_file.read_text()
+        text = _re.sub(r'^LLM_PROVIDER=.*$', 'LLM_PROVIDER=bedrock', text, flags=_re.MULTILINE)
+        if 'BEDROCK_MODEL=' not in text:
+            text += f'\nBEDROCK_MODEL={bedrock_model}'
+        if 'AWS_PROFILE=' not in text:
+            text += '\nAWS_PROFILE=hyper'
+        env_file.write_text(text)
+
+    print(f"\n{YELLOW}⚡ hyperspeed unreachable — switched to Bedrock ({bedrock_model}){RESET}\n")
+
+
+def _anthropic_tools_to_openai(tools):
+    """Convert Anthropic tool format (input_schema) to OpenAI function format (parameters)."""
+    result = []
+    for t in tools:
+        result.append({
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t.get("input_schema", {"type": "object", "properties": {}}),
+            }
+        })
+    return result
+
+
+def _history_to_openai(history):
+    """Convert HISTORY (Anthropic-format) to OpenAI message list."""
+    oai = []
+    for msg in history:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            oai.append({"role": role, "content": content})
+        elif isinstance(content, list):
+            # Flatten Anthropic content blocks to a single string for OpenAI
+            text_parts = []
+            for block in content:
+                if isinstance(block, dict):
+                    if block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+                    elif block.get("type") == "tool_result":
+                        text_parts.append(f"[Tool result: {block.get('content', '')}]")
+                else:
+                    text_parts.append(str(block))
+            oai.append({"role": role, "content": " ".join(text_parts)})
+    return oai
+
+
+def _chat_openai(message):
+    """OpenAI-compatible chat path with streaming and tool use."""
+    import json as _json
+    global HISTORY
+
+    import openai as _oai
+
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    base_url = os.environ.get("OPENAI_BASE_URL")
+    model = os.environ.get("OPENAI_MODEL", MODEL)
+
+    client = _oai.OpenAI(api_key=api_key, base_url=base_url)
+    oai_tools = _anthropic_tools_to_openai(TOOLS)
+
+    HISTORY.append({"role": "user", "content": message})
+
+    _api_retries = 0
+    while True:
+        try:
+            oai_messages = [{"role": "system", "content": SYSTEM}] + _history_to_openai(HISTORY)
+
+            print(f"\n{DIM}Processing...{RESET}")
+
+            stream = client.chat.completions.create(
+                model=model,
+                messages=oai_messages,
+                tools=oai_tools,
+                tool_choice="auto",
+                max_tokens=4096,
+                stream=True,
+            )
+
+            # Accumulate streamed response
+            full_content = ""
+            tool_calls_acc: dict = {}  # index -> {id, name, arguments}
+            finish_reason = None
+
+            print(f"\n{MAGENTA}{BOLD}{AI_NAME}:{RESET} ", end="", flush=True)
+            for chunk in stream:
+                choice = chunk.choices[0] if chunk.choices else None
+                if not choice:
+                    continue
+                finish_reason = choice.finish_reason or finish_reason
+                delta = choice.delta
+                if delta.content:
+                    print(delta.content, end="", flush=True)
+                    full_content += delta.content
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in tool_calls_acc:
+                            tool_calls_acc[idx] = {"id": tc.id or "", "name": "", "arguments": ""}
+                        if tc.id:
+                            tool_calls_acc[idx]["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                tool_calls_acc[idx]["name"] += tc.function.name
+                            if tc.function.arguments:
+                                tool_calls_acc[idx]["arguments"] += tc.function.arguments
+            print()
+
+            if full_content:
+                HISTORY.append({"role": "assistant", "content": full_content})
+
+            if finish_reason == "tool_calls" and tool_calls_acc:
+                tool_results_text = []
+                for idx in sorted(tool_calls_acc.keys()):
+                    tc = tool_calls_acc[idx]
+                    try:
+                        args = _json.loads(tc["arguments"]) if tc["arguments"] else {}
+                    except _json.JSONDecodeError:
+                        args = {"raw": tc["arguments"]}
+                    print(f"\n{DIM}[Tool: {tc['name']}]{RESET}")
+                    result = execute_tool(tc["name"], args)
+                    tool_results_text.append(f"[{tc['name']} result]: {str(result)[:5000]}")
+
+                # Append tool results as a user message so the loop continues
+                HISTORY.append({"role": "user", "content": "\n".join(tool_results_text)})
+                continue  # let model see results
+
+            break
+
+        except Exception as e:
+            err_str = str(e).lower()
+            is_conn_err = any(k in err_str for k in ("connection", "connect", "unreachable", "refused", "timeout", "network"))
+            if is_conn_err and _api_retries == 0:
+                _switch_to_bedrock()
+                # Retry this message on Bedrock via the Anthropic path
+                # Re-enter chat() which will now route to Anthropic/Bedrock
+                HISTORY.pop()  # remove the user message we just added; chat() will re-add it
+                chat(message)
+                return
+            print(f"\n{RED}API Error: {e}{RESET}")
+            _api_retries += 1
+            if _api_retries > 3:
+                break
+            import time as _time
+            _time.sleep(min(2 ** _api_retries, 16))
+
+    if len(HISTORY) > 40:
+        HISTORY = HISTORY[-40:]
+
+
 def chat(message):
     """Send message with streaming output."""
     global HISTORY
+
+    if os.environ.get("LLM_PROVIDER") == "openai_compat":
+        _chat_openai(message)
+        return
 
     client = anthropic.Anthropic(api_key=API_KEY)
     HISTORY.append({"role": "user", "content": message})
@@ -3202,11 +3377,28 @@ def chat(message):
 def main():
     global HISTORY, SYSTEM
 
-    if not API_KEY:
+    # Re-resolve key here so it picks up env loaded after module import
+    _live_key = _resolve_api_key()
+    _provider = os.environ.get("LLM_PROVIDER", "anthropic")
+    if _provider == "openai_compat" and not _live_key:
+        print(f"\n{RED}OPENAI_API_KEY not set.{RESET}")
+        print(f"\nRun {CYAN}hyperclaw init --reset{RESET} to reconfigure.")
+        sys.exit(1)
+    elif _provider not in ("openai_compat", "bedrock") and not _live_key:
         print(f"\n{RED}ANTHROPIC_API_KEY not set.{RESET}")
         print(f"\nRun {CYAN}hyperclaw init{RESET} to set up your API key.")
         print(f"Or set it manually: export ANTHROPIC_API_KEY=sk-ant-...")
         sys.exit(1)
+
+    # Startup connectivity check — silently fall back to Bedrock if hyperspeed is down
+    if _provider == "openai_compat":
+        import urllib.request as _ur, urllib.error as _ue
+        _base = os.environ.get("OPENAI_BASE_URL", "").rstrip("/")
+        try:
+            req = _ur.Request(f"{_base}/models", headers={"Authorization": f"Bearer {_live_key}"})
+            _ur.urlopen(req, timeout=4)
+        except Exception:
+            _switch_to_bedrock()
 
     # Load memories and build system prompt
     print(f"\n{DIM}Loading memories...{RESET}")

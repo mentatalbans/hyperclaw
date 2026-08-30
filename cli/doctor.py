@@ -112,12 +112,64 @@ def run_doctor() -> int:
             checks.append(_check(f"Package: {label}", False, f"pip install {label.split()[0]}"))
 
     # ── Environment variables ─────────────────────────────────────────────────
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    checks.append(_check(
-        "ANTHROPIC_API_KEY",
-        bool(anthropic_key),
-        f"sk-ant-...{anthropic_key[-6:]}" if anthropic_key else "Not set — export ANTHROPIC_API_KEY=...",
-    ))
+    # Load ~/.hyperclaw/.env so doctor works without a sourced shell
+    _hc_env = Path.home() / ".hyperclaw" / ".env"
+    if _hc_env.exists():
+        for _line in _hc_env.read_text().splitlines():
+            _line = _line.strip()
+            if not _line or _line.startswith("#") or "=" not in _line:
+                continue
+            _k, _v = _line.split("=", 1)
+            os.environ.setdefault(_k.strip(), _v.strip().strip('"'))
+
+    provider = os.environ.get("LLM_PROVIDER", "anthropic")
+    checks.append(_check("LLM_PROVIDER", True, provider))
+
+    if provider == "openai_compat":
+        oai_key = os.environ.get("OPENAI_API_KEY", "")
+        checks.append(_check(
+            "OPENAI_API_KEY",
+            bool(oai_key),
+            f"...{oai_key[-6:]}" if oai_key else "Not set — export OPENAI_API_KEY=...",
+        ))
+        oai_url = os.environ.get("OPENAI_BASE_URL", "")
+        checks.append(_check(
+            "OPENAI_BASE_URL",
+            bool(oai_url),
+            oai_url if oai_url else "Not set — export OPENAI_BASE_URL=http://host/v1",
+        ))
+        oai_model = os.environ.get("OPENAI_MODEL", "")
+        checks.append(_check("OPENAI_MODEL", True, oai_model or "(default)"))
+    elif provider == "bedrock":
+        region = os.environ.get("AWS_REGION", "") or os.environ.get("AWS_DEFAULT_REGION", "")
+        checks.append(_check(
+            "AWS_REGION",
+            bool(region),
+            region if region else "Not set — defaulting to us-east-1",
+            warn=not bool(region),
+        ))
+        bedrock_model = os.environ.get("BEDROCK_MODEL", "anthropic.claude-sonnet-5")
+        checks.append(_check("BEDROCK_MODEL", True, bedrock_model))
+    elif provider == "anthropic_compat":
+        anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        checks.append(_check(
+            "ANTHROPIC_API_KEY",
+            bool(anthropic_key),
+            f"...{anthropic_key[-6:]}" if anthropic_key else "Not set",
+        ))
+        compat_url = os.environ.get("ANTHROPIC_BASE_URL", "")
+        checks.append(_check(
+            "ANTHROPIC_BASE_URL",
+            bool(compat_url),
+            compat_url if compat_url else "Not set — export ANTHROPIC_BASE_URL=http://host",
+        ))
+    else:
+        anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        checks.append(_check(
+            "ANTHROPIC_API_KEY",
+            bool(anthropic_key),
+            f"sk-ant-...{anthropic_key[-6:]}" if anthropic_key else "Not set — export ANTHROPIC_API_KEY=...",
+        ))
 
     db_url_env = os.environ.get("DATABASE_URL", "")
     checks.append(_check(
