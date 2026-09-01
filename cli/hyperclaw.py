@@ -233,6 +233,7 @@ def swarm_run(
         from models.router import ModelRouter
         from models.claude_client import ClaudeClient
         from models.chatjimmy_client import ChatJimmyClient
+        from models.openai_client import OpenAIClient
         from core.hyperstate.state_manager import StateManager
         from core.hyperstate.store import HyperStateStore
         from memory.causal_graph import CausalGraph
@@ -264,7 +265,13 @@ def swarm_run(
         claude = ClaudeClient(api_key=api_key or "placeholder")
         cj_key = os.environ.get("CHATJIMMY_API_KEY")
         cj = ChatJimmyClient() if cj_key else None
-        model_router = ModelRouter(claude_client=claude, chatjimmy_client=cj)
+        oai_key = os.environ.get("OPENAI_API_KEY")
+        oai = OpenAIClient(
+            api_key=oai_key,
+            model=os.environ.get("OPENAI_MODEL", "gpt-4o"),
+            base_url=os.environ.get("OPENAI_API_BASE") or None,
+        ) if oai_key else None
+        model_router = ModelRouter(claude_client=claude, chatjimmy_client=cj, openai_client=oai)
 
         db_url = os.environ.get("DATABASE_URL", "")
         store = HyperStateStore(db_url) if db_url else HyperStateStore()

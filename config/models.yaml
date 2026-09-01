@@ -50,6 +50,15 @@ models:
     suitable_tasks: [routing, classification, quick_lookup, summarization, draft, triage, status_check]
     note: "Powered by Taalas HC1 silicon — Llama 3.1 8B at 17,000 tokens/sec. Never auto-certified."
 
+  openai/custom:
+    provider: openai
+    cost_per_1k_input: 0.0
+    cost_per_1k_output: 0.0
+    latency_ms: 500
+    max_tokens: 32768
+    suitable_tasks: [research, analysis, synthesis, planning, code, health, finance, scientific]
+    note: "HyperNimbus vLLM — hyper-nimbus/hyperspeed-v11-merged. Set OPENAI_API_BASE and OPENAI_API_KEY."
+
   nim-local:
     provider: nim
     cost_per_1k_input: 0.0

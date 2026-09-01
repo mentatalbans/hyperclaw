@@ -16,6 +16,7 @@ from core.hyperstate.schema import HyperState
 from core.hyperrouter.bandit import HyperRouter, update_scores
 from .claude_client import ClaudeClient
 from .chatjimmy_client import ChatJimmyClient
+from .openai_client import OpenAIClient
 
 log = logging.getLogger("hyperclaw.model_router")
 
@@ -52,9 +53,11 @@ class ModelRouter:
         self,
         claude_client: ClaudeClient,
         chatjimmy_client: Optional[ChatJimmyClient] = None,
+        openai_client: Optional[OpenAIClient] = None,
     ) -> None:
         self._claude = claude_client
         self._chatjimmy = chatjimmy_client
+        self._openai = openai_client
         self._router = HyperRouter()
 
     async def route(
@@ -106,6 +109,13 @@ class ModelRouter:
                 input_tokens = resp.stats.prefill_tokens
                 output_tokens = resp.stats.decode_tokens
                 # ChatJimmy is NEVER auto-certified
+                certified = False
+            elif model_id.startswith("openai/") or model_id == "openai":
+                if self._openai is None:
+                    raise RuntimeError("OpenAI client not configured. Set OPENAI_API_KEY and OPENAI_API_BASE.")
+                content = await self._openai.chat(messages, system=system)
+                input_tokens = sum(len(str(m.get("content", ""))) // 4 for m in messages)
+                output_tokens = len(content) // 4
                 certified = False
             else:
                 content = await self._claude.chat(messages, system=system)
