@@ -36,6 +36,14 @@ class Provider:
         for env in (self.api_key_env, self.base_url_env, self.model_env):
             if env and not os.environ.get(env, "").strip():
                 return False
+        if self.kind == "openai":
+            # The native OpenAI provider is only live when OPENAI_* really
+            # points at OpenAI. Users of the legacy OPENAI_BASE_URL compat
+            # wiring (37afbb0) have a *different* endpoint behind these
+            # vars — routing images/embeddings there with that key fails.
+            base = os.environ.get("OPENAI_BASE_URL", "").strip()
+            if base and "api.openai.com" not in base:
+                return False
         return True
 
     @property

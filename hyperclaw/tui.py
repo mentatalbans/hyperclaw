@@ -110,7 +110,21 @@ def _resolve_api_key():
     return os.environ.get("ANTHROPIC_API_KEY", "")
 
 API_KEY = _resolve_api_key()
-MODEL = os.environ.get("OPENAI_MODEL") or os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-6")
+def _tools_model() -> str:
+    """The TUI runs the `tools` slot (Anthropic tool blocks end to end).
+    Its model must come from the tools provider, not from OPENAI_MODEL —
+    a compat endpoint's model name sent to Anthropic is a guaranteed 404."""
+    try:
+        from hyperclaw.providers import registry
+        cands = registry().resolve("tools", {"chat", "tool_use"})
+        if cands:
+            return cands[0][1]
+    except Exception:
+        pass
+    return os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-6")
+
+
+MODEL = _tools_model()
 WORKSPACE = HYPERCLAW_ROOT / "workspace"
 MEMORY_DIR = HYPERCLAW_ROOT / "memory"
 SESSION_FILE = HYPERCLAW_ROOT / "session_history.json"
@@ -3342,8 +3356,9 @@ def chat(message):
             # themselves — retrying just hammers the API. Fail fast.
             if status is not None and 400 <= status < 500 and status != 429:
                 if status == 404:
-                    print(f"{YELLOW}Model '{MODEL}' not found — it may be retired. "
-                          f"Set HYPERCLAW_MODEL to a current model (e.g. claude-sonnet-4-6).{RESET}")
+                    print(f"{YELLOW}Model '{MODEL}' not found — it may be retired or "
+                          f"misrouted. Check the provider config in "
+                          f"~/.hyperclaw/config/models.yaml and run `hyperclaw doctor`.{RESET}")
                 break
             print(f"{YELLOW}Retrying...{RESET}")
             time.sleep(min(2 ** _api_retries, 30))
