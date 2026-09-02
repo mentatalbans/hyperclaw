@@ -12,6 +12,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import AsyncIterator
 
+import os
 import httpx
 
 log = logging.getLogger("hyperclaw.chatjimmy")
@@ -58,7 +59,9 @@ class ChatJimmyClient:
     NOT suitable for tasks requiring certified outputs — always route through Claude first.
     """
 
-    BASE_URL: str = "https://chatjimmy.ai/api"
+    # Official Taalas API URL (granted by application) — set CHATJIMMY_BASE_URL.
+    # There is intentionally no default: the chatjimmy.ai demo site is NOT the API.
+    BASE_URL: str = os.environ.get("CHATJIMMY_BASE_URL", "")
     TIMEOUT_SECONDS: float = 5.0
 
     SUITABLE_TASK_TYPES: frozenset[str] = frozenset([

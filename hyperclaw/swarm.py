@@ -120,13 +120,18 @@ class SwarmAgent:
 
     def _resolve_model(self, preference: str) -> str:
         """Resolve model preference to actual model ID."""
+        from hyperclaw.providers import registry
+        _anth = registry().providers.get("anthropic")
+        _m = _anth.models if _anth else {}
+        fast_cands = registry().resolve("fast", {"chat"})
+        _fast = fast_cands[0][1] if fast_cands else _m.get("fast", "claude-haiku-4-5-20251001")
         model_map = {
-            "claude-sonnet-4-6": "claude-sonnet-4-6",
+            "claude-sonnet-4-6": _m.get("default", "claude-sonnet-4-6"),
             "claude-sonnet-4-5": "claude-sonnet-4-5",
             "claude-opus-4-5": "claude-opus-4-5",
             "claude-opus-4-6": "claude-opus-4-6",
-            "claude-haiku-4-5": "claude-haiku-4-5-20251001",
-            "chatjimmy": "claude-haiku-4-5-20251001",  # fast/cheap for routing
+            "claude-haiku-4-5": _m.get("fast", "claude-haiku-4-5-20251001"),
+            "chatjimmy": _fast,  # fast slot: chatjimmy when configured, else ladder
         }
         return model_map.get(preference, "claude-sonnet-4-6")
 

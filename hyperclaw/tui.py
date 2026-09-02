@@ -2249,9 +2249,11 @@ def pdf_read_op(path, pages="all"):
 def image_generate_op(prompt, size="1024x1024", save_path=None):
     """Generate image with DALL-E."""
     try:
-        api_key = env_var("OPENAI_API_KEY")
-        if not api_key:
-            return "Set OPENAI_API_KEY environment variable"
+        from hyperclaw.providers import registry
+        cands = registry().resolve("images", {"image_generation"})
+        if not cands:
+            return "Image generation is not configured (no provider with image_generation capability)"
+        api_key = cands[0][0].api_key
 
         with httpx.Client(timeout=60) as client:
             resp = client.post("https://api.openai.com/v1/images/generations",
@@ -3410,6 +3412,11 @@ def main():
     HISTORY = clean_history(HISTORY)
     session_msg = f"Resumed session ({len(HISTORY)} messages)" if HISTORY else "New session"
 
+    try:
+        from hyperclaw.providers import registry
+        print(f"{DIM}{registry().startup_line()}{RESET}")
+    except Exception:
+        pass
     print(f"\n{CYAN}{BOLD}=== HyperClaw ==={RESET}")
     print(f"{DIM}Full computer control: terminal, files, web, GUI, screen{RESET}")
     print(f"{DIM}{session_msg} | /reset to clear, /quit to exit{RESET}\n")

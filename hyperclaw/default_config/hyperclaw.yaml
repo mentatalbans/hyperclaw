@@ -1,7 +1,7 @@
 anthropic:
   api_key: ${ANTHROPIC_API_KEY}
 chatjimmy:
-  base_url: https://chatjimmy.ai/api
+  base_url:   # official Taalas API URL — or set CHATJIMMY_BASE_URL in .env
   timeout_seconds: 5.0
 database:
   url: postgresql://postgres:YOUR_PASSWORD@db.YOUR_PROJECT.supabase.co:5432/postgres

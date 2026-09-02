@@ -8,6 +8,32 @@ All notable changes to HyperClaw will be documented in this file.
 > versions are unified in a single 1.x lineage; `v0.2.0` maps into it as the
 > release immediately preceding 1.1.0.
 
+## [1.2.0] - 2026-09-01
+
+### Added
+- **Provider routing**: capability-based slots (`primary`, `tools`, `vision`,
+  `fast`, `embeddings`, `images`) over user-configured providers, declared in
+  `models.yaml` (`providers:` + `slots:`). A provider is live only when every
+  env var it names resolves; slot ladders are filtered to live providers, so
+  unconfigured providers are never called and never warned about. Streaming
+  failover: pre-first-token failures move to the next rung transparently;
+  mid-stream deaths are marked, never re-answered. Every turn records
+  `served_by`, which the identity line reports.
+- `hyperclaw doctor` prints the provider/slot matrix; `--probe` sends one
+  cheap request per live provider and reports latency.
+
+### Changed
+- ChatJimmy is configured solely via `CHATJIMMY_BASE_URL`/`_API_KEY`/`_MODEL`
+  — the official Taalas API (by application), not the chatjimmy.ai demo;
+  hardcoded URLs removed.
+- Router/swarm/TUI model maps read from `models.yaml` instead of hardcoded
+  model id strings.
+
+### Fixed
+- Memory writes no longer print `OPENAI_API_KEY not set` on every call —
+  the embeddings backend is announced once at startup (semantic via a
+  configured provider, or local hash matching).
+
 ## [1.1.0] - 2026-08-27
 
 ### Fixed

@@ -22,16 +22,28 @@ EMBEDDING_MODEL = "text-embedding-3-small"  # OpenAI, 1536 dims
 EMBEDDING_DIM = 1536
 
 
-def get_openai_key():
-    """Get OpenAI API key from environment or .env file."""
-    key = os.environ.get("OPENAI_API_KEY", "")
-    if not key:
-        env_file = MEMORY_DIR.parent / ".env"
-        if env_file.exists():
-            for line in env_file.read_text().splitlines():
-                if line.startswith("OPENAI_API_KEY="):
-                    key = line.split("=", 1)[1].strip().strip('"')
-    return key
+_announced_backend = False
+
+
+def _embedding_provider():
+    """(api_key, base_url) from the embeddings slot, or (None, None) for
+    the local-hash fallback. Announced once, never warned per call."""
+    global _announced_backend
+    try:
+        from hyperclaw.providers import registry
+        cands = registry().resolve("embeddings", {"embeddings"})
+    except Exception:
+        cands = []
+    if cands:
+        prov, _ = cands[0]
+        if not _announced_backend:
+            _announced_backend = True
+            print(f"memory: semantic embeddings via {prov.name}")
+        return prov.api_key, prov.base_url or "https://api.openai.com"
+    if not _announced_backend:
+        _announced_backend = True
+        print("memory: no embeddings provider configured — using local hash matching")
+    return None, None
 
 
 def init_vector_db():
@@ -57,10 +69,9 @@ def init_vector_db():
 
 def get_embedding(text: str) -> Optional[List[float]]:
     """Get embedding for text using OpenAI API."""
-    api_key = get_openai_key()
+    api_key, base_url = _embedding_provider()
     if not api_key:
-        print("Warning: OPENAI_API_KEY not set, using hash-based pseudo-embedding")
-        # Fallback: simple hash-based embedding (not semantic, but works for exact match)
+        # Local hash fallback (not semantic, but works for exact match)
         h = hashlib.sha256(text.encode()).hexdigest()
         # Convert to 1536-dim vector by repeating hash
         pseudo = [int(h[i:i+2], 16) / 255.0 for i in range(0, 64, 2)] * 48
@@ -69,7 +80,7 @@ def get_embedding(text: str) -> Optional[List[float]]:
     try:
         with httpx.Client(timeout=30) as client:
             resp = client.post(
-                "https://api.openai.com/v1/embeddings",
+                f"{base_url.rstrip('/').removesuffix('/v1')}/v1/embeddings",
                 headers={"Authorization": f"Bearer {api_key}"},
                 json={"input": text[:8000], "model": EMBEDDING_MODEL}
             )

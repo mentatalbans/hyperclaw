@@ -148,21 +148,16 @@ class ChatAgent:
         except Exception as e:
             return f"[Error: {e}]"
 
-    async def stream_events(self, message: str, history: list[dict],
-                            attachments: list | None = None) -> AsyncIterator[tuple]:
-        """Stream ("thinking", delta) and ("text", delta) tuples.
-
-        Lets UIs render the model's thinking while it works
-        and then stream the answer. Thinking deltas only occur on models
-        with adaptive thinking; text-only models just yield text tuples.
-        """
-        messages = self._prepare_messages(message, history, attachments)
-        try:
-            async_client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+    async def _attempt_stream(self, prov, model, messages) -> AsyncIterator[tuple]:
+        """One provider attempt for stream_events — yields ("thinking"|"text", delta)."""
+        system = self._load_system_prompt(model)
+        if prov.kind == "anthropic":
+            model = os.environ.get("HYPERCLAW_MODEL", "").strip() or model
+            async_client = anthropic.AsyncAnthropic(api_key=prov.api_key)
             async with async_client.messages.stream(
-                model=MODEL,
+                model=model,
                 max_tokens=MAX_TOKENS,
-                system=self.system_prompt,
+                system=system,
                 messages=messages,
             ) as stream:
                 async for event in stream:
@@ -172,10 +167,53 @@ class ChatAgent:
                             yield ("thinking", event.delta.thinking)
                         elif dtype == "text_delta":
                             yield ("text", event.delta.text)
-        except anthropic.APIError as e:
-            yield ("text", f"[Error: {e}]")
-        except Exception as e:
-            yield ("text", f"[Error: {e}]")
+            return
+        # openai_compat / openai: chat-completions schema, text content only
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=prov.api_key, base_url=prov.base_url or None)
+        oai = [{"role": "system", "content": system}]
+        for m in messages:
+            c = m.get("content")
+            if isinstance(c, list):
+                c = "\n".join(b.get("text", "") for b in c
+                              if isinstance(b, dict) and b.get("type") == "text")
+            if c:
+                oai.append({"role": m["role"], "content": c})
+        stream = await client.chat.completions.create(
+            model=model, messages=oai, max_tokens=MAX_TOKENS, stream=True,
+        )
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content if chunk.choices else None
+            if delta:
+                yield ("text", delta)
+
+    async def stream_events(self, message: str, history: list[dict],
+                            attachments: list | None = None) -> AsyncIterator[tuple]:
+        """Stream ("thinking", delta) and ("text", delta) tuples.
+
+        Routes by capability: plain text turns use the `primary` slot,
+        attachment turns need documents/images and use `vision`. Failover
+        walks the slot ladder before the first token; a mid-stream death is
+        marked, never re-answered.
+        """
+        from hyperclaw.providers import registry, stream_with_failover
+
+        messages = self._prepare_messages(message, history, attachments)
+        if attachments:
+            slot, need = "vision", {"chat", "documents", "images"}
+        else:
+            slot, need = "primary", {"chat", "streaming"}
+        candidates = registry().resolve(slot, need)
+        if not candidates:
+            yield ("text", f"[Error: no configured provider supports this turn ({slot})]")
+            return
+
+        async def attempt(prov, model):
+            async for item in self._attempt_stream(prov, model, messages):
+                yield item
+
+        async for item in stream_with_failover(candidates, attempt):
+            yield item
 
     async def stream_chat(self, message: str, history: list[dict]) -> AsyncIterator[str]:
         """Stream a response token by token."""

@@ -74,12 +74,52 @@ async def _check_migrations(db_url: str) -> dict:
         return _check("DB migrations", False, str(e)[:80])
 
 
-def run_doctor() -> int:
+def _print_provider_matrix(probe: bool = False) -> None:
+    """Provider/slot matrix per the routing spec; --probe sends one cheap
+    request per live provider and reports latency."""
+    from hyperclaw.providers import registry, SLOTS
+    reg = registry()
+    line = "   ".join(f"{n} {'✓' if pr.live else '–'}" for n, pr in reg.providers.items())
+    console.print(f"\n[bold]Providers[/bold]   {line}")
+    summary = reg.slot_summary()
+    items = [(slot, summary.get(slot, "not configured")) for slot in SLOTS]
+    for a, b in zip(items[::2], items[1::2] + [None] * (len(items) % 2)):
+        left = f"{a[0]} → {a[1]}"
+        right = f"{b[0]} → {b[1]}" if b else ""
+        console.print(f"[bold]Slots[/bold]       {left:<34}{right}" if a[0] == "primary"
+                      else f"            {left:<34}{right}")
+    if not probe:
+        return
+    import time as _t
+    console.print("\n[bold]Probe[/bold]")
+    for name, prov in reg.providers.items():
+        if not prov.live:
+            console.print(f"  {name}: skipped (not configured)")
+            continue
+        t0 = _t.time()
+        try:
+            if prov.kind == "anthropic":
+                import anthropic as _an
+                _an.Anthropic(api_key=prov.api_key).messages.create(
+                    model=prov.model_for("fast") or prov.model_for(),
+                    max_tokens=8, messages=[{"role": "user", "content": "ping"}])
+            else:
+                import openai as _oa
+                _oa.OpenAI(api_key=prov.api_key, base_url=prov.base_url or None).chat.completions.create(
+                    model=prov.model_for(), max_tokens=8,
+                    messages=[{"role": "user", "content": "ping"}])
+            console.print(f"  {name}: ok ({(_t.time()-t0)*1000:.0f}ms)")
+        except Exception as e:
+            console.print(f"  {name}: FAILED ({type(e).__name__}: {str(e)[:80]})")
+
+
+def run_doctor(probe: bool = False) -> int:
     """
     Run all health checks and print results.
     Returns 0 if all critical checks pass, 1 if any fail.
     """
     console.print("\n[bold cyan]⚡ HyperClaw Doctor[/bold cyan]\n")
+    _print_provider_matrix(probe=probe)
 
     checks: list[dict] = []
     db_url = os.environ.get("DATABASE_URL", "")

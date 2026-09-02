@@ -42,11 +42,38 @@ class ModelConfig:
     api_key_env: str = ""
 
 
+# Model ids come from models.yaml (providers.anthropic.models + the
+# chatjimmy provider); the static strings below are only last-resort
+# fallbacks when the registry is unavailable.
+def _yaml_anthropic_models() -> dict:
+    try:
+        from hyperclaw.providers import registry
+        prov = registry().providers.get("anthropic")
+        return dict(prov.models) if prov else {}
+    except Exception:
+        return {}
+
+
+def _yaml_chatjimmy() -> tuple:
+    """(model_id, base_url) for chatjimmy from the registry, or ("", "")."""
+    try:
+        from hyperclaw.providers import registry
+        prov = registry().providers.get("chatjimmy")
+        if prov:
+            return prov.model_for(), prov.base_url
+    except Exception:
+        pass
+    return "", ""
+
+
+_ANTH = _yaml_anthropic_models()
+_CJ_MODEL, _CJ_URL = _yaml_chatjimmy()
+
 # Model registry
 MODELS = {
     # ChatJimmy - Fast & cheap for simple tasks
     "chatjimmy": ModelConfig(
-        id="chatjimmy",
+        id=_CJ_MODEL or "chatjimmy",
         name="ChatJimmy (Llama 3.1 8B)",
         tier=ModelTier.FAST,
         provider="chatjimmy",
@@ -55,13 +82,13 @@ MODELS = {
         max_tokens=2048,
         latency_ms=50,
         capabilities=["chat", "simple_qa", "classification", "extraction"],
-        base_url="https://api.taalas.ai/v1",
+        base_url=_CJ_URL or None,
         api_key_env="CHATJIMMY_API_KEY",
     ),
 
     # Claude Haiku - Fast Claude for moderate tasks
     "claude-haiku": ModelConfig(
-        id="claude-haiku-4-5",
+        id=_ANTH.get("fast", "claude-haiku-4-5"),
         name="Claude Haiku 4.5",
         tier=ModelTier.FAST,
         provider="anthropic",
@@ -75,7 +102,7 @@ MODELS = {
 
     # Claude Sonnet - Balanced for most tasks
     "claude-sonnet": ModelConfig(
-        id="claude-sonnet-5",
+        id=_ANTH.get("standard", "claude-sonnet-5"),
         name="Claude Sonnet 5",
         tier=ModelTier.STANDARD,
         provider="anthropic",
@@ -89,7 +116,7 @@ MODELS = {
 
     # Claude Opus - Premium for complex tasks
     "claude-opus": ModelConfig(
-        id="claude-opus-5",
+        id=_ANTH.get("premium", "claude-opus-5"),
         name="Claude Opus 5",
         tier=ModelTier.PREMIUM,
         provider="anthropic",
@@ -101,7 +128,7 @@ MODELS = {
         api_key_env="ANTHROPIC_API_KEY",
     ),
     "claude-fable": ModelConfig(
-        id="claude-fable-5",
+        id=_ANTH.get("flagship", "claude-fable-5"),
         name="Claude Fable 5",
         tier=ModelTier.PREMIUM,
         provider="anthropic",

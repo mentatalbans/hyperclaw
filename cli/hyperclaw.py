@@ -54,7 +54,7 @@ database:
 
 models:
   default: "claude-sonnet-4-6"
-  chatjimmy_url: "https://chatjimmy.ai/api"
+  chatjimmy_url: ""  # official Taalas API URL (by application) — not the chatjimmy.ai demo
   claude_max_tokens: 4096
 
 router:
@@ -631,12 +631,12 @@ def memory_stats() -> None:
 
 
 @app.command()
-def doctor() -> None:
+def doctor(probe: bool = typer.Option(False, "--probe", help="Send one cheap request per live provider and report latency")) -> None:
     """Check API keys, DB connection, pgvector, policy files, and dependencies."""
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from cli.doctor import run_doctor
     import sys as _sys
-    result = run_doctor()
+    result = run_doctor(probe=probe)
     raise typer.Exit(result)
 
 

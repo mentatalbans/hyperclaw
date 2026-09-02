@@ -66,3 +66,41 @@ models:
     max_resolution: 1024x1024
     suitable_tasks: [image_generation, illustration, diagram, visualization, creative_art, mockup, logo]
     note: "Zimage Turbo via Replicate — 6B params, sub-second generation, strong text rendering"
+
+# ── Provider routing (1.2.0) ─────────────────────────────────────────────
+# A provider is LIVE only if every *_env below resolves to a non-empty
+# value; slot ladders are filtered to live providers at startup. Rename or
+# add entries freely — "hyperspeed" is a placeholder name for any
+# OpenAI-compatible endpoint (Ollama, vLLM, a hosted gateway...).
+providers:
+  anthropic:
+    kind: anthropic            # native Messages API
+    api_key_env: ANTHROPIC_API_KEY
+    capabilities: [chat, streaming, tool_use, images, documents, thinking]
+    models: {default: claude-sonnet-4-6, fast: claude-haiku-4-5-20251001, strong: claude-opus-4-8,
+             standard: claude-sonnet-5, premium: claude-opus-5, flagship: claude-fable-5}
+  hyperspeed:
+    kind: openai_compat
+    base_url_env: HYPERSPEED_BASE_URL
+    api_key_env: HYPERSPEED_API_KEY
+    model_env: HYPERSPEED_MODEL
+    capabilities: [chat, streaming]
+  chatjimmy:
+    kind: openai_compat
+    base_url_env: CHATJIMMY_BASE_URL   # official Taalas API URL (by application); NOT the chatjimmy.ai demo
+    api_key_env: CHATJIMMY_API_KEY
+    model_env: CHATJIMMY_MODEL
+    capabilities: [chat, streaming, fast]
+  openai:
+    kind: openai
+    api_key_env: OPENAI_API_KEY
+    capabilities: [chat, streaming, tool_use, images, embeddings, image_generation]
+    models: {default: gpt-5.2, fast: gpt-5.2-mini}
+
+slots:
+  primary:    [hyperspeed, anthropic]
+  tools:      [anthropic]
+  vision:     [anthropic, hyperspeed]
+  fast:       [chatjimmy, anthropic:fast, hyperspeed]
+  embeddings: [openai, hyperspeed]
+  images:     [openai]

@@ -417,6 +417,8 @@ def main() -> None:
 
     bot = get_telegram_bot()
     app = bot.build()
+    from hyperclaw.providers import registry
+    logger.info(registry().startup_line())
     logger.info(f"HyperClaw Telegram bot starting — {len(ALLOWED_CHAT_IDS)} allowed chat(s), "
                 f"thinking preview {'on' if SHOW_THINKING else 'off'}")
     app.run_polling(drop_pending_updates=True)

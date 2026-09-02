@@ -288,13 +288,16 @@ Current time: {datetime.now().strftime('%Y-%m-%d %H:%M')}
         client = anthropic.Anthropic(api_key=api_key)
 
         # Map model_id to actual model
+        from hyperclaw.providers import registry
+        _anth = registry().providers.get("anthropic")
+        _m = _anth.models if _anth else {}
         model_map = {
-            "chatjimmy": "claude-haiku-4-5-20251001",  # Fallback if ChatJimmy unavailable
-            "claude-haiku": "claude-haiku-4-5-20251001",
-            "claude-sonnet": "claude-sonnet-4-6",
-            "claude-opus": "claude-opus-4-8",
+            "chatjimmy": _m.get("fast", "claude-haiku-4-5-20251001"),  # fallback if ChatJimmy unavailable
+            "claude-haiku": _m.get("fast", "claude-haiku-4-5-20251001"),
+            "claude-sonnet": _m.get("default", "claude-sonnet-4-6"),
+            "claude-opus": _m.get("strong", "claude-opus-4-8"),
         }
-        model = model_map.get(model_id, "claude-sonnet-4-6")
+        model = model_map.get(model_id, _m.get("default", "claude-sonnet-4-6"))
 
         full_response = []
         start_time = time.time()
