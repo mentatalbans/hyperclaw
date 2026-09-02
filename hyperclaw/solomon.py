@@ -53,6 +53,16 @@ def _get_ai_name() -> str:
     return _get_identity()[0]
 
 
+def _model_family(model: str) -> str:
+    """Human-readable family for a model id, or "" if unknown."""
+    m = model.lower()
+    if "hyperspeed" in m or m.startswith("hyper-nimbus/"):
+        return "HyperAI"
+    if "claude" in m:
+        return "Claude"
+    return ""
+
+
 class ChatAgent:
     """Chat agent - manages conversation and context."""
 
@@ -61,15 +71,23 @@ class ChatAgent:
         self.ai_name, self.user_name = _get_identity()
         self.system_prompt = self._load_system_prompt()
 
-    def _load_system_prompt(self) -> str:
-        """Load workspace context files into system prompt."""
+    def _load_system_prompt(self, model: str = "") -> str:
+        """Load workspace context files into system prompt.
+
+        model: the model id actually serving the conversation; defaults to
+        the configured MODEL so callers routing to another provider can
+        rebuild the prompt with the real model."""
+        model = model or MODEL
+        family = _model_family(model)
+        family_clause = f", part of the {family} model family" if family else ""
         whose = (f", the personal AI assistant to {self.user_name}"
                  if self.user_name else ", a helpful AI assistant")
         parts = [
             f"You are {self.ai_name}{whose}.",
-            (f"You run on HyperClaw, powered by the Anthropic model `{MODEL}`. "
-             f"If asked your name, you are {self.ai_name}; if asked what model "
-             f"you use, say so plainly."),
+            (f"You run on HyperClaw. The model serving this conversation is "
+             f"`{model}`{family_clause}. If asked your name, you are "
+             f"{self.ai_name}; if asked what model you use, give that model "
+             f"id exactly."),
             "",
             "## Core Behaviors",
             "- Be helpful, accurate, and concise",
