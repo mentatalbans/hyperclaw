@@ -82,12 +82,9 @@ def _print_provider_matrix(probe: bool = False) -> None:
     line = "   ".join(f"{n} {'✓' if pr.live else '–'}" for n, pr in reg.providers.items())
     console.print(f"\n[bold]Providers[/bold]   {line}")
     summary = reg.slot_summary()
-    items = [(slot, summary.get(slot, "not configured")) for slot in SLOTS]
-    for a, b in zip(items[::2], items[1::2] + [None] * (len(items) % 2)):
-        left = f"{a[0]} → {a[1]}"
-        right = f"{b[0]} → {b[1]}" if b else ""
-        console.print(f"[bold]Slots[/bold]       {left:<34}{right}" if a[0] == "primary"
-                      else f"            {left:<34}{right}")
+    for i, slot in enumerate(SLOTS):
+        label = "[bold]Slots[/bold]      " if i == 0 else "           "
+        console.print(f"{label} {slot:<11}→ {summary.get(slot, 'not configured')}")
     if not probe:
         return
     import time as _t
