@@ -140,21 +140,6 @@ MODELS = {
         api_key_env="ANTHROPIC_API_KEY",
     ),
 
-    # Hyperspeed — internal vLLM endpoint (OpenAI-compatible)
-    "hyperspeed": ModelConfig(
-        id=os.environ.get("OPENAI_MODEL", "hyper-nimbus/hyperspeed-v11-merged"),
-        name="Hyperspeed",
-        tier=ModelTier.STANDARD,
-        provider="openai_compat",
-        cost_per_1k_input=0.0,
-        cost_per_1k_output=0.0,
-        max_tokens=8192,
-        latency_ms=300,
-        capabilities=["chat", "analysis", "coding", "writing", "reasoning", "planning"],
-        base_url=os.environ.get("OPENAI_API_BASE", "https://inference.hypernimbus.ai/v1"),
-        api_key_env="OPENAI_API_KEY",
-    ),
-
     # OpenRouter - Meta router for any model
     "openrouter": ModelConfig(
         id="openrouter/auto",
