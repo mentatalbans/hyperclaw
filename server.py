@@ -37,7 +37,7 @@ def _get_api_key() -> str:
         for line in env_path.read_text().splitlines():
             if line.startswith("ANTHROPIC_API_KEY="):
                 return line.split("=", 1)[1].strip().strip('"').strip("'")
-    return os.environ.get("ANTHROPIC_API_KEY", "")
+    return os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

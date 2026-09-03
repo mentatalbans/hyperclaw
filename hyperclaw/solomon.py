@@ -14,6 +14,9 @@ import anthropic
 from hyperclaw.api_utils import extract_text
 from dotenv import load_dotenv
 
+_OPENAI_API_BASE = os.environ.get("OPENAI_API_BASE", "")
+_USE_OPENAI_COMPAT = bool(_OPENAI_API_BASE)
+
 load_dotenv()
 
 # Paths - use environment variable or default to ~/.hyperclaw
@@ -21,7 +24,7 @@ HYPERCLAW_ROOT = Path(os.environ.get("HYPERCLAW_ROOT", Path.home() / ".hyperclaw
 WORKSPACE_PATH = HYPERCLAW_ROOT / "workspace"
 MEMORY_PATH = HYPERCLAW_ROOT / "memory"
 
-MODEL = os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-6")
+MODEL = os.environ.get("OPENAI_MODEL") or os.environ.get("HYPERCLAW_MODEL", "claude-sonnet-4-6")
 MAX_TOKENS = int(os.environ.get("HYPERCLAW_MAX_TOKENS", 4096))
 MAX_HISTORY = 20
 
@@ -67,7 +70,16 @@ class ChatAgent:
     """Chat agent - manages conversation and context."""
 
     def __init__(self):
-        self.client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+        if _USE_OPENAI_COMPAT:
+            import openai
+            self._oai = openai.AsyncOpenAI(
+                api_key=os.environ.get("OPENAI_API_KEY", ""),
+                base_url=_OPENAI_API_BASE,
+            )
+            self.client = None
+        else:
+            self._oai = None
+            self.client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
         self.ai_name, self.user_name = _get_identity()
         self.system_prompt = self._load_system_prompt()
 
@@ -133,18 +145,23 @@ class ChatAgent:
     async def chat(self, message: str, history: list[dict]) -> str:
         """Send a message and get a response."""
         messages = self._prepare_messages(message, history)
-
         try:
-            response = await asyncio.to_thread(
-                self.client.messages.create,
-                model=MODEL,
-                max_tokens=MAX_TOKENS,
-                system=self.system_prompt,
-                messages=messages,
-            )
-            return extract_text(response)
-        except anthropic.APIError as e:
-            return f"[Error: {e}]"
+            if _USE_OPENAI_COMPAT:
+                resp = await self._oai.chat.completions.create(
+                    model=MODEL,
+                    max_tokens=MAX_TOKENS,
+                    messages=[{"role": "system", "content": self.system_prompt}] + messages,
+                )
+                return resp.choices[0].message.content or ""
+            else:
+                response = await asyncio.to_thread(
+                    self.client.messages.create,
+                    model=MODEL,
+                    max_tokens=MAX_TOKENS,
+                    system=self.system_prompt,
+                    messages=messages,
+                )
+                return extract_text(response)
         except Exception as e:
             return f"[Error: {e}]"
 
@@ -218,20 +235,28 @@ class ChatAgent:
     async def stream_chat(self, message: str, history: list[dict]) -> AsyncIterator[str]:
         """Stream a response token by token."""
         messages = self._prepare_messages(message, history)
-
         try:
-            async_client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-            async with async_client.messages.stream(
-                model=MODEL,
-                max_tokens=MAX_TOKENS,
-                system=self.system_prompt,
-                messages=messages,
-            ) as stream:
-                async for text in stream.text_stream:
-                    yield text
-
-        except anthropic.APIError as e:
-            yield f"[Error: {e}]"
+            if _USE_OPENAI_COMPAT:
+                stream = await self._oai.chat.completions.create(
+                    model=MODEL,
+                    max_tokens=MAX_TOKENS,
+                    messages=[{"role": "system", "content": self.system_prompt}] + messages,
+                    stream=True,
+                )
+                async for chunk in stream:
+                    delta = chunk.choices[0].delta.content
+                    if delta:
+                        yield delta
+            else:
+                async_client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+                async with async_client.messages.stream(
+                    model=MODEL,
+                    max_tokens=MAX_TOKENS,
+                    system=self.system_prompt,
+                    messages=messages,
+                ) as stream:
+                    async for text in stream.text_stream:
+                        yield text
         except Exception as e:
             yield f"[Error: {e}]"
 
