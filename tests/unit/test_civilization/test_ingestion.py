@@ -12,7 +12,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
 from civilization.schema import SOP, SOPStep, Checklist, ChecklistItem, Runbook, RunbookStep, CivilizationNode, NodeType
 from civilization.ingestion.chunker import ProceduralChunker, SOPChunk, ChecklistChunk, RunbookChunk, GenericChunk
 from civilization.ingestion.extractor import MetadataExtractor, EntityExtractor
-from civilization.ingestion.embedder import MockEmbedder, CivilizationEmbedder
+from unittest.mock import MagicMock, patch
+from civilization.ingestion.embedder import MockEmbedder, CivilizationEmbedder, BedrockEmbedder
 
 
 class TestProceduralChunker:
@@ -233,3 +234,54 @@ class TestCivilizationEmbedder:
     def test_create_factory(self):
         embedder = CivilizationEmbedder.create("mock", dimension=512)
         assert embedder.dimension == 512
+
+
+class TestBedrockEmbedderCivilization:
+    def _make_embedder(self, mock_client):
+        with patch("boto3.client", return_value=mock_client):
+            return BedrockEmbedder()
+
+    def _mock_response(self, embedding: list[float]):
+        import json
+        body = MagicMock()
+        body.read.return_value = json.dumps({"embedding": embedding}).encode()
+        return {"body": body}
+
+    @pytest.mark.asyncio
+    async def test_embed_returns_1024_floats(self):
+        mock_client = MagicMock()
+        mock_client.invoke_model.return_value = self._mock_response([0.1] * 1024)
+        embedder = self._make_embedder(mock_client)
+        result = await embedder.embed("hello world")
+        assert len(result) == 1024
+        assert all(isinstance(v, float) for v in result)
+
+    @pytest.mark.asyncio
+    async def test_embed_calls_correct_model(self):
+        mock_client = MagicMock()
+        mock_client.invoke_model.return_value = self._mock_response([0.0] * 1024)
+        embedder = self._make_embedder(mock_client)
+        await embedder.embed("test")
+        call_kwargs = mock_client.invoke_model.call_args[1]
+        assert call_kwargs["modelId"] == "amazon.titan-embed-text-v2:0"
+
+    @pytest.mark.asyncio
+    async def test_embed_batch_loops_per_item(self):
+        mock_client = MagicMock()
+        mock_client.invoke_model.return_value = self._mock_response([0.5] * 1024)
+        embedder = self._make_embedder(mock_client)
+        results = await embedder.embed_batch(["a", "b", "c"])
+        assert len(results) == 3
+        assert mock_client.invoke_model.call_count == 3
+
+    def test_dimension_is_1024(self):
+        mock_client = MagicMock()
+        with patch("boto3.client", return_value=mock_client):
+            embedder = BedrockEmbedder()
+        assert embedder.dimension == 1024
+
+    def test_create_factory_bedrock(self):
+        mock_client = MagicMock()
+        with patch("boto3.client", return_value=mock_client):
+            embedder = CivilizationEmbedder.create("bedrock")
+        assert embedder.dimension == 1024

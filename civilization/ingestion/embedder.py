@@ -121,6 +121,34 @@ class VoyageEmbedder(EmbeddingProvider):
         return self._dimension
 
 
+class BedrockEmbedder(EmbeddingProvider):
+    """Amazon Bedrock Titan Embeddings V2."""
+
+    def __init__(self, model: str = "amazon.titan-embed-text-v2:0"):
+        import boto3
+        self.model = model
+        self._dimension = 1024
+        self._client = boto3.client("bedrock-runtime")
+
+    async def embed(self, text: str) -> list[float]:
+        response = self._client.invoke_model(
+            modelId=self.model,
+            body=json.dumps({"inputText": text, "dimensions": self._dimension}),
+            contentType="application/json",
+            accept="application/json",
+        )
+        data = json.loads(response["body"].read())
+        return data["embedding"]
+
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        # Titan V2 invoke_model is single-text only — no batch endpoint exists for this model
+        return [await self.embed(text) for text in texts]
+
+    @property
+    def dimension(self) -> int:
+        return self._dimension
+
+
 class MockEmbedder(EmbeddingProvider):
     """Mock embedder for testing. Generates deterministic embeddings based on text hash."""
 
@@ -223,6 +251,7 @@ class CivilizationEmbedder:
             "openai": OpenAIEmbedder,
             "voyage": VoyageEmbedder,
             "mock": MockEmbedder,
+            "bedrock": BedrockEmbedder,
         }
         provider_cls = providers.get(provider_name, MockEmbedder)
         provider = provider_cls(**kwargs)
