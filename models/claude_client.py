@@ -47,7 +47,7 @@ class ClaudeClient:
             )
         else:
             # anthropic or anthropic_compat
-            kwargs: dict = {"api_key": api_key}
+            kwargs: dict = {"api_key": api_key or None}
             base = resolved_base_url or os.environ.get("ANTHROPIC_BASE_URL")
             if base:
                 kwargs["base_url"] = base

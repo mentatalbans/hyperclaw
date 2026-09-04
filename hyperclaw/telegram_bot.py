@@ -4,8 +4,10 @@ Routes messages to SOLOMON, maintains per-chat conversation history.
 """
 
 import os
+import json as _json
 import logging
 from collections import defaultdict
+from pathlib import Path as _Path
 from typing import Optional
 
 import httpx
@@ -31,16 +33,98 @@ load_dotenv()
 
 logger = logging.getLogger("hyperclaw.telegram")
 
+TENANT_ID = os.environ.get("OWNER_ID", "local")
+
+_db_pool = None
+
+
+async def _get_db_pool():
+    global _db_pool
+    if _db_pool is not None:
+        return _db_pool
+    mount = _Path(os.environ.get("SECRETS_MOUNT", "/mnt/secrets")) / "hyperclaw_prod_shared_civilization-db"
+    try:
+        import asyncpg
+        if mount.exists():
+            cfg = _json.loads(mount.read_text())
+            host, port, database = cfg["host"], int(cfg["port"]), cfg["database"]
+            user, password = cfg["username"], cfg["password"]
+        else:
+            host = os.environ.get("POSTGRES_HOST", "")
+            if not host:
+                return None
+            port = int(os.environ.get("POSTGRES_PORT", 5432))
+            database = os.environ.get("POSTGRES_DB", "hypernimbus")
+            user = os.environ.get("POSTGRES_USER", "")
+            password = os.environ.get("POSTGRES_PASSWORD", "")
+        _db_pool = await asyncpg.create_pool(
+            host=host, port=port, database=database,
+            user=user, password=password, ssl="require",
+            min_size=1, max_size=3,
+        )
+        logger.info("DB pool connected")
+        return _db_pool
+    except Exception as e:
+        logger.warning(f"DB unavailable — using in-memory history: {e}")
+        return None
+
+
+async def _load_history(tenant_id: str, chat_id: int) -> list:
+    pool = await _get_db_pool()
+    if not pool:
+        return []
+    try:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT messages FROM hyperclaw_sessions WHERE tenant_id=$1 AND chat_id=$2",
+                tenant_id, chat_id,
+            )
+            return _json.loads(row["messages"]) if row else []
+    except Exception as e:
+        logger.warning(f"[{chat_id}] DB load failed: {e}")
+        return []
+
+
+async def _save_history(tenant_id: str, chat_id: int, messages: list) -> None:
+    pool = await _get_db_pool()
+    if not pool:
+        return
+    try:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO hyperclaw_sessions (tenant_id, chat_id, messages, updated_at)
+                VALUES ($1, $2, $3::jsonb, now())
+                ON CONFLICT (tenant_id, chat_id) DO UPDATE
+                SET messages = EXCLUDED.messages, updated_at = now()
+                """,
+                tenant_id, chat_id, _json.dumps(messages),
+            )
+    except Exception as e:
+        logger.warning(f"[{chat_id}] DB save failed: {e}")
+
 
 def _allowed_chat_ids() -> set:
     """Union of TELEGRAM_ALLOWED_CHAT_IDS (comma list) and TELEGRAM_CHAT_ID
-    (single ID written by onboarding). Deny-by-default when both are empty."""
+    (single ID written by onboarding). Also reads from CSI-mounted secret file.
+    Deny-by-default when all sources are empty."""
     ids = set()
     for var in ("TELEGRAM_ALLOWED_CHAT_IDS", "TELEGRAM_CHAT_ID"):
         for cid in os.environ.get(var, "").split(","):
             cid = cid.strip()
             if cid.lstrip("-").isdigit():
                 ids.add(int(cid))
+    mount = _Path(os.environ.get("SECRETS_MOUNT", "/mnt/secrets")) / "telegram"
+    if mount.exists():
+        try:
+            raw = _json.loads(mount.read_text())
+            for key in ("TELEGRAM_CHAT_ID", "ALLOWED_CHAT_IDS"):
+                for cid in str(raw.get(key, "")).split(","):
+                    cid = cid.strip()
+                    if cid.lstrip("-").isdigit():
+                        ids.add(int(cid))
+        except Exception:
+            pass
     return ids
 
 
@@ -59,8 +143,8 @@ class TelegramBot:
     def __init__(self):
         self.application: Optional[Application] = None
         self.conversation_history: dict[int, list[dict]] = defaultdict(list)
-        # Files received but not yet consumed by a text turn, per chat
         self.pending_attachments: dict[int, list] = defaultdict(list)
+        self._db_loaded: set[int] = set()
         self.solomon = get_solomon()
 
     def _is_allowed(self, chat_id: int) -> bool:
@@ -133,6 +217,8 @@ class TelegramBot:
 
         chat_id = update.effective_chat.id
         self.conversation_history[chat_id] = []
+        self._db_loaded.discard(chat_id)
+        await _save_history(TENANT_ID, chat_id, [])
         await update.message.reply_text("Conversation history cleared.")
 
     MAX_FILE_BYTES = 20 * 1024 * 1024  # Telegram bot API download cap
@@ -225,7 +311,13 @@ class TelegramBot:
 
         logger.info(f"[{chat_id}] User: {user_message[:50]}...")
 
-        # Get history for this chat
+        # Lazy-load history from DB on first message this session
+        if chat_id not in self._db_loaded:
+            db_history = await _load_history(TENANT_ID, chat_id)
+            if db_history:
+                self.conversation_history[chat_id] = db_history
+            self._db_loaded.add(chat_id)
+
         history = self.conversation_history[chat_id]
 
         # Telegram expires the typing indicator after ~5s — keep it alive for
@@ -343,6 +435,7 @@ class TelegramBot:
             if len(history) > MAX_HISTORY * 2:
                 self.conversation_history[chat_id] = history[-(MAX_HISTORY * 2):]
 
+            await _save_history(TENANT_ID, chat_id, self.conversation_history[chat_id])
             logger.info(f"[{chat_id}] SOLOMON streamed: {response[:50]}...")
 
         except Exception as e:
@@ -370,9 +463,9 @@ class TelegramBot:
             logger.error(f"Failed to send message to {chat_id}: {e}")
             return False
 
-    def build(self) -> Application:
+    def build(self, token: str = "") -> Application:
         """Build and return the Telegram application."""
-        self.application = Application.builder().token(BOT_TOKEN).build()
+        self.application = Application.builder().token(token or BOT_TOKEN).build()
 
         # Register handlers
         self.application.add_handler(CommandHandler("start", self.start_command))
@@ -415,13 +508,24 @@ def main() -> None:
                          "TELEGRAM_ALLOWED_CHAT_IDS in ~/.hyperclaw/.env — "
                          "the bot denies all messages otherwise.")
 
+    # Drain any stale getUpdates connection before starting the polling loop.
+    # Without this, Telegram returns a Conflict error when a previous process
+    # didn't shut down cleanly (the long-poll stays open on Telegram's side for ~30s).
+    async def _drain():
+        import asyncio as _asyncio
+        from telegram import Bot
+        async with Bot(token=BOT_TOKEN) as _bot:
+            await _bot.get_updates(offset=-1, timeout=0)
+    import asyncio as _asyncio
+    _asyncio.run(_drain())
+
     bot = get_telegram_bot()
     app = bot.build()
     from hyperclaw.providers import registry
     logger.info(registry().startup_line())
     logger.info(f"HyperClaw Telegram bot starting — {len(ALLOWED_CHAT_IDS)} allowed chat(s), "
                 f"thinking preview {'on' if SHOW_THINKING else 'off'}")
-    app.run_polling(drop_pending_updates=True)
+    app.run_polling(drop_pending_updates=False)
 
 
 if __name__ == "__main__":

@@ -96,9 +96,15 @@ providers:
     api_key_env: OPENAI_API_KEY
     capabilities: [chat, streaming, tool_use, images, embeddings, image_generation]
     models: {default: gpt-5.2, fast: gpt-5.2-mini}
+  openai_default:
+    kind: openai_compat
+    api_key_env: OPENAI_API_KEY
+    base_url_env: OPENAI_BASE_URL
+    model_env: OPENAI_MODEL
+    capabilities: [chat, streaming]
 
 slots:
-  primary:    [hyperspeed, anthropic]
+  primary:    [hyperspeed, openai_default, anthropic]
   tools:      [anthropic]
   vision:     [anthropic, hyperspeed]
   fast:       [chatjimmy, anthropic:fast, hyperspeed]

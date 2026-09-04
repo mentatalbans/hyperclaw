@@ -22,7 +22,7 @@ COPY . .
 
 # Install package + deps, then hand ownership to app user
 RUN pip install --no-cache-dir -e ".[dev]" && \
-    pip install --no-cache-dir fastapi uvicorn[standard] redis && \
+    pip install --no-cache-dir fastapi uvicorn[standard] redis feedparser && \
     chown -R app:app /app
 
 COPY entrypoint.sh /entrypoint.sh

@@ -15,7 +15,7 @@ from typing import Optional
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,6 +29,30 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent))
 from swarm.dispatcher import Dispatcher, Task, TaskStatus
 
+# ── Telegram ────────────────────────────────────────────────────────────────────
+_telegram_app = None
+
+def _load_telegram_config() -> dict:
+    """Read bot credentials from CSI-mounted secret (K8s) or .env (local dev).
+
+    In K8s the file at /mnt/secrets/telegram contains a JSON object with keys:
+      BOT_TOKEN, ALLOWED_CHAT_IDS (comma-sep string), WEBHOOK_SECRET
+    Also accepts legacy keys: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID.
+    """
+    mount = Path(os.environ.get("SECRETS_MOUNT", "/mnt/secrets")) / "telegram"
+    if mount.exists():
+        raw = json.loads(mount.read_text())
+        return {
+            "BOT_TOKEN": raw.get("BOT_TOKEN") or raw.get("TELEGRAM_BOT_TOKEN", ""),
+            "ALLOWED_CHAT_IDS": raw.get("ALLOWED_CHAT_IDS") or raw.get("TELEGRAM_CHAT_ID", ""),
+            "WEBHOOK_SECRET": raw.get("WEBHOOK_SECRET", ""),
+        }
+    return {
+        "BOT_TOKEN": os.environ.get("TELEGRAM_BOT_TOKEN", ""),
+        "ALLOWED_CHAT_IDS": os.environ.get("TELEGRAM_CHAT_ID", ""),
+        "WEBHOOK_SECRET": os.environ.get("TELEGRAM_WEBHOOK_SECRET", ""),
+    }
+
 _dispatcher: Optional[Dispatcher] = None
 
 def _get_api_key() -> str:
@@ -39,10 +63,31 @@ def _get_api_key() -> str:
                 return line.split("=", 1)[1].strip().strip('"').strip("'")
     return os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
 
+def _inject_mounted_secrets() -> None:
+    """Inject all JSON-encoded mounted secret files into os.environ.
+    Existing env vars take precedence (don't overwrite)."""
+    mount_dir = Path(os.environ.get("SECRETS_MOUNT", "/mnt/secrets"))
+    if not mount_dir.exists():
+        return
+    for secret_file in mount_dir.iterdir():
+        if not secret_file.is_file():
+            continue
+        try:
+            data = json.loads(secret_file.read_text())
+            for k, v in data.items():
+                if k not in os.environ:
+                    os.environ[k] = str(v)
+        except Exception:
+            pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start dispatcher + swarm on boot. Clean shutdown on exit."""
-    global _dispatcher
+    global _dispatcher, _telegram_app
+
+    _inject_mounted_secrets()
+
     api_key = _get_api_key()
     if api_key:
         _dispatcher = Dispatcher(api_key=api_key)
@@ -50,7 +95,32 @@ async def lifespan(app: FastAPI):
         log.info(f"⚡ HyperClaw DISPATCHER ONLINE — {len(_dispatcher.workers)} agents live")
     else:
         log.warning("No API key found — dispatcher not started")
+
+    # Telegram — polling mode (no public URL required).
+    try:
+        from hyperclaw.telegram_bot import get_telegram_bot, BOT_TOKEN
+        cfg = _load_telegram_config()
+        token = cfg.get("BOT_TOKEN") or BOT_TOKEN
+        if token:
+            tg_bot = get_telegram_bot()
+            _telegram_app = tg_bot.build(token=token)
+            await _telegram_app.initialize()
+            await _telegram_app.updater.start_polling(drop_pending_updates=True)
+            await _telegram_app.start()
+            log.info("Telegram polling started")
+        else:
+            log.warning("TELEGRAM_BOT_TOKEN not set — Telegram skipped")
+    except Exception as exc:
+        log.warning(f"Telegram polling setup failed: {exc}")
+
     yield
+
+    if _telegram_app:
+        if _telegram_app.updater and _telegram_app.updater.running:
+            await _telegram_app.updater.stop()
+        await _telegram_app.stop()
+        await _telegram_app.shutdown()
+        log.info("Telegram polling stopped")
     if _dispatcher:
         await _dispatcher.stop()
         log.info("Dispatcher shutdown complete")
@@ -150,6 +220,7 @@ async def health_check():
         "redis": "not_configured",
         "platform": "HyperClaw",
     }
+
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(msg: ChatMessage):

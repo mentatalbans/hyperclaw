@@ -75,7 +75,8 @@ def main():
         run_server()
 
     elif args.command == "chat":
-        asyncio.run(interactive_chat(args.session))
+        from hyperclaw.tui import main as tui_main
+        tui_main()
 
     elif args.command == "tui":
         from hyperclaw.cli_tui import main as tui_main
