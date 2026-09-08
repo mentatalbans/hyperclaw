@@ -3111,9 +3111,19 @@ def _chat_openai(message):
 
     import openai as _oai
 
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    base_url = os.environ.get("OPENAI_BASE_URL")
-    model = os.environ.get("OPENAI_MODEL", MODEL)
+    # Resolve from the provider registry so HYPERSPEED_* (and any other
+    # openai_compat provider) works, not just OPENAI_* vars.
+    try:
+        from hyperclaw.providers import registry as _reg
+        _candidates = _reg().resolve("primary")
+        _prov, _model_id = _candidates[0] if _candidates else (None, None)
+        api_key = _prov.api_key if _prov else ""
+        base_url = _prov.base_url if _prov else None
+        model = _model_id or os.environ.get("OPENAI_MODEL", MODEL)
+    except Exception:
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        base_url = os.environ.get("OPENAI_BASE_URL")
+        model = os.environ.get("OPENAI_MODEL", MODEL)
 
     client = _oai.OpenAI(api_key=api_key, base_url=base_url)
     oai_tools = _anthropic_tools_to_openai(TOOLS)
@@ -3189,14 +3199,10 @@ def _chat_openai(message):
         except Exception as e:
             err_str = str(e).lower()
             is_conn_err = any(k in err_str for k in ("connection", "connect", "unreachable", "refused", "timeout", "network"))
-            if is_conn_err and _api_retries == 0:
-                _switch_to_bedrock()
-                # Retry this message on Bedrock via the Anthropic path
-                # Re-enter chat() which will now route to Anthropic/Bedrock
-                HISTORY.pop()  # remove the user message we just added; chat() will re-add it
-                chat(message)
-                return
-            print(f"\n{RED}API Error: {e}{RESET}")
+            if is_conn_err:
+                print(f"\n{YELLOW}Connection issue, retrying...{RESET}")
+            else:
+                print(f"\n{RED}API Error: {e}{RESET}")
             _api_retries += 1
             if _api_retries > 3:
                 break
@@ -3211,11 +3217,16 @@ def chat(message):
     """Send message with streaming output."""
     global HISTORY
 
-    if os.environ.get("LLM_PROVIDER") == "openai_compat":
+    _provider = os.environ.get("LLM_PROVIDER", "anthropic")
+    if _provider == "openai_compat":
         _chat_openai(message)
         return
 
-    client = anthropic.Anthropic(api_key=API_KEY)
+    _live_key = _resolve_api_key()
+    if _provider == "bedrock":
+        client = anthropic.AnthropicBedrock()
+    else:
+        client = anthropic.Anthropic(api_key=_live_key)
     HISTORY.append({"role": "user", "content": message})
 
     print(f"\n{DIM}Processing...{RESET}")
@@ -3398,7 +3409,7 @@ def main():
     _live_key = _resolve_api_key()
     _provider = os.environ.get("LLM_PROVIDER", "anthropic")
     if _provider == "openai_compat" and not _live_key:
-        print(f"\n{RED}OPENAI_API_KEY not set.{RESET}")
+        print(f"\n{RED}No API key found for the configured provider.{RESET}")
         print(f"\nRun {CYAN}hyperclaw init --reset{RESET} to reconfigure.")
         sys.exit(1)
     elif _provider not in ("openai_compat", "bedrock") and not _live_key:
@@ -3407,15 +3418,29 @@ def main():
         print(f"Or set it manually: export ANTHROPIC_API_KEY=sk-ant-...")
         sys.exit(1)
 
-    # Startup connectivity check — silently fall back to Bedrock if hyperspeed is down
+    # Startup connectivity check — warn if hyperspeed is down but don't change settings
     if _provider == "openai_compat":
         import urllib.request as _ur, urllib.error as _ue
-        _base = os.environ.get("OPENAI_BASE_URL", "").rstrip("/")
+        import time as _time
         try:
-            req = _ur.Request(f"{_base}/models", headers={"Authorization": f"Bearer {_live_key}"})
-            _ur.urlopen(req, timeout=4)
+            from hyperclaw.providers import registry as _reg
+            _pc = _reg().resolve("primary")
+            _base = (_pc[0][0].base_url if _pc else "").rstrip("/")
+            _live_key = _pc[0][0].api_key if _pc else _live_key
         except Exception:
-            _switch_to_bedrock()
+            _base = os.environ.get("OPENAI_BASE_URL", "").rstrip("/")
+        _connected = False
+        for _attempt in range(3):
+            try:
+                req = _ur.Request(f"{_base}/models", headers={"Authorization": f"Bearer {_live_key}"})
+                _ur.urlopen(req, timeout=4)
+                _connected = True
+                break
+            except Exception:
+                if _attempt < 2:
+                    _time.sleep(2 ** _attempt)
+        if not _connected:
+            print(f"\n{YELLOW}⚠ Hyperspeed is temporarily unreachable. Messages may fail until it recovers.{RESET}")
 
     # Load memories and build system prompt
     print(f"\n{DIM}Loading memories...{RESET}")
