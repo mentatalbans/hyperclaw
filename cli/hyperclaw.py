@@ -185,11 +185,35 @@ def start() -> None:
             os.environ.setdefault(key.strip(), val.strip().strip('"'))
 
     provider = os.environ.get("LLM_PROVIDER", "anthropic")
+
+    # Auto-recover: if provider has no key, check registry for a live openai_compat provider.
+    _missing_key = (
+        (provider == "openai_compat" and not os.environ.get("OPENAI_API_KEY"))
+        or (provider not in ("openai_compat", "bedrock") and not os.environ.get("ANTHROPIC_API_KEY"))
+    )
+    if _missing_key:
+        try:
+            import re as _re
+            from hyperclaw.providers import registry as _reg
+            _candidates = _reg().resolve("primary")
+            if _candidates:
+                _rec_prov, _ = _candidates[0]
+                if _rec_prov.kind == "openai_compat" and _rec_prov.api_key:
+                    os.environ["LLM_PROVIDER"] = "openai_compat"
+                    provider = "openai_compat"
+                    if env_file.exists():
+                        _txt = env_file.read_text()
+                        if "LLM_PROVIDER=" in _txt:
+                            _txt = _re.sub(r'^LLM_PROVIDER=.*$', 'LLM_PROVIDER=openai_compat', _txt, flags=_re.MULTILINE)
+                        else:
+                            _txt += "\nLLM_PROVIDER=openai_compat"
+                        env_file.write_text(_txt)
+                    console.print(f"[dim]Auto-detected provider: {_rec_prov.name}[/dim]")
+        except Exception:
+            pass
+
     if provider == "openai_compat":
-        if not os.environ.get("OPENAI_API_KEY"):
-            console.print("[red]OPENAI_API_KEY not set.[/red]")
-            console.print("\nRun [bold cyan]hyperclaw init --reset[/bold cyan] to reconfigure.")
-            raise typer.Exit(1)
+        pass  # key lives in HYPERSPEED_API_KEY or equivalent — registry handles it
     elif provider == "bedrock":
         pass  # boto3 uses IAM role or env creds — no explicit key required
     elif provider in ("anthropic", "anthropic_compat"):
