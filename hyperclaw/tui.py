@@ -3408,6 +3408,32 @@ def main():
     # Re-resolve key here so it picks up env loaded after module import
     _live_key = _resolve_api_key()
     _provider = os.environ.get("LLM_PROVIDER", "anthropic")
+
+    # Auto-recover: if current provider has no credentials, check the registry
+    # for a live openai_compat provider (e.g. Hyperspeed) and switch to it.
+    if not _live_key and _provider not in ("bedrock",):
+        try:
+            from hyperclaw.providers import registry as _reg
+            import re as _re
+            _candidates = _reg().resolve("primary")
+            if _candidates:
+                _rec_prov, _ = _candidates[0]
+                if _rec_prov.kind == "openai_compat" and _rec_prov.api_key:
+                    os.environ["LLM_PROVIDER"] = "openai_compat"
+                    _provider = "openai_compat"
+                    _live_key = _rec_prov.api_key
+                    _env_file = HYPERCLAW_ROOT / ".env"
+                    if _env_file.exists():
+                        _txt = _env_file.read_text()
+                        if "LLM_PROVIDER=" in _txt:
+                            _txt = _re.sub(r'^LLM_PROVIDER=.*$', 'LLM_PROVIDER=openai_compat', _txt, flags=_re.MULTILINE)
+                        else:
+                            _txt += "\nLLM_PROVIDER=openai_compat"
+                        _env_file.write_text(_txt)
+                    print(f"{DIM}Auto-detected provider: {_rec_prov.name} — setting LLM_PROVIDER=openai_compat{RESET}")
+        except Exception:
+            pass
+
     if _provider == "openai_compat" and not _live_key:
         print(f"\n{RED}No API key found for the configured provider.{RESET}")
         print(f"\nRun {CYAN}hyperclaw init --reset{RESET} to reconfigure.")
