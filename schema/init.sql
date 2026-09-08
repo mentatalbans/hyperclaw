@@ -42,6 +42,30 @@ CREATE INDEX IF NOT EXISTS idx_kg_edges_target ON kg_edges(target_id);
 -- STATE MANAGEMENT TABLES
 -- ============================================================================
 
+-- Canonical HyperStateStore tables. These are additive: the legacy singular
+-- hyperstate and state_mutations tables below retain their existing data.
+-- Their older state_data payload is not implicitly converted to a HyperState.
+CREATE TABLE IF NOT EXISTS hyperstates (
+    state_id UUID PRIMARY KEY,
+    domain TEXT NOT NULL,
+    data JSONB NOT NULL,
+    state_version INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    archived_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS hyperstate_history (
+    id BIGSERIAL PRIMARY KEY,
+    state_id UUID NOT NULL REFERENCES hyperstates(state_id),
+    state_version INTEGER NOT NULL,
+    data JSONB NOT NULL,
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_hyperstates_domain ON hyperstates(domain);
+CREATE INDEX IF NOT EXISTS idx_hyperstate_history_state_id ON hyperstate_history(state_id);
+
 CREATE TABLE IF NOT EXISTS hyperstate (
     state_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     domain VARCHAR(50) NOT NULL,
@@ -242,18 +266,40 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Apply to tables that need auto-update
-CREATE TRIGGER update_knowledge_nodes_updated_at
-    BEFORE UPDATE ON knowledge_nodes
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- Repeated setup keeps existing trigger definitions and table data intact.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgname = 'update_knowledge_nodes_updated_at'
+          AND tgrelid = 'knowledge_nodes'::regclass
+    ) THEN
+        CREATE TRIGGER update_knowledge_nodes_updated_at
+            BEFORE UPDATE ON knowledge_nodes
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
 
-CREATE TRIGGER update_hyperstate_updated_at
-    BEFORE UPDATE ON hyperstate
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgname = 'update_hyperstate_updated_at'
+          AND tgrelid = 'hyperstate'::regclass
+    ) THEN
+        CREATE TRIGGER update_hyperstate_updated_at
+            BEFORE UPDATE ON hyperstate
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
 
-CREATE TRIGGER update_integration_state_updated_at
-    BEFORE UPDATE ON integration_state
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgname = 'update_integration_state_updated_at'
+          AND tgrelid = 'integration_state'::regclass
+    ) THEN
+        CREATE TRIGGER update_integration_state_updated_at
+            BEFORE UPDATE ON integration_state
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+END;
+$$;
 
 -- Function for semantic search on memories
 CREATE OR REPLACE FUNCTION search_memories(

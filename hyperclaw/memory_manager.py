@@ -4,14 +4,18 @@ Handles memory persistence across sessions with database + file fallback.
 """
 
 import asyncio
+from copy import deepcopy
+from dataclasses import asdict, dataclass, field
+import hashlib
 import json
 import logging
 import os
 import re
-from datetime import datetime, timedelta
+import tempfile
+import uuid
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
-from dataclasses import dataclass, field
+from typing import Optional
 
 logger = logging.getLogger("hyperclaw.memory")
 
@@ -43,8 +47,13 @@ class MemoryManager:
     Uses database when available, falls back to file storage.
     """
 
-    def __init__(self, db_pool=None):
+    def __init__(self, db_pool=None, root: Optional[Path] = None):
         self.db_pool = db_pool
+        self.root = Path(root) if root is not None else Path(
+            os.environ.get("HYPERCLAW_ROOT", HYPERCLAW_ROOT)
+        )
+        self.memory_path = self.root / "memory"
+        self.workspace_path = self.root / "workspace"
         self._file_cache: dict[str, list[Memory]] = {}
         self._conversation_history: dict[str, list[dict]] = {}
         self._embeddings_client = None
@@ -52,8 +61,8 @@ class MemoryManager:
     async def initialize(self):
         """Initialize the memory manager."""
         # Ensure directories exist
-        MEMORY_PATH.mkdir(parents=True, exist_ok=True)
-        (MEMORY_PATH / "daily").mkdir(exist_ok=True)
+        self.memory_path.mkdir(parents=True, exist_ok=True)
+        (self.memory_path / "daily").mkdir(exist_ok=True)
 
         # Load file-based memories
         await self._load_file_memories()
@@ -61,21 +70,29 @@ class MemoryManager:
         logger.info("Memory manager initialized")
 
     async def _load_file_memories(self):
-        """Load memories from markdown files."""
+        """Load structured memories and existing Markdown context."""
+        self._file_cache.clear()
+        entries = []
+        for path in sorted((self.memory_path / "entries").glob("*.json")):
+            record = json.loads(path.read_text(encoding="utf-8"))
+            record["created_at"] = datetime.fromisoformat(record["created_at"])
+            entries.append(Memory(**record))
+        self._file_cache["entries"] = entries
+
         # Load instincts
-        instincts_file = MEMORY_PATH / "instincts.md"
+        instincts_file = self.memory_path / "instincts.md"
         if instincts_file.exists():
             content = instincts_file.read_text(encoding="utf-8")
             self._file_cache["instincts"] = self._parse_markdown_list(content, "instinct")
 
         # Load core episodes
-        episodes_file = MEMORY_PATH / "core-episodes.md"
+        episodes_file = self.memory_path / "core-episodes.md"
         if episodes_file.exists():
             content = episodes_file.read_text(encoding="utf-8")
             self._file_cache["episodes"] = self._parse_markdown_list(content, "episode")
 
         # Load working memory
-        memory_file = WORKSPACE_PATH / "MEMORY.md"
+        memory_file = self.workspace_path / "MEMORY.md"
         if memory_file.exists():
             content = memory_file.read_text(encoding="utf-8")
             self._file_cache["working"] = self._parse_markdown_list(content, "semantic")
@@ -105,9 +122,9 @@ class MemoryManager:
     # =========================================================================
 
     def get_conversation_history(self, session_id: str, limit: int = 50) -> list[dict]:
-        """Get conversation history for a session."""
+        """Get an independent snapshot of a session's recent history."""
         history = self._conversation_history.get(session_id, [])
-        return history[-limit:] if len(history) > limit else history
+        return deepcopy(history[-limit:]) if limit > 0 else []
 
     def add_message(self, session_id: str, role: str, content: str, metadata: dict = None):
         """Add a message to conversation history."""
@@ -115,10 +132,11 @@ class MemoryManager:
             self._conversation_history[session_id] = []
 
         message = {
+            "id": str(uuid.uuid4()),
             "role": role,
-            "content": content,
+            "content": deepcopy(content),
             "timestamp": datetime.now().isoformat(),
-            **(metadata or {})
+            **deepcopy(metadata or {})
         }
 
         self._conversation_history[session_id].append(message)
@@ -130,9 +148,7 @@ class MemoryManager:
 
     async def save_conversation(self, session_id: str):
         """Persist conversation to storage."""
-        history = self._conversation_history.get(session_id, [])
-        if not history:
-            return
+        history = deepcopy(self._conversation_history.get(session_id, []))
 
         if self.db_pool:
             await self._save_conversation_db(session_id, history)
@@ -141,88 +157,163 @@ class MemoryManager:
 
     async def _save_conversation_db(self, session_id: str, history: list[dict]):
         """Save conversation to database."""
-        try:
-            async with self.db_pool.acquire() as conn:
-                # Get or create conversation
-                conv = await conn.fetchrow(
-                    """
-                    INSERT INTO conversations (session_id, channel, last_message_at)
-                    VALUES ($1, 'api', NOW())
-                    ON CONFLICT (session_id) DO UPDATE SET last_message_at = NOW()
-                    RETURNING id
-                    """,
-                    session_id
-                )
-
-                # Insert messages
-                for msg in history[-10:]:  # Only save recent messages
+        async with self.db_pool.acquire() as conn:
+            async with conn.transaction():
+                conv = await self._ensure_conversation_db(conn, session_id)
+                # Stable IDs make repeated saves idempotent without removing older
+                # messages or their existing usage/model columns.
+                for msg in history:
+                    plain_text = isinstance(msg["content"], str)
+                    stored_metadata = {"_hyperclaw_message": {
+                        "version": 1,
+                        "content_format": "text" if plain_text else "json",
+                        "metadata": {key: value for key, value in msg.items()
+                                     if key not in {"id", "role", "content", "timestamp"}},
+                    }}
                     await conn.execute(
                         """
-                        INSERT INTO messages (conversation_id, role, content, created_at)
-                        VALUES ($1, $2, $3, $4)
+                        INSERT INTO messages (id, conversation_id, role, content, created_at, metadata)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                        ON CONFLICT (id) DO NOTHING
                         """,
+                        msg["id"],
                         conv["id"],
                         msg["role"],
-                        msg["content"],
-                        datetime.fromisoformat(msg["timestamp"])
+                        msg["content"] if plain_text else json.dumps(msg["content"]),
+                        datetime.fromisoformat(msg["timestamp"]),
+                        json.dumps(stored_metadata),
                     )
-        except Exception as e:
-            logger.error(f"Failed to save conversation to DB: {e}")
+
+    async def _ensure_conversation_db(self, conn, session_id: str):
+        """Find or create a session under the caller's database transaction."""
+        # The existing schema does not require unique session IDs.
+        await conn.execute("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", session_id)
+        conv = await conn.fetchrow(
+            "SELECT id FROM conversations WHERE session_id = $1 ORDER BY created_at LIMIT 1", session_id
+        )
+        if conv is None:
+            conv = await conn.fetchrow(
+                """
+                INSERT INTO conversations (session_id, channel, last_message_at)
+                VALUES ($1, 'api', NOW()) RETURNING id
+                """, session_id,
+            )
+        else:
+            await conn.execute(
+                "UPDATE conversations SET last_message_at = NOW() WHERE id = $1", conv["id"]
+            )
+        return conv
 
     async def _save_conversation_file(self, session_id: str, history: list[dict]):
         """Save conversation to file."""
+        self._write_json_atomic(self._conversation_path(session_id), history)
+
+    def _conversation_path(self, session_id: str) -> Path:
+        digest = hashlib.sha256(session_id.encode("utf-8")).hexdigest()
+        # A separate directory prevents a legacy basename from impersonating a hash.
+        return self.memory_path / "conversations" / "sessions" / f"{digest}.json"
+
+    @staticmethod
+    def _write_json_atomic(path: Path, value):
+        """Commit a complete JSON document, leaving existing data intact on failure."""
+        payload = json.dumps(value, indent=2, ensure_ascii=False)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = None
         try:
-            filepath = MEMORY_PATH / "conversations" / f"{session_id}.json"
-            filepath.parent.mkdir(exist_ok=True)
-            with open(filepath, 'w') as f:
-                json.dump(history, f, indent=2)
-        except Exception as e:
-            logger.error(f"Failed to save conversation to file: {e}")
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=path.parent, prefix=".pending-", delete=False
+            ) as stream:
+                temporary = Path(stream.name)
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, path)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
 
     async def load_conversation(self, session_id: str) -> list[dict]:
         """Load conversation from storage."""
         if self.db_pool:
-            return await self._load_conversation_db(session_id)
+            history = await self._load_conversation_db(session_id)
         else:
-            return await self._load_conversation_file(session_id)
+            history = await self._load_conversation_file(session_id)
+        self._conversation_history[session_id] = deepcopy(history[-100:])
+        return deepcopy(self._conversation_history[session_id])
+
+    async def conversation_exists(self, session_id: str) -> bool:
+        """Whether a session was persisted, including an empty or reset session."""
+        if self.db_pool:
+            async with self.db_pool.acquire() as conn:
+                return await conn.fetchval(
+                    "SELECT EXISTS(SELECT 1 FROM conversations WHERE session_id = $1)", session_id
+                )
+        return self._existing_conversation_path(session_id) is not None
+
+    async def clear_conversation(self, session_id: str):
+        """Persist reset before clearing the cache, including legacy sessions."""
+        if self.db_pool:
+            async with self.db_pool.acquire() as conn:
+                async with conn.transaction():
+                    await self._ensure_conversation_db(conn, session_id)
+                    await conn.execute(
+                        """
+                        DELETE FROM messages WHERE conversation_id IN
+                            (SELECT id FROM conversations WHERE session_id = $1)
+                        """,
+                        session_id,
+                    )
+        else:
+            # An empty snapshot takes precedence over any older legacy filename.
+            await self._save_conversation_file(session_id, [])
+        self._conversation_history[session_id] = []
 
     async def _load_conversation_db(self, session_id: str) -> list[dict]:
         """Load conversation from database."""
-        try:
-            async with self.db_pool.acquire() as conn:
-                rows = await conn.fetch(
-                    """
-                    SELECT m.role, m.content, m.created_at
-                    FROM messages m
-                    JOIN conversations c ON m.conversation_id = c.id
-                    WHERE c.session_id = $1
-                    ORDER BY m.created_at DESC
-                    LIMIT 50
-                    """,
-                    session_id
-                )
-                history = [
-                    {"role": r["role"], "content": r["content"], "timestamp": r["created_at"].isoformat()}
-                    for r in reversed(rows)
-                ]
-                self._conversation_history[session_id] = history
-                return history
-        except Exception as e:
-            logger.error(f"Failed to load conversation from DB: {e}")
-            return []
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT m.id, m.role, m.content, m.created_at, m.metadata
+                FROM messages m
+                JOIN conversations c ON m.conversation_id = c.id
+                WHERE c.session_id = $1
+                ORDER BY m.created_at DESC
+                LIMIT 100
+                """,
+                session_id
+            )
+            history = []
+            for row in reversed(rows):
+                metadata = json.loads(row["metadata"] or "{}")
+                content = row["content"]
+                envelope = metadata.get("_hyperclaw_message")
+                if isinstance(envelope, dict) and envelope.get("version") == 1:
+                    metadata = envelope["metadata"]
+                    if envelope["content_format"] == "json":
+                        content = json.loads(content)
+                history.append({
+                    **metadata, "id": str(row["id"]), "role": row["role"], "content": content,
+                    "timestamp": row["created_at"].isoformat(),
+                })
+            return history
 
     async def _load_conversation_file(self, session_id: str) -> list[dict]:
         """Load conversation from file."""
-        try:
-            filepath = MEMORY_PATH / "conversations" / f"{session_id}.json"
-            if filepath.exists():
-                with open(filepath) as f:
-                    history = json.load(f)
-                self._conversation_history[session_id] = history
-                return history
-        except Exception as e:
-            logger.error(f"Failed to load conversation from file: {e}")
-        return []
+        filepath = self._existing_conversation_path(session_id)
+        if filepath is None:
+            return []
+        return json.loads(filepath.read_text(encoding="utf-8"))
+
+    def _existing_conversation_path(self, session_id: str) -> Optional[Path]:
+        filepath = self._conversation_path(session_id)
+        if not filepath.exists():
+            # Only a bounded, simple basename can reference the previous layout.
+            if not re.fullmatch(r"[A-Za-z0-9_-][A-Za-z0-9_.-]{0,199}", session_id):
+                return None
+            filepath = self.memory_path / "conversations" / f"{session_id}.json"
+        if filepath.is_symlink() or not filepath.exists():
+            return None
+        return filepath
 
     # =========================================================================
     # MEMORY OPERATIONS
@@ -235,11 +326,10 @@ class MemoryManager:
         domain: str = None,
         importance: float = 0.5,
         is_core: bool = False,
-        metadata: dict = None
+        metadata: dict = None,
+        source: str = "conversation",
     ) -> str:
         """Store a new memory."""
-        import uuid
-
         memory = Memory(
             id=str(uuid.uuid4()),
             content=content,
@@ -247,7 +337,8 @@ class MemoryManager:
             domain=domain,
             importance=importance,
             is_core=is_core,
-            metadata=metadata or {},
+            metadata=deepcopy(metadata or {}),
+            source=source,
         )
 
         if self.db_pool:
@@ -284,31 +375,16 @@ class MemoryManager:
                     json.dumps(memory.metadata),
                     memory.created_at,
                 )
-        except Exception as e:
-            logger.error(f"Failed to store memory in DB: {e}")
-            # Fallback to file
-            await self._store_memory_file(memory)
+        except Exception:
+            logger.exception("Failed to store memory in DB")
+            raise
 
     async def _store_memory_file(self, memory: Memory):
-        """Store memory in file."""
-        try:
-            # Append to daily log
-            today = datetime.now().strftime("%Y-%m-%d")
-            daily_file = MEMORY_PATH / "daily" / f"{today}.md"
-
-            with open(daily_file, "a", encoding="utf-8") as f:
-                timestamp = datetime.now().strftime("%H:%M")
-                f.write(f"\n- [{timestamp}] [{memory.memory_type}] {memory.content}\n")
-
-            # If core, also append to core-episodes
-            if memory.is_core:
-                episodes_file = MEMORY_PATH / "core-episodes.md"
-                with open(episodes_file, "a", encoding="utf-8") as f:
-                    date = datetime.now().strftime("%Y-%m-%d")
-                    f.write(f"\n- [{date}] {memory.content}\n")
-
-        except Exception as e:
-            logger.error(f"Failed to store memory to file: {e}")
+        """Commit a complete memory record before making it recallable."""
+        record = asdict(memory)
+        record["created_at"] = memory.created_at.isoformat()
+        self._write_json_atomic(self.memory_path / "entries" / f"{memory.id}.json", record)
+        self._file_cache.setdefault("entries", []).append(deepcopy(memory))
 
     async def recall(
         self,
@@ -322,7 +398,7 @@ class MemoryManager:
         if self.db_pool:
             return await self._recall_db(query, limit, memory_type, domain, min_importance)
         else:
-            return await self._recall_file(query, limit, memory_type, domain)
+            return await self._recall_file(query, limit, memory_type, domain, min_importance)
 
     async def _recall_db(
         self,
@@ -345,6 +421,7 @@ class MemoryManager:
                     rows = await conn.fetch(
                         """
                         SELECT id, content, summary, memory_type, domain, importance,
+                               source, is_core, metadata, created_at,
                                1 - (embedding <=> $1::vector) as similarity
                         FROM memories
                         WHERE embedding IS NOT NULL
@@ -364,7 +441,8 @@ class MemoryManager:
                     # Fallback to text search
                     rows = await conn.fetch(
                         """
-                        SELECT id, content, summary, memory_type, domain, importance, 0.5 as similarity
+                        SELECT id, content, summary, memory_type, domain, importance,
+                               source, is_core, metadata, created_at, 0.5 as similarity
                         FROM memories
                         WHERE content ILIKE $1
                         AND importance >= $2
@@ -388,31 +466,37 @@ class MemoryManager:
                         domain=r["domain"],
                         importance=r["importance"],
                         summary=r["summary"],
-                        metadata={"similarity": r["similarity"]}
+                        source=r["source"] or "conversation",
+                        is_core=r["is_core"],
+                        metadata=json.loads(r["metadata"] or "{}"),
+                        created_at=r["created_at"],
                     )
                     for r in rows
                 ]
-        except Exception as e:
-            logger.error(f"Failed to recall from DB: {e}")
-            return await self._recall_file(query, limit, memory_type, domain)
+        except Exception:
+            logger.exception("Failed to recall from DB")
+            raise
 
     async def _recall_file(
         self,
         query: str,
         limit: int,
         memory_type: str,
-        domain: str
+        domain: str,
+        min_importance: float = 0.0,
     ) -> list[Memory]:
         """Recall from file cache with keyword matching."""
         results = []
         query_lower = query.lower()
         query_words = set(query_lower.split())
 
-        for cache_type, memories in self._file_cache.items():
+        for memories in self._file_cache.values():
             for memory in memories:
                 if memory_type and memory.memory_type != memory_type:
                     continue
                 if domain and memory.domain != domain:
+                    continue
+                if memory.importance < min_importance:
                     continue
 
                 # Simple relevance scoring
@@ -420,12 +504,11 @@ class MemoryManager:
                 matches = sum(1 for word in query_words if word in content_lower)
 
                 if matches > 0:
-                    memory.metadata["score"] = matches / len(query_words)
-                    results.append(memory)
+                    results.append((matches / len(query_words), memory))
 
         # Sort by score and return top results
-        results.sort(key=lambda m: m.metadata.get("score", 0), reverse=True)
-        return results[:limit]
+        results.sort(key=lambda result: result[0], reverse=True)
+        return [deepcopy(memory) for _, memory in results[:max(0, limit)]]
 
     async def _get_embedding(self, text: str) -> list[float]:
         """Get embedding for text."""
@@ -443,9 +526,13 @@ class MemoryManager:
 
         # Load workspace files
         files_to_load = [
-            ("SOUL.md", WORKSPACE_PATH / "SOUL.md"),
-            ("IDENTITY.md", WORKSPACE_PATH / "IDENTITY.md"),
-            ("USER.md", WORKSPACE_PATH / "USER.md"),
+            ("CLAUDE.md", self.workspace_path.parent / "CLAUDE.md"),
+            ("persona.md", Path(os.environ.get("PERSONA_FILE") or self.workspace_path / "persona.md")),
+            ("SOUL.md", self.workspace_path / "SOUL.md"),
+            ("IDENTITY.md", self.workspace_path / "IDENTITY.md"),
+            ("ASSISTANT.md", self.workspace_path / "ASSISTANT.md"),
+            ("USER.md", self.workspace_path / "USER.md"),
+            ("MEMORY.md", self.workspace_path / "MEMORY.md"),
         ]
 
         for name, path in files_to_load:
@@ -465,7 +552,9 @@ class MemoryManager:
             context_parts.append("")
 
         # Add recent core episodes
-        episodes = self._file_cache.get("episodes", [])
+        episodes = self._file_cache.get("episodes", []) + [
+            memory for memory in self._file_cache.get("entries", []) if memory.is_core
+        ]
         if episodes:
             context_parts.append("## Key Facts (Core Memory)")
             for ep in episodes[-10:]:
@@ -479,14 +568,14 @@ class MemoryManager:
 
     def get_working_memory(self) -> str:
         """Get current working memory content."""
-        memory_file = WORKSPACE_PATH / "MEMORY.md"
+        memory_file = self.workspace_path / "MEMORY.md"
         if memory_file.exists():
             return memory_file.read_text(encoding="utf-8")
         return ""
 
     async def update_working_memory(self, section: str, content: str):
         """Update a section in working memory."""
-        memory_file = WORKSPACE_PATH / "MEMORY.md"
+        memory_file = self.workspace_path / "MEMORY.md"
 
         try:
             if memory_file.exists():
@@ -522,7 +611,7 @@ class MemoryManager:
     async def log_to_daily(self, entry: str, category: str = "note"):
         """Add entry to today's daily log."""
         today = datetime.now().strftime("%Y-%m-%d")
-        daily_file = MEMORY_PATH / "daily" / f"{today}.md"
+        daily_file = self.memory_path / "daily" / f"{today}.md"
 
         try:
             if not daily_file.exists():

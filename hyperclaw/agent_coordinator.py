@@ -30,6 +30,7 @@ class TaskStatus(Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 @dataclass
@@ -97,6 +98,7 @@ class AgentCoordinator:
         self.model_router = model_router or get_model_router()
         self.agents: dict[str, AgentConfig] = {}
         self.tasks: dict[str, Task] = {}
+        self._task_locks: dict[str, asyncio.Lock] = {}
         self.task_queue: asyncio.Queue = asyncio.Queue()
         self._workers: list[asyncio.Task] = []
         self._running = False
@@ -281,43 +283,51 @@ class AgentCoordinator:
         return task
 
     async def execute_task(self, task: Task) -> str:
-        """Execute a single task."""
-        task.status = TaskStatus.RUNNING
+        """Execute once per task ID, sharing terminal outcomes with all callers.
 
-        agent = self.agents.get(task.assigned_to)
-        if not agent:
-            task.status = TaskStatus.FAILED
-            task.error = f"Agent {task.assigned_to} not found"
-            return task.error
+        Cancelling the execution owner cancels the task permanently. Cancelling
+        a caller waiting for the owner leaves that execution running.
+        """
+        task = self.tasks.setdefault(task.id, task)
+        lock = self._task_locks.setdefault(task.id, asyncio.Lock())
+        async with lock:
+            if task.status is TaskStatus.COMPLETED:
+                return task.result or ""
+            if task.status is TaskStatus.FAILED:
+                return f"Error: {task.error}"
+            if task.status is TaskStatus.CANCELLED:
+                raise asyncio.CancelledError(task.error)
 
-        # Determine model tier
-        model_tier = self.determine_model_tier(task, agent)
+            task.status = TaskStatus.RUNNING
+            try:
+                agent = self.agents.get(task.assigned_to)
+                if not agent:
+                    raise ValueError(f"Agent {task.assigned_to} not found")
 
-        # Build agent prompt
-        system_prompt = self._build_agent_prompt(agent, task)
+                model_tier = self.determine_model_tier(task, agent)
+                system_prompt = self._build_agent_prompt(agent, task)
+                response, metadata = await self.model_router.call(
+                    message=task.goal,
+                    system=system_prompt,
+                    preferred_tier=model_tier,
+                    context={"task": task, "agent": agent},
+                )
 
-        try:
-            # Call model through router
-            response, metadata = await self.model_router.call(
-                message=task.goal,
-                system=system_prompt,
-                preferred_tier=model_tier,
-                context={"task": task, "agent": agent},
-            )
-
-            task.result = response
-            task.status = TaskStatus.COMPLETED
-            task.completed_at = datetime.now()
-
-            logger.info(f"Task {task.id} completed by {agent.id} using {metadata.get('model_name')}")
-
-            return response
-
-        except Exception as e:
-            task.status = TaskStatus.FAILED
-            task.error = str(e)
-            logger.error(f"Task {task.id} failed: {e}")
-            return f"Error: {e}"
+                logger.info(f"Task {task.id} completed by {agent.id} using {metadata.get('model_name')}")
+                task.result = response
+                task.status = TaskStatus.COMPLETED
+                return response
+            except asyncio.CancelledError:
+                task.status = TaskStatus.CANCELLED
+                task.error = "Task execution cancelled"
+                raise
+            except Exception as e:
+                task.status = TaskStatus.FAILED
+                task.error = str(e)
+                logger.error(f"Task {task.id} failed: {e}")
+                return f"Error: {e}"
+            finally:
+                task.completed_at = datetime.now()
 
     def _build_agent_prompt(self, agent: AgentConfig, task: Task) -> str:
         """Build system prompt for an agent."""
@@ -380,16 +390,20 @@ class AgentCoordinator:
         # Execute sub-tasks (potentially in parallel)
         results = []
         parallel_tasks = []
+        submitted_tasks = []
 
         for sub_task_goal in sub_tasks[:max_agents]:
             task = await self.submit_task(sub_task_goal, metadata={"parent_goal": goal})
+            submitted_tasks.append(task)
             parallel_tasks.append(self.execute_task(task))
 
         # Wait for all tasks
         task_results = await asyncio.gather(*parallel_tasks, return_exceptions=True)
 
-        for i, result in enumerate(task_results):
-            if isinstance(result, Exception):
+        for task, result in zip(submitted_tasks, task_results):
+            if task.status in (TaskStatus.FAILED, TaskStatus.CANCELLED):
+                results.append({"error": task.error})
+            elif isinstance(result, BaseException):
                 results.append({"error": str(result)})
             else:
                 results.append({"result": result})
@@ -508,12 +522,17 @@ Be concise but complete."""
         while self._running:
             try:
                 task = await asyncio.wait_for(self.task_queue.get(), timeout=1.0)
-                await self.execute_task(task)
-                self.task_queue.task_done()
+                try:
+                    await self.execute_task(task)
+                finally:
+                    self.task_queue.task_done()
             except asyncio.TimeoutError:
                 continue
             except asyncio.CancelledError:
-                break
+                # A terminal task can raise cancellation without the worker
+                # itself being stopped. Keep serving the rest of the queue.
+                if asyncio.current_task().cancelling():
+                    break
             except Exception as e:
                 logger.error(f"{worker_id} error: {e}")
 

@@ -432,67 +432,13 @@ def handle_command(cmd: str, chat: TUIChat) -> bool:
 # ============================================================================
 
 async def main_async():
-    """Async main loop."""
-    # Check setup
-    checks = check_setup()
-
-    if not checks["api_key"]:
-        print(f"\n{RED}ANTHROPIC_API_KEY not set.{RESET}")
-        print(f"{DIM}Run 'hyperclaw setup' or set the environment variable.{RESET}\n")
-        return
-
-    # Ensure directories
-    ensure_setup()
-
-    # Initialize chat
-    chat = TUIChat()
-    await chat.initialize()
-
-    # Load previous session
-    chat.history = load_session()
-    session_msg = f"Resumed ({len(chat.history)} msgs)" if chat.history else "New session"
-
-    # Welcome message
-    print(f"\n{CYAN}{BOLD}=== HyperClaw ==={RESET}")
-    print(f"{DIM}AI Assistant with smart model routing{RESET}")
-    print(f"{DIM}{session_msg} | Ctrl+C to stop | /help for commands{RESET}")
-
-    if checks["chatjimmy"]:
-        print(f"{DIM}ChatJimmy enabled for cost savings{RESET}")
-
-    print()
-
-    # Main loop
-    while True:
-        try:
-            user_input = input(f"{CYAN}>{RESET} ").strip()
-
-            if not user_input:
-                continue
-
-            # Handle commands
-            if user_input.startswith("/"):
-                if not handle_command(user_input, chat):
-                    break
-                continue
-
-            # Chat
-            await chat.chat(user_input)
-            save_session(chat.history)
-            print()
-
-        except KeyboardInterrupt:
-            if not STREAMING_ACTIVE:
-                print(f"\n{DIM}Use /quit to exit{RESET}")
-        except EOFError:
-            save_session(chat.history)
-            print(f"\n{DIM}Goodbye.{RESET}")
-            break
+    from .terminal import run
+    await run()
 
 
 def main():
-    """Entry point."""
-    asyncio.run(main_async())
+    from .terminal import main as run_terminal
+    run_terminal()
 
 
 if __name__ == "__main__":

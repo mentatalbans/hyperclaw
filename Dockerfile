@@ -21,8 +21,8 @@ COPY README.md ./
 COPY . .
 
 # Install package + deps, then hand ownership to app user
-RUN pip install --no-cache-dir -e ".[dev]" && \
-    pip install --no-cache-dir fastapi uvicorn[standard] redis feedparser && \
+RUN pip install --no-cache-dir . && \
+    mkdir -p /app/data && \
     chown -R app:app /app
 
 COPY entrypoint.sh /entrypoint.sh
@@ -30,12 +30,14 @@ RUN chmod +x /entrypoint.sh
 
 USER 1001
 
+ENV HOST=0.0.0.0 PORT=8001 HYPERCLAW_ROOT=/app/data
+
 # Expose the API port
-EXPOSE 8000
+EXPOSE 8001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://127.0.0.1:8001/health || exit 1
 
 # Default command: run the FastAPI server
 ENTRYPOINT ["/entrypoint.sh"]

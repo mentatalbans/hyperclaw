@@ -1749,7 +1749,7 @@ def speak(text):
         return f"Error: {e}"
 
 def vision(image_path, question="Describe what you see in detail."):
-    """Analyze image using Claude's vision."""
+    """Analyze an image with the conversation's configured vision provider."""
     try:
         p = Path(image_path).expanduser()
         if not p.exists():
@@ -1758,9 +1758,9 @@ def vision(image_path, question="Describe what you see in detail."):
         image_data = base64.b64encode(p.read_bytes()).decode()
         media_type = "image/png" if p.suffix.lower() == ".png" else "image/jpeg"
 
-        client = anthropic.Anthropic(api_key=API_KEY)
-        response = client.messages.create(
-            model=MODEL,
+        from .inference import current_inference
+        response, _ = current_inference().complete_sync(
+            slot="vision",
             max_tokens=1024,
             messages=[{
                 "role": "user",
@@ -3105,367 +3105,32 @@ def _history_to_openai(history):
 
 
 def _chat_openai(message):
-    """OpenAI-compatible chat path with streaming and tool use."""
-    import json as _json
-    global HISTORY
-
-    import openai as _oai
-
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    base_url = os.environ.get("OPENAI_BASE_URL")
-    model = os.environ.get("OPENAI_MODEL", MODEL)
-
-    client = _oai.OpenAI(api_key=api_key, base_url=base_url)
-    oai_tools = _anthropic_tools_to_openai(TOOLS)
-
-    HISTORY.append({"role": "user", "content": message})
-
-    _api_retries = 0
-    while True:
-        try:
-            oai_messages = [{"role": "system", "content": SYSTEM}] + _history_to_openai(HISTORY)
-
-            print(f"\n{DIM}Processing...{RESET}")
-
-            stream = client.chat.completions.create(
-                model=model,
-                messages=oai_messages,
-                tools=oai_tools,
-                tool_choice="auto",
-                max_tokens=4096,
-                stream=True,
-            )
-
-            # Accumulate streamed response
-            full_content = ""
-            tool_calls_acc: dict = {}  # index -> {id, name, arguments}
-            finish_reason = None
-
-            print(f"\n{MAGENTA}{BOLD}{AI_NAME}:{RESET} ", end="", flush=True)
-            for chunk in stream:
-                choice = chunk.choices[0] if chunk.choices else None
-                if not choice:
-                    continue
-                finish_reason = choice.finish_reason or finish_reason
-                delta = choice.delta
-                if delta.content:
-                    print(delta.content, end="", flush=True)
-                    full_content += delta.content
-                if delta.tool_calls:
-                    for tc in delta.tool_calls:
-                        idx = tc.index
-                        if idx not in tool_calls_acc:
-                            tool_calls_acc[idx] = {"id": tc.id or "", "name": "", "arguments": ""}
-                        if tc.id:
-                            tool_calls_acc[idx]["id"] = tc.id
-                        if tc.function:
-                            if tc.function.name:
-                                tool_calls_acc[idx]["name"] += tc.function.name
-                            if tc.function.arguments:
-                                tool_calls_acc[idx]["arguments"] += tc.function.arguments
-            print()
-
-            if full_content:
-                HISTORY.append({"role": "assistant", "content": full_content})
-
-            if finish_reason == "tool_calls" and tool_calls_acc:
-                tool_results_text = []
-                for idx in sorted(tool_calls_acc.keys()):
-                    tc = tool_calls_acc[idx]
-                    try:
-                        args = _json.loads(tc["arguments"]) if tc["arguments"] else {}
-                    except _json.JSONDecodeError:
-                        args = {"raw": tc["arguments"]}
-                    print(f"\n{DIM}[Tool: {tc['name']}]{RESET}")
-                    result = execute_tool(tc["name"], args)
-                    tool_results_text.append(f"[{tc['name']} result]: {str(result)[:5000]}")
-
-                # Append tool results as a user message so the loop continues
-                HISTORY.append({"role": "user", "content": "\n".join(tool_results_text)})
-                continue  # let model see results
-
-            break
-
-        except Exception as e:
-            err_str = str(e).lower()
-            is_conn_err = any(k in err_str for k in ("connection", "connect", "unreachable", "refused", "timeout", "network"))
-            if is_conn_err and _api_retries == 0:
-                _switch_to_bedrock()
-                # Retry this message on Bedrock via the Anthropic path
-                # Re-enter chat() which will now route to Anthropic/Bedrock
-                HISTORY.pop()  # remove the user message we just added; chat() will re-add it
-                chat(message)
-                return
-            print(f"\n{RED}API Error: {e}{RESET}")
-            _api_retries += 1
-            if _api_retries > 3:
-                break
-            import time as _time
-            _time.sleep(min(2 ** _api_retries, 16))
-
-    if len(HISTORY) > 40:
-        HISTORY = HISTORY[-40:]
+    """Compatibility alias using the configured shared provider transport."""
+    return chat(message)
 
 
 def chat(message):
-    """Send message with streaming output."""
-    global HISTORY
-
-    if os.environ.get("LLM_PROVIDER") == "openai_compat":
-        _chat_openai(message)
-        return
-
-    client = anthropic.Anthropic(api_key=API_KEY)
-    HISTORY.append({"role": "user", "content": message})
-
-    print(f"\n{DIM}Processing...{RESET}")
-
-    _api_retries = 0
-    while True:
+    """Compatibility entrypoint; the canonical runtime owns tools and history."""
+    import asyncio
+    from .orchestrator import Orchestrator
+    async def turn():
+        runtime = Orchestrator()
         try:
-            # Use streaming for real-time output
-            assistant_content = []
-            tool_results = []
-            current_text = ""
-            current_thinking = ""
-            in_thinking = False
-            in_text = False
-            current_tool = None
-            printed_name = False
+            await runtime.initialize()
+            stream = await runtime.chat(message, session_id="terminal", channel="terminal", stream=True,
+                                        tools=True, tool_set=(TOOLS, execute_tool))
+            async for text in stream:
+                print(text, end="", flush=True)
+            print()
+        finally:
+            await runtime.shutdown()
+    asyncio.run(turn())
 
-            with client.messages.stream(
-                model=MODEL,
-                max_tokens=16000,
-                thinking={
-                    "type": "enabled",
-                    "budget_tokens": 10000
-                },
-                system=SYSTEM,
-                tools=TOOLS,
-                messages=HISTORY
-            ) as stream:
-                for event in stream:
-                    # Handle different event types
-                    if event.type == "content_block_start":
-                        if hasattr(event.content_block, 'type'):
-                            if event.content_block.type == "thinking":
-                                in_thinking = True
-                                current_thinking = ""
-                                print(f"\n{DIM}┌─ Thinking ─────────────────────────────────────────{RESET}")
-                            elif event.content_block.type == "text":
-                                in_text = True
-                                current_text = ""
-                                if not printed_name:
-                                    print(f"\n{MAGENTA}{BOLD}{AI_NAME}:{RESET} ", end="", flush=True)
-                                    printed_name = True
-                            elif event.content_block.type == "tool_use":
-                                current_tool = {
-                                    "id": event.content_block.id,
-                                    "name": event.content_block.name,
-                                    "input": {}
-                                }
-
-                    elif event.type == "content_block_delta":
-                        if hasattr(event.delta, 'thinking'):
-                            # Stream thinking
-                            chunk = event.delta.thinking
-                            current_thinking += chunk
-                            # Print each line as it comes
-                            for char in chunk:
-                                if char == '\n':
-                                    print(f"{RESET}")
-                                    print(f"{DIM}│ ", end="", flush=True)
-                                else:
-                                    print(f"{DIM}{char}", end="", flush=True)
-
-                        elif hasattr(event.delta, 'text'):
-                            # Stream text response
-                            chunk = event.delta.text
-                            current_text += chunk
-                            print(chunk, end="", flush=True)
-
-                        elif hasattr(event.delta, 'partial_json'):
-                            # Tool input being built
-                            pass
-
-                    elif event.type == "content_block_stop":
-                        if in_thinking:
-                            in_thinking = False
-                            print(f"{RESET}")
-                            print(f"{DIM}└────────────────────────────────────────────────────{RESET}")
-                        elif in_text:
-                            in_text = False
-                            print()  # Newline after text
-                            if current_text:
-                                assistant_content.append({"type": "text", "text": current_text})
-
-                    elif event.type == "message_delta":
-                        pass  # End of message
-
-                # Get final message for tool use
-                final = stream.get_final_message()
-
-                for block in final.content:
-                    if block.type == "tool_use":
-                        # Execute tool
-                        result = execute_tool(block.name, block.input)
-                        assistant_content.append({
-                            "type": "tool_use",
-                            "id": block.id,
-                            "name": block.name,
-                            "input": block.input
-                        })
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": str(result)[:10000]
-                        })
-
-        except anthropic.BadRequestError as e:
-            error_msg = str(e)
-            print(f"{RED}API Error: {error_msg[:200]}{RESET}")
-
-            # Clean orphaned tool results first
-            HISTORY = clean_history(HISTORY)
-
-            # If still have history, try trimming
-            if len(HISTORY) > 4:
-                print(f"{YELLOW}Cleaning and trimming history...{RESET}")
-                HISTORY = HISTORY[-4:]
-                HISTORY = clean_history(HISTORY)
-                if HISTORY:
-                    continue
-
-            # Last resort: reset, but carry over recent plain-text turns
-            # so the model keeps conversational context ("fix that" must
-            # still mean something after a reset).
-            print(f"{RED}Resetting conversation (keeping recent context){RESET}")
-            recent_text = [m for m in HISTORY
-                           if isinstance(m.get("content"), str) and m["content"].strip()][-6:]
-            while recent_text and recent_text[0]["role"] != "user":
-                recent_text.pop(0)
-            HISTORY = recent_text
-            if not HISTORY or HISTORY[-1].get("content") != message:
-                HISTORY.append({"role": "user", "content": message})
-            continue
-
-        except anthropic.APIError as e:
-            print(f"{RED}API Error: {str(e)[:200]}{RESET}")
-            status = getattr(e, "status_code", None)
-            # 4xx errors (bad model, bad auth, bad request) won't fix
-            # themselves — retrying just hammers the API. Fail fast.
-            if status is not None and 400 <= status < 500 and status != 429:
-                if status == 404:
-                    print(f"{YELLOW}Model '{MODEL}' not found — it may be retired or "
-                          f"misrouted. Check the provider config in "
-                          f"~/.hyperclaw/config/models.yaml and run `hyperclaw doctor`.{RESET}")
-                break
-            print(f"{YELLOW}Retrying...{RESET}")
-            time.sleep(min(2 ** _api_retries, 30))
-            _api_retries += 1
-            if _api_retries > 5:
-                print(f"{RED}Giving up after {_api_retries} retries.{RESET}")
-                break
-            continue
-
-        except Exception as e:
-            print(f"{RED}Unexpected error: {str(e)[:200]}{RESET}")
-            # Don't reset, just continue
-            continue
-
-        # Add assistant message
-        if assistant_content:
-            HISTORY.append({"role": "assistant", "content": assistant_content})
-
-        # If tools were used, add results and continue
-        if tool_results:
-            HISTORY.append({"role": "user", "content": tool_results})
-        else:
-            break
-
-        if hasattr(final, 'stop_reason') and final.stop_reason == "end_turn":
-            break
-
-    # Trim history and clean orphaned tool results
-    if len(HISTORY) > 40:
-        HISTORY = HISTORY[-40:]
-        HISTORY = clean_history(HISTORY)
 
 def main():
-    global HISTORY, SYSTEM
+    from .terminal import main as run_terminal
+    run_terminal()
 
-    # Re-resolve key here so it picks up env loaded after module import
-    _live_key = _resolve_api_key()
-    _provider = os.environ.get("LLM_PROVIDER", "anthropic")
-    if _provider == "openai_compat" and not _live_key:
-        print(f"\n{RED}OPENAI_API_KEY not set.{RESET}")
-        print(f"\nRun {CYAN}hyperclaw init --reset{RESET} to reconfigure.")
-        sys.exit(1)
-    elif _provider not in ("openai_compat", "bedrock") and not _live_key:
-        print(f"\n{RED}ANTHROPIC_API_KEY not set.{RESET}")
-        print(f"\nRun {CYAN}hyperclaw init{RESET} to set up your API key.")
-        print(f"Or set it manually: export ANTHROPIC_API_KEY=sk-ant-...")
-        sys.exit(1)
-
-    # Startup connectivity check — silently fall back to Bedrock if hyperspeed is down
-    if _provider == "openai_compat":
-        import urllib.request as _ur, urllib.error as _ue
-        _base = os.environ.get("OPENAI_BASE_URL", "").rstrip("/")
-        try:
-            req = _ur.Request(f"{_base}/models", headers={"Authorization": f"Bearer {_live_key}"})
-            _ur.urlopen(req, timeout=4)
-        except Exception:
-            _switch_to_bedrock()
-
-    # Load memories and build system prompt
-    print(f"\n{DIM}Loading memories...{RESET}")
-    memories = load_memory_files()
-    SYSTEM = SYSTEM_BASE + "\n\n--- MEMORY ---\n" + memories if memories else SYSTEM_BASE
-
-    # Load previous session and clean any orphaned tool results
-    HISTORY = load_session()
-    HISTORY = clean_history(HISTORY)
-    session_msg = f"Resumed session ({len(HISTORY)} messages)" if HISTORY else "New session"
-
-    try:
-        from hyperclaw.providers import registry
-        print(f"{DIM}{registry().startup_line()}{RESET}")
-    except Exception:
-        pass
-    print(f"\n{CYAN}{BOLD}=== HyperClaw ==={RESET}")
-    print(f"{DIM}Full computer control: terminal, files, web, GUI, screen{RESET}")
-    print(f"{DIM}{session_msg} | /reset to clear, /quit to exit{RESET}\n")
-
-    while True:
-        try:
-            user_input = input(f"{CYAN}>{RESET} ").strip()
-
-            if not user_input:
-                continue
-
-            if user_input.startswith("/"):
-                cmd = user_input.lower()
-                if cmd == "/reset":
-                    HISTORY = []
-                    save_session(HISTORY)
-                    print(f"{GREEN}Reset.{RESET}\n")
-                elif cmd in ("/quit", "/exit", "/q"):
-                    save_session(HISTORY)
-                    print(f"{DIM}Goodbye.{RESET}\n")
-                    break
-                else:
-                    print(f"{YELLOW}Unknown: {cmd}{RESET}\n")
-                continue
-
-            chat(user_input)
-            save_session(HISTORY)  # Save after each exchange
-            print()
-
-        except KeyboardInterrupt:
-            print("\n")
-        except EOFError:
-            print(f"\n{DIM}Goodbye.{RESET}")
-            break
 
 if __name__ == "__main__":
     main()

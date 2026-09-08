@@ -12,9 +12,11 @@ providers, so an unconfigured provider is simply invisible.
 
 import logging
 import os
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 log = logging.getLogger("hyperclaw.providers")
 
@@ -42,7 +44,7 @@ class Provider:
             # wiring (37afbb0) have a *different* endpoint behind these
             # vars — routing images/embeddings there with that key fails.
             base = os.environ.get("OPENAI_BASE_URL", "").strip()
-            if base and "api.openai.com" not in base:
+            if base and urlparse(base).hostname != "api.openai.com":
                 return False
         return True
 
@@ -64,9 +66,10 @@ class Provider:
 
 
 class ProviderRegistry:
-    def __init__(self, providers: dict, slots: dict):
+    def __init__(self, providers: dict, slots: dict, model_configs: Optional[dict] = None):
         self.providers = providers          # name -> Provider
         self.slots = slots                  # slot -> ["name" | "name:modelkey", ...]
+        self.model_configs = model_configs or {}  # exact model ID -> configured rates/settings
 
     # ── construction ────────────────────────────────────────────────────
     @classmethod
@@ -90,6 +93,7 @@ class ProviderRegistry:
                 pdata = yaml.safe_load(packaged.read_text()) or {}
                 data.setdefault("providers", pdata.get("providers", {}))
                 data.setdefault("slots", pdata.get("slots", {}))
+                data.setdefault("models", pdata.get("models", {}))
             except Exception:
                 pass
 
@@ -105,7 +109,13 @@ class ProviderRegistry:
                 models=cfg.get("models") or {},
             )
         slots = {s: list(v) for s, v in (data.get("slots") or {}).items()}
-        return cls(providers, slots)
+        # Add the opt-in local provider even to user configs created before it
+        # shipped. Existing provider definitions and ladders remain authoritative.
+        providers.setdefault("ollama", Provider(
+            "ollama", "anthropic", frozenset({"chat", "streaming", "tool_use", "images", "thinking"}),
+            base_url_env="OLLAMA_BASE_URL", model_env="OLLAMA_MODEL",
+        ))
+        return cls(providers, slots, data.get("models") or {})
 
     # ── queries ─────────────────────────────────────────────────────────
     def resolve(self, slot: str, required_capabilities=None) -> list:
@@ -113,7 +123,17 @@ class ProviderRegistry:
         filtered to live providers that declare every required capability."""
         need = frozenset(required_capabilities or ())
         out = []
-        for entry in self.slots.get(slot, []):
+        selected = os.environ.get("HYPERCLAW_PROVIDER", "").strip()
+        # An explicit provider is also a privacy boundary: do not fall through
+        # to another configured service if it fails or lacks a capability.
+        entries = self.slots.get(slot, [])
+        if selected and slot in ("primary", "tools", "vision", "fast"):
+            # Preserve the selected provider's explicit slot model (e.g. its
+            # configured fast model) while excluding every other provider.
+            entries = [entry for entry in entries if entry.partition(":")[0] == selected] or [selected]
+        if selected and slot in ("embeddings", "images"):
+            entries = [e for e in entries if e.partition(":")[0] == selected]
+        for entry in entries:
             name, _, model_key = entry.partition(":")
             prov = self.providers.get(name)
             if not prov or not prov.live or not need <= prov.capabilities:
@@ -145,7 +165,7 @@ class ProviderRegistry:
 
 # ── module-level singleton + served_by tracking ─────────────────────────
 _registry: Optional[ProviderRegistry] = None
-_served_by: str = ""
+_served_by: ContextVar[str] = ContextVar("hyperclaw_served_by", default="")
 
 
 def registry() -> ProviderRegistry:
@@ -162,12 +182,11 @@ def reset_registry() -> None:
 
 
 def record_served_by(value: str) -> None:
-    global _served_by
-    _served_by = value
+    _served_by.set(value)
 
 
 def get_served_by() -> str:
-    return _served_by
+    return _served_by.get()
 
 
 async def stream_with_failover(candidates, attempt):

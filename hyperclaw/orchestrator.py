@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import os
+from contextlib import aclosing
 from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncIterator, Optional, Union
@@ -33,48 +34,33 @@ class Orchestrator:
     Manages agents, integrations, memory, and cost-optimized model routing.
     """
 
-    def __init__(self):
+    def __init__(self, model_router=None, memory=None):
         self._initialized = False
-        self._model_router: Optional[ModelRouter] = None
+        self._model_router: Optional[ModelRouter] = model_router
         self._coordinator: Optional[AgentCoordinator] = None
-        self._memory: Optional[MemoryManager] = None
+        self._memory: Optional[MemoryManager] = memory
         self._db_pool = None
         self._integrations: dict[str, Any] = {}
         self._system_prompt: str = ""
+        self._session_locks = {}
+        self._loaded_sessions = set()
+        self._last_turns = {}
+        self._initialize_lock = asyncio.Lock()
 
     async def initialize(self, db_pool=None):
-        """Initialize all components."""
-        if self._initialized:
-            return
-
-        logger.info("Initializing HyperClaw Orchestrator...")
-
-        # Database pool
-        self._db_pool = db_pool
-
-        # Initialize model router (handles Claude, ChatJimmy, etc.)
-        self._model_router = get_model_router()
-        logger.info(f"Model router initialized with {len(self._model_router.models)} models")
-
-        # Initialize agent coordinator
-        self._coordinator = await get_coordinator()
-        logger.info(f"Agent coordinator initialized with {len(self._coordinator.agents)} agents")
-
-        # Initialize memory manager
-        self._memory = await get_memory_manager(db_pool)
-        logger.info("Memory manager initialized")
-
-        # Load system prompt
-        self._system_prompt = self._build_system_prompt()
-
-        # Initialize integrations
-        await self._init_integrations()
-
-        # Start background workers for task processing
-        await self._coordinator.start_workers(num_workers=3)
-
-        self._initialized = True
-        logger.info("Orchestrator initialization complete")
+        """Initialize each component once, even with simultaneous first turns."""
+        async with self._initialize_lock:
+            if self._initialized:
+                return
+            self._db_pool = db_pool
+            self._model_router = self._model_router or ModelRouter()
+            self._coordinator = AgentCoordinator(self._model_router)
+            self._memory = self._memory or MemoryManager(db_pool)
+            await self._memory.initialize()
+            self._system_prompt = self._build_system_prompt()
+            await self._init_integrations()
+            await self._coordinator.start_workers(num_workers=3)
+            self._initialized = True
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt from workspace context."""
@@ -140,144 +126,117 @@ class Orchestrator:
     # CHAT INTERFACE (Cost-Optimized)
     # =========================================================================
 
-    async def chat(
-        self,
-        message: str,
-        session_id: str = "default",
-        channel: str = "api",
-        stream: bool = False,
-        force_model: str = None
-    ) -> Union[str, AsyncIterator[str]]:
-        """
-        Main chat interface with intelligent model routing.
-        Simple queries go to ChatJimmy, complex tasks to Claude.
-        """
+    async def chat(self, message: str, session_id: str = "default", channel: str = "api",
+                   stream: bool = False, force_model: str = None, attachments=None, tools=None, tool_set=None):
+        async def text_stream():
+            async with aclosing(self._turn_events(message, session_id, channel, force_model,
+                    attachments, tools, streaming=stream, tool_set=tool_set)) as events:
+                async for kind, text in events:
+                    if kind == "text":
+                        yield text
+        if stream:
+            return text_stream()
+        return "".join([text async for text in text_stream()])
+
+    async def stream_events(self, message: str, session_id: str = "default", channel: str = "api",
+                            force_model: str = None, attachments=None, tools=None, tool_set=None):
+        async with aclosing(self._turn_events(message, session_id, channel, force_model,
+                attachments, tools, streaming=True, tool_set=tool_set)) as events:
+            async for item in events:
+                yield item
+
+    async def _turn_events(self, message, session_id, channel, force_model, attachments, tools, streaming, tool_set=None):
         if not self._initialized:
             await self.initialize()
+        session_id = session_id or "default"
+        lock = self._session_locks.setdefault(session_id, asyncio.Lock())
+        async with lock:
+            if session_id not in self._loaded_sessions:
+                await self._memory.load_conversation(session_id)
+                self._loaded_sessions.add(session_id)
+            history = self._memory.get_conversation_history(session_id)
+            messages = self._prepare_messages(message, history)
+            if attachments:
+                messages[-1]["content"] = list(attachments) + [{"type": "text", "text": message}]
+            from .inference import message_capabilities
+            from .model_router import MODELS
+            from .providers import record_served_by
+            record_served_by("")
+            needs = message_capabilities(messages)
+            slot = "vision" if needs & {"images", "documents"} else "primary"
+            force_model = MODELS[force_model].id if force_model in MODELS else force_model
+            enabled_tools = tools if tools is not None else os.environ.get("HYPERCLAW_ENABLE_TOOLS", "0").lower() in ("1", "true", "yes")
+            candidates = self._model_router.inference.candidates("tools" if enabled_tools else slot,
+                needs | ({"tool_use"} if enabled_tools else set()), force_model)
+            serving_model = candidates[0][1] if candidates else "unconfigured"
+            system = self._build_system_prompt()
+            memories = await self._memory.recall(message, limit=10)
+            relevant = [m for m in memories if not m.metadata.get("session_id") or m.metadata["session_id"] == session_id]
+            if relevant:
+                system += "\n\nRelevant memories:\n" + "\n".join(m.content for m in relevant[:5])
+            self._memory.add_message(session_id, "user", messages[-1]["content"], {"channel": channel})
+            parts = []
+            self._last_turns[session_id] = {"tools_used": [], "model": serving_model}
+            try:
+                max_tokens = int(os.environ.get("HYPERCLAW_MAX_TOKENS", "4096"))
+                if enabled_tools:
+                    from .tool_loop import ToolLoop, local_tools
+                    definitions, execute = tool_set if tool_set is not None else local_tools()
+                    loop = ToolLoop(self._model_router.inference, definitions, execute)
+                    self._last_turns[session_id]["tools_used"] = loop.tools_used
+                    events = loop.run(messages, system, model_override=force_model, max_tokens=max_tokens)
+                elif streaming:
+                    events = self._model_router.inference.stream_events(messages, system, slot=slot,
+                        required_capabilities=needs, model_override=force_model, max_tokens=max_tokens)
+                else:
+                    text, metadata = await self._model_router.call(
+                        message=messages[-1]["content"], system=system, history=messages[:-1], slot=slot,
+                        model_override=force_model, required_capabilities=needs, max_tokens=max_tokens)
+                    async def answer():
+                        yield "text", text
+                    events = answer()
+                async with aclosing(events):
+                    async for kind, text in events:
+                        if kind == "text":
+                            parts.append(text)
+                        yield kind, text
+                if parts:
+                    try:
+                        await self._auto_store_memory(message, "".join(parts), session_id)
+                    except Exception:
+                        logger.warning("Automatic memory storage failed; preserving conversation response", exc_info=True)
+            finally:
+                from .providers import get_served_by
+                self._last_turns[session_id]["served_by"] = get_served_by()
+                if parts:
+                    self._memory.add_message(session_id, "assistant", "".join(parts), {"channel": channel})
+                await self._memory.save_conversation(session_id)
 
-        # Get conversation history
-        history = self._memory.get_conversation_history(session_id)
+    async def reset_session(self, session_id="default"):
+        if not self._initialized:
+            await self.initialize()
+        async with self._session_locks.setdefault(session_id, asyncio.Lock()):
+            await self._memory.clear_conversation(session_id)
+            self._loaded_sessions.add(session_id)
 
-        # Add user message to history
-        self._memory.add_message(session_id, "user", message, {"channel": channel})
-
-        # Recall relevant memories
-        relevant_memories = await self._memory.recall(message, limit=5)
-        memory_context = ""
-        if relevant_memories:
-            memory_context = "\n\n## Relevant Memories\n"
-            for mem in relevant_memories:
-                memory_context += f"- [{mem.memory_type}] {mem.content}\n"
-
-        # Build system prompt with memory context
-        system = self._system_prompt + memory_context
-
-        # Prepare messages for API
-        messages = self._prepare_messages(message, history)
-
-        if stream:
-            return self._stream_response(messages, system, session_id, force_model)
-        else:
-            return await self._get_response(messages, system, session_id, force_model)
-
-    async def _get_response(
-        self,
-        messages: list[dict],
-        system: str,
-        session_id: str,
-        force_model: str = None
-    ) -> str:
-        """Get a response using cost-optimized model routing."""
-        user_message = messages[-1]["content"] if messages else ""
-
-        try:
-            # Use model router for intelligent selection
-            response, metadata = await self._model_router.call(
-                message=user_message,
-                system=system,
-                history=messages[:-1],  # Exclude current message
-                model_override=force_model,
-            )
-
-            # Log model usage
-            model_used = metadata.get("model_name", "unknown")
-            tier_used = metadata.get("tier", "unknown")
-            logger.info(f"Response from {model_used} (tier={tier_used})")
-
-            # Store assistant message
-            self._memory.add_message(session_id, "assistant", response, {
-                "model": metadata.get("model"),
-                "tier": tier_used,
-            })
-
-            # Auto-store significant exchanges
-            await self._auto_store_memory(user_message, response)
-
-            # Log to daily
-            await self._memory.log_to_daily(
-                f"Chat ({model_used}): {user_message[:80]}...",
-                "conversation"
-            )
-
-            return response
-
-        except Exception as e:
-            logger.error(f"Chat error: {e}", exc_info=True)
-            return f"[Error: {e}]"
-
-    async def _stream_response(
-        self,
-        messages: list[dict],
-        system: str,
-        session_id: str,
-        force_model: str = None
-    ) -> AsyncIterator[str]:
-        """Stream a response (falls back to non-streaming for now)."""
-        # For streaming, we need to use Anthropic's streaming API directly
-        # The model router doesn't support streaming yet, so we'll use
-        # the standard model and stream from there
-        import anthropic
-
-        user_message = messages[-1]["content"] if messages else ""
-
-        # Determine which model to use
-        if force_model:
-            model_id = force_model
-        else:
-            model_config = self._model_router.select_model(user_message)
-            model_id = model_config.id
-
-        # Only Anthropic models support streaming currently
-        if not model_id.startswith("claude"):
-            # Fallback to non-streaming
-            response = await self._get_response(messages, system, session_id, force_model)
-            yield response
-            return
-
-        full_response = []
-
-        try:
-            api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-            async_client = anthropic.AsyncAnthropic(api_key=api_key)
-
-            async with async_client.messages.stream(
-                model=model_id,
-                max_tokens=4096,
-                system=system,
-                messages=messages,
-            ) as stream:
-                async for text in stream.text_stream:
-                    full_response.append(text)
-                    yield text
-
-            # Store complete response
-            response_text = "".join(full_response)
-            self._memory.add_message(session_id, "assistant", response_text)
-            await self._auto_store_memory(user_message, response_text)
-
-        except Exception as e:
-            logger.error(f"Streaming error: {e}", exc_info=True)
-            yield f"[Error: {e}]"
+    async def import_session(self, session_id, loader) -> bool:
+        """Import legacy history once, serialized with turns and durable reset."""
+        if not self._initialized:
+            await self.initialize()
+        async with self._session_locks.setdefault(session_id, asyncio.Lock()):
+            if await self._memory.conversation_exists(session_id):
+                return False
+            history = await loader()
+            # Discard an incomplete in-memory import before retrying its save.
+            await self._memory.load_conversation(session_id)
+            for message in history[-100:]:
+                metadata = {key: value for key, value in message.items()
+                            if key not in {"id", "role", "content"}}
+                self._memory.add_message(session_id, message["role"], message["content"], metadata)
+            # Empty imports are durable markers, just like reset sessions.
+            await self._memory.save_conversation(session_id)
+            self._loaded_sessions.add(session_id)
+            return True
 
     def _prepare_messages(self, message: str, history: list[dict]) -> list[dict]:
         """Prepare messages for API call."""
@@ -288,9 +247,11 @@ class Orchestrator:
                 "content": msg["content"]
             })
         messages.append({"role": "user", "content": message})
+        while messages and messages[0]["role"] != "user":
+            messages.pop(0)
         return messages
 
-    async def _auto_store_memory(self, user_msg: str, assistant_msg: str):
+    async def _auto_store_memory(self, user_msg: str, assistant_msg: str, session_id: str = "default"):
         """Automatically store significant exchanges as memories."""
         store_triggers = [
             "remember", "note that", "important", "always", "never",
@@ -306,7 +267,8 @@ class Orchestrator:
                 content=summary,
                 memory_type="episode",
                 importance=0.7,
-                source="auto_store"
+                source="auto_store",
+                metadata={"session_id": session_id}
             )
 
     # =========================================================================
@@ -507,9 +469,8 @@ class Orchestrator:
             for session_id in list(self._memory._conversation_history.keys()):
                 await self._memory.save_conversation(session_id)
 
-        # Close database pool
-        if self._db_pool:
-            await self._db_pool.close()
+        # The application lifespan owns the database pool.
+        self._initialized = False
 
         logger.info("Orchestrator shutdown complete")
 
@@ -526,7 +487,7 @@ async def get_orchestrator(db_pool=None) -> Orchestrator:
     global _orchestrator
     if _orchestrator is None:
         _orchestrator = Orchestrator()
-        await _orchestrator.initialize(db_pool)
+    await _orchestrator.initialize(db_pool)
     return _orchestrator
 
 

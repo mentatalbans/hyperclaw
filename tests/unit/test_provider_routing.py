@@ -97,7 +97,9 @@ class TestCapabilityGating:
 class TestFailover:
     def _run(self, gen):
         async def collect():
-            return [item async for item in gen]
+            output = [item async for item in gen]
+            self.served_by = P.get_served_by()
+            return output
         return asyncio.run(collect())
 
     def _cands(self):
@@ -117,7 +119,7 @@ class TestFailover:
         out = self._run(P.stream_with_failover(self._cands(), attempt))
         assert calls == ["alpha", "beta"]
         assert out == [("text", "hello")]
-        assert P.get_served_by() == "beta/m-b"
+        assert self.served_by == "beta/m-b"
 
     def test_mid_stream_marked_not_reanswered(self):
         calls = []
@@ -131,7 +133,7 @@ class TestFailover:
         assert calls == ["alpha"]           # beta must never run
         assert out[0] == ("text", "partial ")
         assert "interrupted" in out[1][1]
-        assert P.get_served_by() == "alpha/m-a"
+        assert self.served_by == "alpha/m-a"
 
     def test_all_fail(self):
         async def attempt(prov, model):

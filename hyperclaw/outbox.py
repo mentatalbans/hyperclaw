@@ -8,20 +8,21 @@ to the CURRENT conversation channel without knowing which channel it is.
 and delivers the files natively (sendDocument/sendPhoto, iMessage attachment,
 email attachment).
 
-Thread-safe: tui_bridge runs turns in a thread pool, so the "current session"
-is tracked per-thread.
+The current session is local to each async context and follows tools dispatched
+with asyncio.to_thread. A lock protects the shared outbound queues.
 """
 
 from __future__ import annotations
 
 import threading
 import time
+from contextvars import ContextVar, Token
 from pathlib import Path
 from typing import Dict, List, Optional
 
 _lock = threading.Lock()
 _queues: Dict[int, List[dict]] = {}          # chat_id -> [{path, caption, queued_at}]
-_current = threading.local()                  # per-thread active chat_id
+_current: ContextVar[Optional[int]] = ContextVar("hyperclaw_outbox_session", default=None)
 
 MAX_QUEUE_PER_CHAT = 50    # cap so an undrained chat can't grow unbounded
 ENTRY_TTL_SECONDS = 900    # stale entries (>15 min) are dropped at drain time
@@ -31,18 +32,23 @@ VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".avi", ".webm"}
 AUDIO_EXTS = {".mp3", ".m4a", ".wav", ".ogg", ".flac", ".aiff"}
 
 
-def set_current_session(chat_id: Optional[int]) -> None:
-    """Bind the running thread to a conversation (called by tui_bridge per turn)."""
-    _current.chat_id = chat_id
+def set_current_session(chat_id: Optional[int]) -> Token:
+    """Bind this async context to a conversation and return its reset token."""
+    return _current.set(chat_id)
+
+
+def reset_current_session(token: Token) -> None:
+    """Restore the previous binding after a nested or completed turn."""
+    _current.reset(token)
 
 
 def get_current_session() -> Optional[int]:
-    return getattr(_current, "chat_id", None)
+    return _current.get()
 
 
 def queue_file(path: str, caption: str = "", chat_id: Optional[int] = None) -> str:
     """Queue a file for delivery to a conversation. Returns a status string
-    (tool-friendly). Falls back to the thread's current session."""
+    (tool-friendly). Falls back to the current async context's session."""
     cid = chat_id if chat_id is not None else get_current_session()
     if cid is None:
         return ("No active conversation to deliver to. Use send_file with via="

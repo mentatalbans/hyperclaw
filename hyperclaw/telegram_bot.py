@@ -1,6 +1,6 @@
 """
 HyperClaw Telegram Bot
-Routes messages to SOLOMON, maintains per-chat conversation history.
+Routes messages and durable sessions through the canonical runtime.
 """
 
 import os
@@ -22,7 +22,7 @@ from telegram.ext import (
     filters,
 )
 
-from .solomon import get_solomon
+from .orchestrator import get_orchestrator
 
 from pathlib import Path
 
@@ -36,6 +36,14 @@ logger = logging.getLogger("hyperclaw.telegram")
 TENANT_ID = os.environ.get("OWNER_ID", "local")
 
 _db_pool = None
+
+
+async def close_legacy_history():
+    """Release the optional legacy import pool during application shutdown."""
+    global _db_pool
+    pool, _db_pool = _db_pool, None
+    if pool is not None:
+        await pool.close()
 
 
 async def _get_db_pool():
@@ -65,8 +73,8 @@ async def _get_db_pool():
         logger.info("DB pool connected")
         return _db_pool
     except Exception as e:
-        logger.warning(f"DB unavailable — using in-memory history: {e}")
-        return None
+        logger.warning(f"Legacy DB unavailable; history import will retry: {e}")
+        raise
 
 
 async def _load_history(tenant_id: str, chat_id: int) -> list:
@@ -82,26 +90,7 @@ async def _load_history(tenant_id: str, chat_id: int) -> list:
             return _json.loads(row["messages"]) if row else []
     except Exception as e:
         logger.warning(f"[{chat_id}] DB load failed: {e}")
-        return []
-
-
-async def _save_history(tenant_id: str, chat_id: int, messages: list) -> None:
-    pool = await _get_db_pool()
-    if not pool:
-        return
-    try:
-        async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO hyperclaw_sessions (tenant_id, chat_id, messages, updated_at)
-                VALUES ($1, $2, $3::jsonb, now())
-                ON CONFLICT (tenant_id, chat_id) DO UPDATE
-                SET messages = EXCLUDED.messages, updated_at = now()
-                """,
-                tenant_id, chat_id, _json.dumps(messages),
-            )
-    except Exception as e:
-        logger.warning(f"[{chat_id}] DB save failed: {e}")
+        raise
 
 
 def _allowed_chat_ids() -> set:
@@ -131,21 +120,35 @@ def _allowed_chat_ids() -> set:
 # Config
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 ALLOWED_CHAT_IDS = _allowed_chat_ids()
-MAX_HISTORY = 20
 # Show the model's thinking live in an italic preview before the answer
 # streams in. Set TELEGRAM_SHOW_THINKING=0 to disable.
 SHOW_THINKING = os.environ.get("TELEGRAM_SHOW_THINKING", "1") not in ("0", "false", "no")
 
 
 class TelegramBot:
-    """HyperClaw Telegram bot — routes to SOLOMON."""
+    """Telegram display and file adapter for the canonical chat runtime."""
 
     def __init__(self):
         self.application: Optional[Application] = None
-        self.conversation_history: dict[int, list[dict]] = defaultdict(list)
         self.pending_attachments: dict[int, list] = defaultdict(list)
-        self._db_loaded: set[int] = set()
-        self.solomon = get_solomon()
+        self._runtime = None
+        self._migration_checked: set[int] = set()
+
+    def _session_id(self, chat_id: int) -> str:
+        return f"telegram:{TENANT_ID}:{chat_id}"
+
+    async def _get_runtime(self):
+        if self._runtime is None:
+            self._runtime = await get_orchestrator()
+        return self._runtime
+
+    async def _prepare_session(self, chat_id: int):
+        runtime = await self._get_runtime()
+        session_id = self._session_id(chat_id)
+        if chat_id not in self._migration_checked:
+            await runtime.import_session(session_id, lambda: _load_history(TENANT_ID, chat_id))
+            self._migration_checked.add(chat_id)
+        return runtime, session_id
 
     def _is_allowed(self, chat_id: int) -> bool:
         """Check if chat_id is in the allowlist."""
@@ -171,7 +174,8 @@ class TelegramBot:
             return
 
         chat_id = update.effective_chat.id
-        history_count = len(self.conversation_history.get(chat_id, []))
+        runtime = await self._get_runtime()
+        history_count = len(runtime._memory.get_conversation_history(self._session_id(chat_id)))
 
         # Try to get ATLAS_TRADING status
         trading_status = "offline"
@@ -216,9 +220,10 @@ class TelegramBot:
             return
 
         chat_id = update.effective_chat.id
-        self.conversation_history[chat_id] = []
-        self._db_loaded.discard(chat_id)
-        await _save_history(TENANT_ID, chat_id, [])
+        runtime = await self._get_runtime()
+        await runtime.reset_session(self._session_id(chat_id))
+        self._migration_checked.add(chat_id)
+        self.pending_attachments.pop(chat_id, None)
         await update.message.reply_text("Conversation history cleared.")
 
     MAX_FILE_BYTES = 20 * 1024 * 1024  # Telegram bot API download cap
@@ -226,11 +231,12 @@ class TelegramBot:
     async def handle_file(self, update, context) -> None:
         """Receive a document or photo and stage it for the next model turn.
 
-        PDFs and images go to the model natively as Anthropic content
-        blocks; small text files are inlined; anything else is noted by
-        name so the model can at least acknowledge it."""
+        PDFs and images use content blocks, with provider capability checks in
+        the runtime; small text files are inlined; other files are noted by name."""
+        if not update.effective_chat or not self._is_allowed(update.effective_chat.id):
+            return
         chat_id = update.effective_chat.id
-        if chat_id not in ALLOWED_CHAT_IDS:
+        if not update.message:
             return
         import base64
 
@@ -295,8 +301,10 @@ class TelegramBot:
             pass
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle incoming text messages — stream response from SOLOMON."""
-        if not update.effective_chat or not self._is_allowed(update.effective_chat.id):
+        """Handle incoming text messages through the canonical session runtime."""
+        if not update.effective_chat:
+            return
+        if not self._is_allowed(update.effective_chat.id):
             logger.warning(f"Blocked message from unauthorized chat: {update.effective_chat.id}")
             return
 
@@ -310,15 +318,6 @@ class TelegramBot:
             return
 
         logger.info(f"[{chat_id}] User: {user_message[:50]}...")
-
-        # Lazy-load history from DB on first message this session
-        if chat_id not in self._db_loaded:
-            db_history = await _load_history(TENANT_ID, chat_id)
-            if db_history:
-                self.conversation_history[chat_id] = db_history
-            self._db_loaded.add(chat_id)
-
-        history = self.conversation_history[chat_id]
 
         # Telegram expires the typing indicator after ~5s — keep it alive for
         # the whole turn so the user always sees the bot working.
@@ -345,6 +344,7 @@ class TelegramBot:
         typing_task = _asyncio.create_task(_keep_typing())
 
         try:
+            runtime, session_id = await self._prepare_session(chat_id)
             # Placeholder — the user sees activity from the first moment
             placeholder = await update.message.reply_text("💭 thinking…")
 
@@ -358,8 +358,8 @@ class TelegramBot:
             MAX_EDITS = 60        # stay well under Telegram rate limits (~20 edits/msg practical limit)
 
             attachments = self.pending_attachments.pop(chat_id, [])
-            async for kind, chunk in self.solomon.stream_events(
-                    user_message, history, attachments=attachments):
+            async for kind, chunk in runtime.stream_events(
+                    user_message, session_id=session_id, channel="telegram", attachments=attachments):
                 if kind == "thinking":
                     if not SHOW_THINKING or answer_started:
                         continue
@@ -427,16 +427,7 @@ class TelegramBot:
                     for i in range(0, len(response), 4096):
                         await update.message.reply_text(response[i:i + 4096])
 
-            # Update history
-            history.append({"role": "user", "content": user_message})
-            history.append({"role": "assistant", "content": response})
-
-            # Trim to max history
-            if len(history) > MAX_HISTORY * 2:
-                self.conversation_history[chat_id] = history[-(MAX_HISTORY * 2):]
-
-            await _save_history(TENANT_ID, chat_id, self.conversation_history[chat_id])
-            logger.info(f"[{chat_id}] SOLOMON streamed: {response[:50]}...")
+            logger.info(f"[{chat_id}] Runtime streamed: {response[:50]}...")
 
         except Exception as e:
             logger.error(f"[{chat_id}] Error: {e}", exc_info=True)

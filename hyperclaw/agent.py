@@ -341,7 +341,6 @@ class HyperClawAgent:
     """Assistant agent with full tool execution."""
 
     def __init__(self):
-        self.client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
         self.system_prompt = self._load_system_prompt()
         self.history: list[dict] = []
 
@@ -401,108 +400,14 @@ class HyperClawAgent:
         self.system_prompt = self._load_system_prompt()
 
     async def chat(self, message: str) -> AsyncIterator[str]:
-        """
-        Process a message with tool execution.
-        Yields text chunks as they come, executes tools as needed.
-        """
-        self.history.append({"role": "user", "content": message})
-
-        # Trim history
-        if len(self.history) > 120:
-            self.history = self.history[-120:]
-
-        messages = list(self.history)
-
-        max_iterations = 100  # Assistant: raised from 20 — complex multi-step tasks require depth
-        iteration = 0
-        consecutive_errors = 0
-
-        while iteration < max_iterations:
-            iteration += 1
-
-            try:
-                response = self.client.messages.create(
-                    model=MODEL,
-                    max_tokens=MAX_TOKENS,
-                    system=self.system_prompt,
-                    tools=TOOLS,
-                    messages=messages,
-                )
-            except anthropic.APIError as e:
-                yield f"[API Error: {e}]"
-                return
-            except Exception as e:
-                yield f"[Error: {e}]"
-                return
-
-            # Process response content
-            assistant_content = []
-            has_tool_use = False
-
-            for block in response.content:
-                if block.type == "text":
-                    yield block.text
-                    assistant_content.append({"type": "text", "text": block.text})
-                elif block.type == "tool_use":
-                    has_tool_use = True
-                    tool_name = block.name
-                    tool_input = block.input
-                    tool_id = block.id
-
-                    yield f"\n[Executing: {tool_name}]\n"
-
-                    # Execute the tool
-                    result = execute_tool(tool_name, tool_input)
-
-                    # Track consecutive errors to break out of loops
-                    if result.startswith("Error:") or result.startswith("Tool error"):
-                        consecutive_errors += 1
-                        if consecutive_errors >= 5:
-                            yield f"\n[Stopping: too many consecutive tool errors]\n"
-                            return
-                    else:
-                        consecutive_errors = 0
-
-                    # Show truncated result
-                    if len(result) > 8000:
-                        yield f"{result[:8000]}...\n[{len(result)} chars total — truncated]\n"
-                    else:
-                        yield f"{result}\n"
-
-                    assistant_content.append({
-                        "type": "tool_use",
-                        "id": tool_id,
-                        "name": tool_name,
-                        "input": tool_input
-                    })
-
-                    # Add tool result to continue conversation
-                    messages.append({"role": "assistant", "content": assistant_content})
-                    messages.append({
-                        "role": "user",
-                        "content": [{
-                            "type": "tool_result",
-                            "tool_use_id": tool_id,
-                            "content": result
-                        }]
-                    })
-                    assistant_content = []
-
-            # If no tool use, we're done
-            if not has_tool_use:
-                # Save final assistant message to history
-                if assistant_content:
-                    text_parts = [b["text"] for b in assistant_content if b["type"] == "text"]
-                    if text_parts:
-                        self.history.append({"role": "assistant", "content": " ".join(text_parts)})
-                break
-
-            # Check stop reason
-            if response.stop_reason == "end_turn":
-                break
-
-        if iteration >= max_iterations:
-            yield "\n[Stopped: max tool iterations reached]\n"
+        """Compatibility adapter for the shared durable tool runtime."""
+        from .orchestrator import get_orchestrator
+        runtime = await get_orchestrator()
+        stream = await runtime.chat(message, session_id="agent", channel="agent", stream=True,
+                                    tools=True, tool_set=(TOOLS, execute_tool))
+        async for text in stream:
+            yield text
+        self.history = runtime._memory.get_conversation_history("agent")
 
 
 # Singleton

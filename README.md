@@ -1,407 +1,174 @@
 # HyperClaw
 
-**Your personal AI that actually gets things done.**
+A configurable AI assistant with durable conversations, explicit memory, local tool execution, and coordinated agent tasks.
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
-[![PyPI](https://img.shields.io/pypi/v/hyperclaw)](https://pypi.org/project/hyperclaw/)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
 
-HyperClaw is a personal AI assistant that works across your entire life. Not just chat — it connects to your email, calendar, tasks, documents, and more. It remembers everything, learns your preferences, and coordinates 44 specialized AI agents to help you with anything.
+## Run locally with Ollama Qwen
 
----
-
-## What's New in v0.2.0
-
-- **Claude 5 family** with tiered model routing (sonnet-5 / opus-5 / fable-5) and
-  **automatic failover** — overloads degrade gracefully instead of going silent
-- **Universal file delivery** — the `send_file` tool pushes any document, deck,
-  spreadsheet, image, or video into the conversation you're already in (Telegram
-  documents, iMessage attachments, email attachments) or opens it on the Mac
-- **Full email suite** — HTML email, in-thread replies, forwarding with attachments,
-  drafts-as-approval, archive/star/read, Gmail search
-- **Offsite heartbeat** — a dead-man's-switch template that alerts you externally if
-  the machine running your assistant dies (see `.env.example` → `HEARTBEAT_URL`)
-- **Persona templating** — your assistant's identity lives in an untracked file
-  (`persona.example.md`), not in source code
-- **Hardened channel security** — fail-closed allowlists for iMessage and Telegram;
-  see [SECURITY.md](SECURITY.md) before exposing the bot to any channel
-
----
-
-## What Can It Do?
-
-- **Manage your communications** — Email, Telegram, Slack, Discord, WhatsApp, Teams
-- **Organize your work** — Calendar, tasks, projects, documents
-- **Handle your data** — Notion, Airtable, Google Sheets, Salesforce, HubSpot
-- **Support your business** — Invoicing, customer tracking, sales pipelines
-- **Research anything** — Web search, document analysis, data synthesis
-- **Remember everything** — Your preferences, history, context across all sessions
-- **Optimize costs** — Smart model routing uses cheap models for simple tasks
-
-One AI. Every platform. All working together.
-
----
-
-## Architecture
-
-### Cost-Optimized Model Router
-
-HyperClaw intelligently routes tasks to the most cost-effective model:
-
-| Model | Use Case | Cost (input/output per 1k tokens) |
-|-------|----------|------|
-| **ChatJimmy** (Llama 3.1 8B) | Simple queries, classification, quick lookups | ~$0.00001 |
-| **Claude Haiku 4.5** | Moderate tasks, basic analysis | $0.001 / $0.005 |
-| **Claude Sonnet 5** | Everyday requests, drafting, quick answers | $0.002 / $0.010 |
-| **Claude Opus 5** | Analysis, planning, writing, research | $0.005 / $0.025 |
-| **Claude Fable 5** | Hardest multi-step work: code, architecture, quant | $0.010 / $0.050 |
-
-Simple "what time is it?" stays cheap. "Refactor this system end to end" gets Fable 5 — and if a
-model is overloaded, the failover chain walks down the ladder instead of dropping your request.
-
-### Multi-Agent Coordination
-
-44 specialized agents organized by domain:
-
-- **Business (11):** Strategos, Herald, Pipeline, Ledger, Counsel, Talent, Nexus, Ops, Revenue, Sovereign, Venture
-- **Personal (6):** Atlas, Midas, Vitals, Nourish, Navigator, Hearth
-- **Scientific (5):** Medicus, Cosmos, Gaia, Oracle, Scribe
-- **Communications (5):** Echo, Envoy, Pulse, Cipher, Herald
-- **Talent (4):** Scout, Deal, Stage, Roster
-- **Trading (3):** Prediction Strategist, Polymarket Trader, Global Prediction Engine
-- **Technology (3):** Aegis, Bridge, Forge
-- **Recursive (3):** Scout, Alchemist, Calibrator
-- **Intelligence (2):** Sentinel, Arbiter
-- **Creative (2):** Author, Lens
-
-Tasks are automatically routed to the best agent based on domain and complexity.
-
-### Persistent Memory
-
-Memory persists across sessions:
-
-- **Working Memory** — Current context and active tasks
-- **Episodic Memory** — Conversation history and decisions
-- **Semantic Memory** — Facts and knowledge
-- **Instincts** — Learned behavioral patterns
-
----
-
-## Getting Started
-
-### Option 1: Quick Start (5 minutes)
-
-**macOS:**
-```bash
-brew install pipx
-pipx install hyperclaw
-hyperclaw init
-```
-
-**Linux/Windows:**
-```bash
-pip install hyperclaw
-hyperclaw init
-```
-
-The `init` command runs an interactive setup that will:
-1. Ask for your name and what to call your AI
-2. Guide you through API key setup (Anthropic)
-3. Optionally set up database for persistent memory
-4. Launch the chat interface
-
-Then use interactive chat:
-```bash
-hyperclaw start
-```
-
-Or run the TUI:
-```bash
-hyperclaw-tui
-```
-
-### Option 2: Self-Host with Docker
+Use Python 3.11 or newer. From this checkout, install into a virtual environment with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-# Clone the repo
-git clone https://github.com/mentatalbans/hyperclaw.git
-cd hyperclaw
-
-# Copy the example config
-cp .env.example .env
-
-# Edit .env and add your Anthropic API key
-# ANTHROPIC_API_KEY=sk-ant-your-key
-
-# Optional: Add ChatJimmy for cheap simple tasks
-# CHATJIMMY_API_KEY=your-taalas-key
-
-# Start
-docker-compose up
+uv venv --python 3.11 .venv
+uv pip install --python .venv/bin/python -e '.[dev]'
 ```
 
-Open `http://localhost:8001` in your browser.
-
-### Option 3: Production Setup
+The local default is `qwen3.8:27b-mlx` on Ollama at `http://127.0.0.1:11434`. This is the MLX model used for the Apple Silicon setup. Start Ollama and check that the model is installed:
 
 ```bash
-# Clone and setup
-git clone https://github.com/mentatalbans/hyperclaw.git
-cd hyperclaw
-pip install -r requirements.txt
-
-# Initialize workspace and config
-python -m hyperclaw setup
-
-# Initialize database (requires DATABASE_URL in .env)
-python -m hyperclaw setup --init-db
-
-# Start server
-python -m hyperclaw server --port 8001
+ollama list
+# If the model is missing:
+ollama pull qwen3.8:27b-mlx
 ```
 
----
-
-## Configuration
-
-### Required
-- **ANTHROPIC_API_KEY** — Powers the AI brain
-  - Get one at [console.anthropic.com](https://console.anthropic.com)
-
-### Recommended
-- **DATABASE_URL** — PostgreSQL with pgvector for memory
-  - Easiest: [Supabase](https://supabase.com) (free tier works)
-  - Run `schema/init.sql` to create tables
-
-- **CHATJIMMY_API_KEY** — Cheap model for simple tasks
-  - Get one at [taalas.ai](https://taalas.ai)
-  - Reduces costs by 90%+ for simple queries
-
-### Optional Integrations
-
-**Messaging:**
-```bash
-TELEGRAM_BOT_TOKEN=your-bot-token
-SLACK_BOT_TOKEN=xoxb-your-token
-```
-
-**Email:**
-```bash
-GMAIL_CLIENT_ID=...
-GMAIL_CLIENT_SECRET=...
-GMAIL_REFRESH_TOKEN=...
-```
-
-See [.env.example](.env.example) for all available integrations.
-
----
-
-## API Endpoints
-
-### Chat
-```bash
-# Simple chat
-curl -X POST http://localhost:8001/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "What can you help me with?"}'
-
-# Streaming chat
-curl -X POST http://localhost:8001/chat/stream \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Explain quantum computing", "stream": true}'
-```
-
-### Tasks
-```bash
-# Create a task
-curl -X POST http://localhost:8001/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"goal": "Research competitors in AI space", "domain": "business"}'
-
-# Get task status
-curl http://localhost:8001/api/tasks/abc123
-
-# List all tasks
-curl http://localhost:8001/api/tasks
-```
-
-### Multi-Agent Coordination
-```bash
-# Coordinate complex goal across multiple agents
-curl -X POST http://localhost:8001/api/coordinate \
-  -H "Content-Type: application/json" \
-  -d '{"goal": "Create a complete marketing strategy for product launch"}'
-```
-
-### Memory
-```bash
-# Store a memory
-curl -X POST http://localhost:8001/api/memory/remember \
-  -H "Content-Type: application/json" \
-  -d '{"content": "User prefers concise responses", "importance": 0.8}'
-
-# Recall memories
-curl -X POST http://localhost:8001/api/memory/recall \
-  -H "Content-Type: application/json" \
-  -d '{"query": "user preferences"}'
-```
-
-### Cost Management
-```bash
-# Get current costs
-curl http://localhost:8001/api/costs
-
-# Set daily budget
-curl -X POST "http://localhost:8001/api/costs/budget?budget_usd=5.0"
-
-# List available models
-curl http://localhost:8001/api/models
-```
-
-### System
-```bash
-# Health check
-curl http://localhost:8001/health
-
-# Full status
-curl http://localhost:8001/status
-
-# List agents
-curl http://localhost:8001/api/agents
-
-# List integrations
-curl http://localhost:8001/api/integrations
-```
-
----
-
-## CLI Commands
+Save the local profile, then start the HTTP server:
 
 ```bash
-# Setup workspace and configuration
-hyperclaw setup
-hyperclaw setup --init-db  # Also initialize database
-
-# Start the server
-hyperclaw server
-hyperclaw server --port 8080
-
-# Interactive chat
-hyperclaw chat
-
-# Check status
-hyperclaw status
-
-# Memory operations
-hyperclaw memory list
-hyperclaw memory recall "user preferences"
-hyperclaw memory remember "Important note"
-
-# Version
-hyperclaw version
+.venv/bin/hyperclaw local --setup-only
+.venv/bin/hyperclaw server
 ```
 
----
+Open **http://127.0.0.1:8001**. Setup checks Ollama's installed model list; it does not download models. No cloud API key or database is required.
 
-## Workspace Structure
-
-After setup, HyperClaw creates:
-
-```
-~/.hyperclaw/
-├── workspace/
-│   ├── SOUL.md           # AI personality
-│   ├── IDENTITY.md       # AI configuration
-│   ├── USER.md           # Your profile
-│   ├── MEMORY.md         # Working memory
-│   └── secrets/
-│       └── .env          # API keys
-├── memory/
-│   ├── instincts.md      # Learned behaviors
-│   ├── core-episodes.md  # Key memories
-│   └── daily/            # Daily logs
-├── config/
-│   └── hyperclaw.yaml    # System config
-└── logs/
-```
-
-Edit these files to customize your assistant's behavior.
-
----
-
-## Cost Optimization Tips
-
-1. **Use ChatJimmy** — Add `CHATJIMMY_API_KEY` to route simple tasks to a model that costs 100x less
-
-2. **Set a budget** — `hyperclaw` respects `DAILY_BUDGET_USD` and falls back to cheaper models when exceeded
-
-3. **Enable prefer_cheap** — Set `PREFER_CHEAP_MODELS=true` to always prefer the cheapest capable model
-
-4. **Monitor usage** — Check `/api/costs` to see spend by model
-
----
-
-## Database Setup (Optional but Recommended)
-
-For persistent memory across sessions, set up PostgreSQL with pgvector:
-
-1. Create a Supabase project (free) or use any PostgreSQL
-2. Enable the `vector` extension
-3. Run `schema/init.sql` to create tables
-4. Add `DATABASE_URL` to your `.env`
+For terminal chat:
 
 ```bash
-# Initialize database
-python -m hyperclaw setup --init-db
+# Configure the local defaults and open chat:
+.venv/bin/hyperclaw local --chat
+
+# Reuse the saved profile and a named conversation:
+.venv/bin/hyperclaw chat --session my-session
+
+# Chat without executing tools:
+.venv/bin/hyperclaw chat --session my-session --no-tools
 ```
 
----
+Inside terminal chat, `/reset` persistently clears the current session and `/quit` exits. `hyperclaw start` is also a terminal-chat entrypoint.
 
-## Privacy & Security
+To select a different installed Ollama model or endpoint:
 
-- **Your data stays yours** — Self-host means nothing leaves your machine
-- **No tracking** — We don't collect anything
-- **Open source** — Audit the code yourself
-- **Per-agent permissions** — Control what each agent can access
-- **Channel allowlists** — iMessage/Telegram deny strangers by default; read [SECURITY.md](SECURITY.md) before connecting any channel
+```bash
+.venv/bin/hyperclaw local --model YOUR_INSTALLED_MODEL \
+  --base-url http://127.0.0.1:11434 --setup-only
+```
 
----
+## Configuration and local defaults
+
+The local command saves `~/.hyperclaw/config/local.json`, or `$HYPERCLAW_ROOT/config/local.json` when that root is set. It preserves existing credential files. Re-running `local` writes the requested model and restores the local defaults:
+
+| Setting | Local profile |
+| --- | --- |
+| Provider | `HYPERCLAW_PROVIDER=ollama` |
+| Model | `OLLAMA_MODEL=qwen3.8:27b-mlx` |
+| Endpoint | `OLLAMA_BASE_URL=http://127.0.0.1:11434` |
+| Tools | `HYPERCLAW_ENABLE_TOOLS=1` |
+| Thinking | `OLLAMA_THINK=0` |
+| Telegram polling | `HYPERCLAW_ENABLE_TELEGRAM=0` |
+| Scheduler | `HYPERCLAW_ENABLE_SCHEDULER=0` |
+| Database connection | `HYPERCLAW_ENABLE_DATABASE=0` |
+
+Existing environment variables take precedence when loading a saved profile. Use `server` or `chat` after setup to retain those overrides. For example, `HYPERCLAW_ENABLE_DATABASE=true .venv/bin/hyperclaw server` explicitly enables database connection attempts when `DATABASE_URL` is configured.
+
+Selecting `HYPERCLAW_PROVIDER=ollama` restricts model routing and fallback to Ollama. A failed local model request cannot fall through to a configured cloud provider. Enabled tools and integrations may independently access files, execute commands, or contact external services; use `--no-tools` in terminal chat or `"tools": false` in an HTTP request for chat without tools.
+
+Provider definitions and capability routing live in the user's `config/models.yaml`, seeded from the shipped configuration. An explicit provider override must name a configured provider with its required credentials and endpoint. Ollama uses its Messages-compatible API for chat, streaming, image blocks, and tool blocks. PDF document support is not advertised for this local model.
+
+Cloud cost estimates use explicit per-model rates in `models.yaml`. Missing rates are marked unknown; the reported total is then only the known subtotal, and routing switches to the compatible fast slot. The daily budget guides routing rather than imposing a hard spending cap. Ollama has no API usage charge in this accounting.
+
+The optional [.env.example](.env.example) documents runtime variables and integration credentials. You do not need to copy it for the local setup above. Telegram polling requires an explicit enable flag, a bot token, and an allowed chat ID. Telegram webhooks separately require `TELEGRAM_WEBHOOK_SECRET`, the matching `X-Telegram-Bot-Api-Secret-Token` header, and an allowed chat ID. See [SECURITY.md](SECURITY.md) for channel configuration.
+
+## One HTTP application
+
+`hyperclaw.server:app` is the canonical FastAPI application. `server:app` aliases the same object, and `run_hyperclaw.py` launches it. These are alternative entrypoints to one server:
+
+```bash
+.venv/bin/hyperclaw server --host 127.0.0.1 --port 8001
+.venv/bin/python -m hyperclaw server --port 8001
+.venv/bin/python run_hyperclaw.py
+```
+
+Native launch defaults to loopback on port `8001`. The Python launcher accepts `HOST` and `PORT`, with legacy `HYPERCLAW_PORT` as a fallback. The CLI accepts `--host` and `--port`.
+
+One application lifespan starts the orchestrator and task workers, plus explicitly enabled Telegram polling and scheduling. It closes these services on shutdown. The `/api/swarm/*` compatibility routes use the same coordinator as `/api/tasks`; legacy agent IDs and unambiguous display names resolve to canonical agent IDs. Dashboard feeds, voice, trading, and other auxiliary routes remain available and require their own configuration.
+
+Chat, streaming chat, Telegram, and terminal chat use the shared provider transport and durable conversation runtime. Each supplied `session_id` selects its own history. Reuse that ID to resume after a restart; reset persists across restarts. An HTTP request with a null session ID creates a new ID, while an omitted ID uses `default`.
+
+Reset clears the session's conversation messages. Explicit remembered facts persist and remain available through recall.
+
+File storage supports conversation history and explicit remember/recall without PostgreSQL. Optional database storage and the separate research, recursive, and civilization modules remain available. Those modules have their own workflows and setup requirements; this consolidation covers the interactive runtime and its coordinated task path.
+
+## HTTP examples
+
+API documentation is available at `/docs`.
+
+```bash
+# Chat in a named session without tools.
+curl -sS http://127.0.0.1:8001/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Hello","session_id":"demo","tools":false}'
+
+# Stream the next turn in that session.
+curl -N http://127.0.0.1:8001/chat/stream \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Continue","session_id":"demo","tools":false}'
+
+# Persistently reset only this conversation.
+curl -sS -X POST 'http://127.0.0.1:8001/reset?session_id=demo'
+
+# Explicit memory is searchable immediately and after restart.
+curl -sS http://127.0.0.1:8001/api/memory/remember \
+  -H 'Content-Type: application/json' \
+  -d '{"content":"The demo project color is cobalt","domain":"demo"}'
+curl -sS http://127.0.0.1:8001/api/memory/recall \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"cobalt"}'
+
+# Submit a task, then poll its returned task_id.
+curl -sS http://127.0.0.1:8001/api/tasks \
+  -H 'Content-Type: application/json' \
+  -d '{"goal":"Outline a small example program","agent_id":"code_specialist"}'
+curl -sS http://127.0.0.1:8001/api/tasks/TASK_ID
+
+# Inspect runtime health and the configured models.
+curl -sS http://127.0.0.1:8001/health
+curl -sS http://127.0.0.1:8001/api/models
+```
+
+Streaming uses server-sent events: text payloads are JSON strings, thinking uses `event: thinking`, and successful completion sends `data: [DONE]`. A failure before output returns an HTTP error; an interrupted response emits `event: error` without a completion marker.
+
+## Docker
+
+With Ollama running on the host:
+
+```bash
+docker compose up --build
+```
+
+Compose selects Ollama, uses `http://host.docker.internal:11434`, and publishes **127.0.0.1:8001**. The container binds `0.0.0.0:8001`, matching its exposed port and healthcheck. Ensure that the host Ollama endpoint is reachable from Docker. A `hyperclaw_data` volume stores application data; Telegram, scheduling, database access, and tools are disabled by the Compose defaults.
+
+If your shell or `.env` already sets `OLLAMA_BASE_URL` to host loopback, override it for the container:
+
+```bash
+OLLAMA_BASE_URL=http://host.docker.internal:11434 docker compose up --build
+```
+
+The build context excludes `.env` files, local workspace data, virtual environments, and logs while retaining `.env.example`. Mounted JSON secrets under `/mnt/secrets` (or `SECRETS_MOUNT`) are decoded into environment variables without shell evaluation; existing environment values take precedence.
 
 ## Troubleshooting
 
-**"API key not working"**
-- Make sure it starts with `sk-ant-`
-- Check for extra spaces when pasting
+- **Local setup cannot find the model:** check `ollama list` and the endpoint supplied to `--base-url`.
+- **No compatible provider:** inspect `/api/models` and the effective `HYPERCLAW_PROVIDER`, `OLLAMA_MODEL`, and `OLLAMA_BASE_URL` values. An explicit local provider stays local when unavailable.
+- **Old database credentials trigger a connection:** set `HYPERCLAW_ENABLE_DATABASE=false`, or run `local --setup-only` to save the local defaults.
+- **Conversation does not resume:** use the same `HYPERCLAW_ROOT` and `session_id` as the original turn.
 
-**"Database connection failed"**
-- Verify your DATABASE_URL is correct
-- For Supabase, use the "Transaction pooler" connection string
-
-**"Integration not connecting"**
-- Run `hyperclaw integrations test <name>` to diagnose
-- Check that API keys are in your `.env` file
-
-**Need help?**
-- Run `hyperclaw status` to check system health
-- Open an issue on [GitHub](https://github.com/mentatalbans/hyperclaw/issues)
-
----
-
-## Contributing
-
-MIT licensed. Contributions welcome.
+## Development
 
 ```bash
-git clone https://github.com/mentatalbans/hyperclaw.git
-cd hyperclaw
-pip install -e ".[dev]"
-python -m pytest tests/ -v
+uv venv --python 3.11 .venv
+uv pip install --python .venv/bin/python -e '.[dev]'
+PYTHON_DOTENV_DISABLED=1 HYPERCLAW_ROOT="$(mktemp -d)" \
+  .venv/bin/python -m pytest tests/ -q
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
----
-
-## License
-
-MIT — use it, modify it, build on it.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines. HyperClaw is [MIT licensed](LICENSE).

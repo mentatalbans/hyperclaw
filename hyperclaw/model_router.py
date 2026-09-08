@@ -5,6 +5,7 @@ Routes simple tasks to ChatJimmy, complex tasks to Claude.
 """
 
 import logging
+import math
 import os
 from hyperclaw.api_utils import extract_text
 import re
@@ -33,13 +34,14 @@ class ModelConfig:
     name: str
     tier: ModelTier
     provider: str  # anthropic, chatjimmy, openai
-    cost_per_1k_input: float
-    cost_per_1k_output: float
+    cost_per_1k_input: Optional[float]
+    cost_per_1k_output: Optional[float]
     max_tokens: int
     latency_ms: int  # typical latency
     capabilities: list[str] = field(default_factory=list)
     base_url: Optional[str] = None
     api_key_env: str = ""
+    pricing_known: bool = True
 
 
 # Model ids come from models.yaml (providers.anthropic.models + the
@@ -192,359 +194,137 @@ class UsageStats:
     total_cost: float = 0.0
     requests_by_model: dict = field(default_factory=dict)
     cost_by_model: dict = field(default_factory=dict)
+    unpriced_requests_by_model: dict = field(default_factory=dict)
     last_reset: datetime = field(default_factory=datetime.now)
 
 
 class ModelRouter:
-    """
-    Intelligent model router that selects the best model based on:
-    - Task complexity
-    - Cost constraints
-    - Required capabilities
-    - Current load/latency
-    """
+    """Compatibility facade: one registry and transport, with usage accounting."""
 
-    def __init__(self):
-        self.models = MODELS.copy()
+    def __init__(self, inference=None):
+        from .inference import Inference
+        self.inference = inference or Inference()
         self.stats = UsageStats()
-        self._clients: dict[str, Any] = {}
         self._daily_budget = float(os.environ.get("DAILY_BUDGET_USD", "10.0"))
         self._prefer_cheap = os.environ.get("PREFER_CHEAP_MODELS", "true").lower() == "true"
+        self.inference.route_slot = self._apply_budget
+        self.inference.on_usage = self._record_usage
+        self.models = {}
+        for slot in ("primary", "fast", "tools", "vision"):
+            for provider, model in self.inference.candidates(slot):
+                self.models.setdefault(model, self._config(provider, model, slot))
 
-    def _get_client(self, model_config: ModelConfig):
-        """Get or create API client for a model."""
-        provider = model_config.provider
-
-        if provider not in self._clients:
-            if provider == "anthropic":
-                import anthropic
-                api_key = os.environ.get(model_config.api_key_env, "")
-                self._clients[provider] = anthropic.Anthropic(api_key=api_key)
-
-            elif provider == "chatjimmy":
-                # ChatJimmy uses OpenAI-compatible API
-                api_key = os.environ.get(model_config.api_key_env, "")
-                self._clients[provider] = {
-                    "base_url": model_config.base_url,
-                    "api_key": api_key,
-                }
-
-            elif provider == "openrouter":
-                # OpenRouter uses OpenAI-compatible API
-                api_key = os.environ.get(model_config.api_key_env, "")
-                self._clients[provider] = {
-                    "base_url": model_config.base_url,
-                    "api_key": api_key,
-                }
-
-        return self._clients.get(provider)
-
-    def classify_complexity(self, message: str, context: dict = None) -> ModelTier:
-        """Classify task complexity to determine model tier."""
-        message_lower = message.lower().strip()
-
-        # Check for simple patterns
-        for pattern in SIMPLE_TASK_PATTERNS:
-            if re.search(pattern, message_lower, re.IGNORECASE):
-                return ModelTier.FAST
-
-        # Check for complex patterns
-        for pattern in COMPLEX_TASK_PATTERNS:
-            if re.search(pattern, message_lower, re.IGNORECASE):
-                return ModelTier.PREMIUM if len(message) > 500 else ModelTier.STANDARD
-
-        # Check message length as proxy for complexity
-        if len(message) < 50:
-            return ModelTier.FAST
-        elif len(message) < 200:
-            return ModelTier.STANDARD
-        else:
-            return ModelTier.STANDARD  # Default to standard, not premium
-
-    def select_model(
-        self,
-        message: str,
-        required_capabilities: list[str] = None,
-        preferred_tier: ModelTier = None,
-        max_cost: float = None,
-        context: dict = None
-    ) -> ModelConfig:
-        """
-        Select the best model for a task.
-
-        Args:
-            message: The user message/task
-            required_capabilities: Capabilities the model must have
-            preferred_tier: Override automatic tier selection
-            max_cost: Maximum cost per request (approximate)
-            context: Additional context for routing
-
-        Returns:
-            Selected ModelConfig
-        """
-        # Determine tier
-        if preferred_tier:
-            tier = preferred_tier
-        else:
-            tier = self.classify_complexity(message, context)
-
-        # Check budget
-        if self.stats.total_cost >= self._daily_budget:
-            logger.warning(f"Daily budget exceeded (${self.stats.total_cost:.2f}), forcing FAST tier")
-            tier = ModelTier.FAST
-
-        # Filter models by tier and capabilities
-        candidates = []
-        for model_id, config in self.models.items():
-            # Check tier
-            if self._prefer_cheap:
-                # Allow same tier or cheaper
-                if config.tier.value > tier.value:
-                    continue
-            else:
-                # Exact tier match
-                if config.tier != tier:
-                    continue
-
-            # Check capabilities
-            if required_capabilities:
-                if not all(cap in config.capabilities for cap in required_capabilities):
-                    continue
-
-            # Check API key available
-            if config.api_key_env and not os.environ.get(config.api_key_env):
-                continue
-
-            candidates.append(config)
-
-        if not candidates:
-            # Fallback to any available model
-            for model_id, config in self.models.items():
-                if config.api_key_env and os.environ.get(config.api_key_env):
-                    candidates.append(config)
-                    break
-
-        if not candidates:
-            raise RuntimeError("No models available - check API keys")
-
-        # Sort by cost (cheapest first if prefer_cheap)
-        if self._prefer_cheap:
-            candidates.sort(key=lambda m: m.cost_per_1k_input + m.cost_per_1k_output)
-        else:
-            # Sort by capability (most capable first)
-            tier_order = {ModelTier.PREMIUM: 0, ModelTier.STANDARD: 1, ModelTier.FAST: 2}
-            candidates.sort(key=lambda m: tier_order.get(m.tier, 2))
-
-        selected = candidates[0]
-        logger.debug(f"Selected model: {selected.name} (tier={tier.value}, cost=${selected.cost_per_1k_input}/1k)")
-
-        return selected
-
-    async def call(
-        self,
-        message: str,
-        system: str = "",
-        history: list[dict] = None,
-        model_override: str = None,
-        **kwargs
-    ) -> tuple[str, dict]:
-        """
-        Call the appropriate model.
-
-        Returns:
-            Tuple of (response_text, metadata)
-        """
-        # Select model
-        if model_override and model_override in self.models:
-            model = self.models[model_override]
-        else:
-            model = self.select_model(message, context=kwargs.get("context"))
-
-        start_time = time.time()
-
-        try:
-            if model.provider == "anthropic":
-                response, metadata = await self._call_anthropic(model, message, system, history)
-            elif model.provider == "chatjimmy":
-                response, metadata = await self._call_chatjimmy(model, message, system, history)
-            elif model.provider == "openrouter":
-                response, metadata = await self._call_openrouter(model, message, system, history)
-            else:
-                raise ValueError(f"Unknown provider: {model.provider}")
-
-            # Track usage
-            latency_ms = int((time.time() - start_time) * 1000)
-            self._track_usage(model, metadata.get("input_tokens", 0), metadata.get("output_tokens", 0))
-
-            metadata["model"] = model.id
-            metadata["model_name"] = model.name
-            metadata["tier"] = model.tier.value
-            metadata["latency_ms"] = latency_ms
-
-            return response, metadata
-
-        except Exception as e:
-            logger.error(f"Model call failed ({model.name}): {e}")
-
-            # Try fallback to cheaper model
-            if model.tier != ModelTier.FAST:
-                logger.info("Attempting fallback to fast tier")
-                fallback = self.select_model(message, preferred_tier=ModelTier.FAST)
-                if fallback.id != model.id:
-                    return await self.call(message, system, history, model_override=fallback.id, **kwargs)
-
-            raise
-
-    async def _call_anthropic(
-        self,
-        model: ModelConfig,
-        message: str,
-        system: str,
-        history: list[dict]
-    ) -> tuple[str, dict]:
-        """Call Anthropic API."""
-        import anthropic
-        import asyncio
-
-        client = self._get_client(model)
-
-        messages = []
-        if history:
-            messages.extend(history[-20:])  # Last 20 messages
-        messages.append({"role": "user", "content": message})
-
-        response = await asyncio.to_thread(
-            client.messages.create,
-            model=model.id,
-            max_tokens=model.max_tokens,
-            system=system if system else None,
-            messages=messages,
+    def _config(self, provider, model, slot="primary"):
+        known = next((m for m in MODELS.values() if m.id == model), None)
+        configured = self.inference.providers.model_configs.get(model, {})
+        input_cost = output_cost = None
+        if provider.name == "ollama":
+            input_cost = output_cost = 0.0
+        elif isinstance(configured, dict) and configured.get("provider", provider.name) == provider.name:
+            rates = [configured.get("cost_per_1k_input"), configured.get("cost_per_1k_output")]
+            if all(isinstance(rate, (int, float)) and not isinstance(rate, bool)
+                   and math.isfinite(rate) and rate >= 0 for rate in rates):
+                input_cost, output_cost = map(float, rates)
+        return ModelConfig(
+            id=model, name=model, tier=known.tier if known else (ModelTier.FAST if slot == "fast" else ModelTier.STANDARD),
+            provider=provider.name, cost_per_1k_input=input_cost, cost_per_1k_output=output_cost,
+            max_tokens=known.max_tokens if known else 4096, latency_ms=known.latency_ms if known else 0,
+            capabilities=sorted(provider.capabilities), base_url=provider.base_url,
+            api_key_env=provider.api_key_env,
+            pricing_known=input_cost is not None and output_cost is not None,
         )
 
-        return extract_text(response), {
-            "input_tokens": response.usage.input_tokens,
-            "output_tokens": response.usage.output_tokens,
-        }
+    def classify_complexity(self, message: str, context: dict = None) -> ModelTier:
+        if len(message) < 50:
+            return ModelTier.FAST
+        if len(message) > 500 and any(re.search(p, message, re.I) for p in COMPLEX_TASK_PATTERNS):
+            return ModelTier.PREMIUM
+        return ModelTier.STANDARD
 
-    async def _call_chatjimmy(
-        self,
-        model: ModelConfig,
-        message: str,
-        system: str,
-        history: list[dict]
-    ) -> tuple[str, dict]:
-        """Call ChatJimmy (OpenAI-compatible) API."""
-        config = self._get_client(model)
+    def _slot(self, message, preferred_tier=None):
+        return self._apply_budget("fast" if preferred_tier == ModelTier.FAST else "primary")
 
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        if history:
-            messages.extend(history[-10:])  # Smaller context for fast model
-        messages.append({"role": "user", "content": message})
+    def _apply_budget(self, slot):
+        if self.stats.last_reset.date() != datetime.now().date():
+            self.reset_daily_stats()
+        return "fast" if self.stats.unpriced_requests_by_model or self.stats.total_cost >= self._daily_budget else slot
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{config['base_url']}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {config['api_key']}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "llama-3.1-8b-instant",
-                    "messages": messages,
-                    "max_tokens": model.max_tokens,
-                    "temperature": 0.7,
-                },
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            data = response.json()
+    def _record_usage(self, metadata):
+        if self.stats.last_reset.date() != datetime.now().date():
+            self.reset_daily_stats()
+        provider = self.inference.providers.providers[metadata["provider"]]
+        self._track_usage(self._config(provider, metadata["model"]),
+                          metadata["input_tokens"], metadata["output_tokens"])
 
-        choice = data["choices"][0]
-        usage = data.get("usage", {})
+    def select_model(self, message, required_capabilities=None, preferred_tier=None,
+                     max_cost=None, context=None):
+        slot = self._slot(message, preferred_tier)
+        candidates = self.inference.candidates(slot, required_capabilities)
+        for provider, model in candidates:
+            config = self._config(provider, model, slot)
+            if max_cost is None or (config.pricing_known
+                    and config.cost_per_1k_input + config.cost_per_1k_output <= max_cost):
+                return config
+        raise RuntimeError(f"No configured provider supports {slot}")
 
-        return choice["message"]["content"], {
-            "input_tokens": usage.get("prompt_tokens", 0),
-            "output_tokens": usage.get("completion_tokens", 0),
-        }
-
-    async def _call_openrouter(
-        self,
-        model: ModelConfig,
-        message: str,
-        system: str,
-        history: list[dict]
-    ) -> tuple[str, dict]:
-        """Call OpenRouter API."""
-        config = self._get_client(model)
-
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        if history:
-            messages.extend(history[-15:])
-        messages.append({"role": "user", "content": message})
-
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{config['base_url']}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {config['api_key']}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://hyperclaw.ai",
-                    "X-Title": "HyperClaw",
-                },
-                json={
-                    "model": model.id,
-                    "messages": messages,
-                    "max_tokens": model.max_tokens,
-                    "temperature": 0.7,
-                },
-                timeout=60.0,
-            )
-            response.raise_for_status()
-            data = response.json()
-
-        choice = data["choices"][0]
-        usage = data.get("usage", {})
-
-        return choice["message"]["content"], {
-            "input_tokens": usage.get("prompt_tokens", 0),
-            "output_tokens": usage.get("completion_tokens", 0),
-        }
+    async def call(self, message, system="", history=None, model_override=None, **kwargs):
+        slot = kwargs.get("slot") or self._slot(message, kwargs.get("preferred_tier"))
+        override = MODELS[model_override].id if model_override in MODELS else model_override
+        response, metadata = await self.inference.complete(
+            list(history or []) + [{"role": "user", "content": message}], system,
+            slot=slot, model_override=override, max_tokens=kwargs.get("max_tokens", 4096),
+            required_capabilities=kwargs.get("required_capabilities"),
+        )
+        provider = self.inference.providers.providers[metadata["provider"]]
+        model = self._config(provider, metadata["model"], slot)
+        metadata["tier"] = model.tier.value
+        return extract_text(response), metadata
 
     def _track_usage(self, model: ModelConfig, input_tokens: int, output_tokens: int):
         """Track usage statistics."""
-        cost = (
-            (input_tokens / 1000) * model.cost_per_1k_input +
-            (output_tokens / 1000) * model.cost_per_1k_output
-        )
+        cost = None
+        if model.pricing_known:
+            cost = (
+                (input_tokens / 1000) * model.cost_per_1k_input +
+                (output_tokens / 1000) * model.cost_per_1k_output
+            )
+        else:
+            self.stats.unpriced_requests_by_model[model.id] = (
+                self.stats.unpriced_requests_by_model.get(model.id, 0) + 1
+            )
 
         self.stats.total_requests += 1
         self.stats.total_input_tokens += input_tokens
         self.stats.total_output_tokens += output_tokens
-        self.stats.total_cost += cost
+        if cost is not None:
+            self.stats.total_cost += cost
 
         if model.id not in self.stats.requests_by_model:
             self.stats.requests_by_model[model.id] = 0
             self.stats.cost_by_model[model.id] = 0.0
 
         self.stats.requests_by_model[model.id] += 1
-        self.stats.cost_by_model[model.id] += cost
+        if cost is not None:
+            self.stats.cost_by_model[model.id] += cost
 
-        logger.debug(f"Usage: {model.name} - {input_tokens}+{output_tokens} tokens, ${cost:.4f}")
+        estimate = f"${cost:.4f}" if cost is not None else "price unknown"
+        logger.debug(f"Usage: {model.name} - {input_tokens}+{output_tokens} tokens, {estimate}")
 
     def get_stats(self) -> dict:
         """Get usage statistics."""
+        cost_complete = not self.stats.unpriced_requests_by_model
         return {
             "total_requests": self.stats.total_requests,
             "total_tokens": self.stats.total_input_tokens + self.stats.total_output_tokens,
             "total_cost_usd": round(self.stats.total_cost, 4),
+            "cost_complete": cost_complete,
+            "unpriced_models": sorted(self.stats.unpriced_requests_by_model),
+            "unpriced_requests_by_model": dict(self.stats.unpriced_requests_by_model),
             "daily_budget_usd": self._daily_budget,
-            "budget_remaining_usd": round(self._daily_budget - self.stats.total_cost, 4),
+            "budget_remaining_usd": round(self._daily_budget - self.stats.total_cost, 4) if cost_complete else None,
             "requests_by_model": self.stats.requests_by_model,
-            "cost_by_model": {k: round(v, 4) for k, v in self.stats.cost_by_model.items()},
+            "cost_by_model": {k: round(v, 4) if k not in self.stats.unpriced_requests_by_model else None
+                              for k, v in self.stats.cost_by_model.items()},
             "last_reset": self.stats.last_reset.isoformat(),
         }
 
@@ -554,12 +334,11 @@ class ModelRouter:
         self.stats = UsageStats()
 
 
-# Singleton
+# Singleton used by the canonical runtime.
 _router: Optional[ModelRouter] = None
 
 
 def get_model_router() -> ModelRouter:
-    """Get or create model router singleton."""
     global _router
     if _router is None:
         _router = ModelRouter()

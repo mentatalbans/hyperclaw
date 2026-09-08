@@ -1321,15 +1321,18 @@ async function sendChat() {
       body: JSON.stringify({message: msg, session_id: chatSession})
     });
     const d = await res.json();
+    if (!res.ok) {
+      throw new Error(typeof d.detail === 'string' ? d.detail : `Chat request failed (${res.status})`);
+    }
     if (d.session_id) chatSession = d.session_id;
     typingEl.remove();
-    const reply = d.response || 'Processing...';
+    const reply = d.response;
     appendMsg('jarvis', reply);
     if (voiceOn) speakText(reply);
     logActivity(`Chat: "${msg.substring(0,40)}..."`);
   } catch(e) {
     typingEl.remove();
-    appendMsg('jarvis', 'Connection interrupted. Please try again, user.');
+    appendMsg('jarvis', 'Chat failed: ' + e.message);
     toast('Chat error: ' + e.message, 'error');
   }
   chatLoading = false;

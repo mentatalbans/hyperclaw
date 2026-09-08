@@ -50,7 +50,11 @@ class HyperStateStore:
             await self._pool.close()
 
     async def create_tables(self) -> None:
-        """Create hyperstates and hyperstate_history tables if they don't exist."""
+        """Explicitly create canonical tables; retain legacy hyperstate data.
+
+        This is safe to repeat and matches schema/init.sql. The legacy singular
+        hyperstate table has a different payload and is not migrated implicitly.
+        """
         assert self._pool, "Call connect() first"
         async with self._pool.acquire() as conn:
             await conn.execute("""
@@ -101,7 +105,7 @@ class HyperStateStore:
                     state.last_updated,
                 )
                 await conn.execute("""
-                    INSERT INTO hyperstate_history (state_id, state_version, snapshot)
+                    INSERT INTO hyperstate_history (state_id, state_version, data)
                     VALUES ($1, $2, $3::jsonb)
                 """, state.state_id, state.state_version, data)
 
@@ -149,15 +153,15 @@ class HyperStateStore:
         """Return all version snapshots for a HyperState."""
         assert self._pool, "Call connect() first"
         rows = await self._pool.fetch(
-            "SELECT state_version, snapshot, created_at as recorded_at FROM hyperstate_history "
-            "WHERE state_id = $1 ORDER BY state_version ASC",
+            "SELECT state_version, data, recorded_at FROM hyperstate_history "
+            "WHERE state_id = $1 ORDER BY state_version ASC, id ASC",
             state_id,
         )
         return [
             {
                 "state_version": r["state_version"],
                 "recorded_at": r["recorded_at"].isoformat(),
-                "state_data": json.loads(r["snapshot"]),
+                "state_data": json.loads(r["data"]),
             }
             for r in rows
         ]

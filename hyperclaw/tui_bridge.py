@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 import threading
 
 # Constants
@@ -30,7 +31,8 @@ SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 # Thread pool for running sync TUI in async context
 _executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="tui_bridge")
 
-# Per-session state (chat_id -> history)
+# Compatibility messages staged by synchronous attachment handlers. Canonical
+# conversation history belongs to the runtime and is persisted before each turn.
 _session_histories: Dict[int, List[dict]] = {}
 _session_lock = threading.Lock()
 
@@ -48,6 +50,7 @@ class TUIBridge:
     """
 
     def __init__(self):
+        self._runtime = None
         self.api_key = os.environ.get("ANTHROPIC_API_KEY")
         self.model = os.environ.get("HYPERCLAW_MODEL", "claude-fable-5")
         self._load_system_prompt()
@@ -287,26 +290,62 @@ This request is coming via a chat channel. Keep responses under 2000 characters.
         return f"Tool {name} not available in fallback mode"
 
     def get_session_history(self, chat_id: int) -> List[dict]:
-        """Get conversation history for a session."""
+        """Return canonical history together with staged attachment context."""
+        history = []
+        if self._runtime is not None:
+            history = self._runtime._memory.get_conversation_history(f"bridge:{chat_id}")
         with _session_lock:
-            if chat_id not in _session_histories:
-                _session_histories[chat_id] = []
-            return _session_histories[chat_id]
+            return history + deepcopy(_session_histories.get(chat_id, []))
 
     def add_to_history(self, chat_id: int, role: str, content: Any):
-        """Add message to session history."""
+        """Stage attachment context for the next canonical turn."""
         with _session_lock:
             if chat_id not in _session_histories:
                 _session_histories[chat_id] = []
-            _session_histories[chat_id].append({"role": role, "content": content})
+            _session_histories[chat_id].append({"role": role, "content": deepcopy(content)})
             # Keep last 30 exchanges (60 messages)
             if len(_session_histories[chat_id]) > 60:
                 _session_histories[chat_id] = _session_histories[chat_id][-60:]
 
     def clear_session(self, chat_id: int):
-        """Clear session history."""
+        """Blocking compatibility reset; async callers must await its async form."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.clear_session_async(chat_id))
+        raise RuntimeError("Use await bridge.clear_session_async(chat_id) from async callers")
+
+    async def clear_session_async(self, chat_id: int) -> None:
+        """Clear durable history and pending attachments before returning."""
+        from .orchestrator import get_orchestrator
+        runtime = await get_orchestrator()
+        self._runtime = runtime
+        await runtime.reset_session(f"bridge:{chat_id}")
         with _session_lock:
-            _session_histories[chat_id] = []
+            _session_histories.pop(chat_id, None)
+
+    async def _flush_pending_history(self, runtime, chat_id: int) -> None:
+        """Import compatibility attachment messages under the runtime's session lock."""
+        session_id = f"bridge:{chat_id}"
+        async with runtime._session_locks.setdefault(session_id, asyncio.Lock()):
+            with _session_lock:
+                pending = deepcopy(_session_histories.get(chat_id, []))
+            if not pending:
+                return
+            memory = runtime._memory
+            if session_id not in runtime._loaded_sessions:
+                await memory.load_conversation(session_id)
+                runtime._loaded_sessions.add(session_id)
+            previous = memory.get_conversation_history(session_id)
+            try:
+                for message in pending:
+                    memory.add_message(session_id, message["role"], message["content"])
+                await memory.save_conversation(session_id)
+            except BaseException:
+                memory._conversation_history[session_id] = previous
+                raise
+            with _session_lock:
+                del _session_histories[chat_id][:len(pending)]
 
     def _get_relevant_memories(self, message: str) -> str:
         """Get relevant memories from vector storage for the given message."""
@@ -363,14 +402,44 @@ This request is coming via a chat channel. Keep responses under 2000 characters.
                 'error': str|None      # Error message if failed
             }
         """
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            _executor,
-            self._execute_sync,
-            message,
-            chat_id,
-            include_history
-        )
+        return await self._execute_canonical(message, chat_id, include_history)
+
+    async def _execute_canonical(self, message, chat_id, include_history=True):
+        from .orchestrator import get_orchestrator
+        from . import outbox
+        runtime = await get_orchestrator()
+        self._runtime = runtime
+        session_id = f"bridge:{chat_id}"
+        if not include_history:
+            import uuid
+            session_id += f":{uuid.uuid4()}"
+        screenshots = []
+
+        def execute_tool(name, inputs):
+            result = self._raw_execute_tool(name, inputs)
+            if name in {"screenshot", "capture_screen", "screen"}:
+                path = result.get("path") if isinstance(result, dict) else result
+                if isinstance(path, str):
+                    path = path.removeprefix("Screenshot saved: ").strip()
+                    if path and Path(path).is_file():
+                        screenshots.append(path)
+            return result
+
+        binding = outbox.set_current_session(chat_id)
+        try:
+            if include_history:
+                await self._flush_pending_history(runtime, chat_id)
+            text = await runtime.chat(message, session_id, channel="bridge", tools=True,
+                                      tool_set=(self.tools, execute_tool))
+            meta = runtime._last_turns.get(session_id, {})
+            return {"text": text, "tools_used": meta.get("tools_used", []), "screenshots": screenshots,
+                    "files": outbox.drain(chat_id), "success": True, "error": None,
+                    "model_used": meta.get("served_by", "")}
+        except Exception as exc:
+            return {"text": f"Error: {exc}", "tools_used": [], "screenshots": screenshots,
+                    "files": outbox.drain(chat_id), "success": False, "error": str(exc)}
+        finally:
+            outbox.reset_current_session(binding)
 
 
     # Failover ladder: on overload/rate-limit/transient errors (and policy refusals), walk
@@ -434,318 +503,8 @@ This request is coming via a chat channel. Keep responses under 2000 characters.
             raise last_err
         raise RuntimeError("Model failover chain exhausted with no result")
 
-    def _execute_sync(
-        self,
-        message: str,
-        chat_id: int,
-        include_history: bool
-    ) -> Dict[str, Any]:
-        """Synchronous execution (runs in thread pool)."""
-
-        result = {
-            'text': '',
-            'tools_used': [],
-            'screenshots': [],
-            'files': [],
-            'success': True,
-            'error': None
-        }
-
-        # Bind this worker thread to the conversation so send_file(via='here')
-        # queues files for THIS chat; drained into result['files'] at turn end.
-        try:
-            from . import outbox as _outbox
-        except Exception:
-            _outbox = None
-        if _outbox is not None:
-            try:
-                _outbox.set_current_session(chat_id)
-            except Exception:
-                # Clear any stale binding from a previous turn on this pooled thread so
-                # files can't be queued into the WRONG chat; drain below still works.
-                try:
-                    _outbox.set_current_session(None)
-                except Exception:
-                    pass
-
-        try:
-            # timeout/max_retries: SDK defaults are 600s x 3 attempts, which multiplied by
-            # the 3-rung failover ladder and the 12-iteration loop is a multi-hour hang.
-            client = anthropic.Anthropic(api_key=self.api_key, timeout=120.0, max_retries=1)
-            import time as _walltime
-            _turn_deadline = _walltime.monotonic() + 600  # 10 min wall-clock per message
-
-            # Get relevant memories for this message
-            memory_context = self._get_relevant_memories(message)
-
-            # Build system prompt with memory context
-            system_with_memory = self.system_prompt
-            if memory_context:
-                system_with_memory += f"\n\nRelevant memories:\n{memory_context}"
-
-            # Build messages with history
-            messages = []
-            if include_history:
-                history = self.get_session_history(chat_id)
-                messages.extend(history[-20:])  # Last 10 exchanges
-
-            messages.append({"role": "user", "content": message})
-
-            # Bounded agentic loop. Interactive chat turns should resolve quickly; genuinely large
-            # jobs get delegated/queued, not spun inline. The guards below stop runaway loops
-            # (the previous version had max_iterations=100 and NO loop/error detection).
-            max_iterations = 12
-            iteration = 0
-            response_text = ""
-            # Route to a focused tool subset for this message (fail-safe to all tools).
-            selected_tools = self._select_tools(message)
-            # Model routing (Fable backend): pick the right model for THIS request.
-            try:
-                from hyperclaw.model_selector import pick_model
-                turn_model = pick_model(message, self.model)
-            except Exception:
-                turn_model = self.model
-            import hashlib as _hashlib, json as _json
-            _tool_sig_counts = {}      # (tool, input) signature -> times called this turn
-            _consecutive_errors = 0
-            _MAX_REPEAT = 3
-            _loop_break = False
-
-            while iteration < max_iterations:
-                iteration += 1
-                if _walltime.monotonic() > _turn_deadline:
-                    if not response_text.strip():
-                        response_text = ("This is taking longer than my time budget for one message. "
-                                         "Tell me which part to prioritize and I'll continue.")
-                    break
-
-                # Call Claude (with model failover on overload/transient errors/refusals)
-                response, _model_used = self._create_with_failover(
-                    client,
-                    model=turn_model,
-                    deadline=_turn_deadline,
-                    max_tokens=8000,
-                    system=system_with_memory,
-                    tools=selected_tools,
-                    messages=messages
-                )
-                result['model_used'] = _model_used
-                if _model_used != turn_model:
-                    result['failover_from'] = turn_model
-                if getattr(response, "stop_reason", None) == "refusal":
-                    sd = getattr(response, "stop_details", None)
-                    response_text = response_text or (
-                        "I can't help with that request"
-                        + (f" ({sd.category})" if sd is not None and getattr(sd, 'category', None) else "")
-                        + "."
-                    )
-                    break
-
-                # Process response
-                assistant_content = []
-                tool_results = []
-                has_text_this_turn = False
-
-                for block in response.content:
-                    if block.type == "text":
-                        text = block.text
-                        if text.strip():
-                            has_text_this_turn = True
-                        response_text += text
-                        assistant_content.append({
-                            "type": "text",
-                            "text": text
-                        })
-
-                    elif block.type == "tool_use":
-                        tool_name = block.name
-                        tool_input = block.input
-
-                        # Track tool usage
-                        result['tools_used'].append({
-                            'name': tool_name,
-                            'input': tool_input
-                        })
-
-                        # Loop guard: refuse to run the SAME tool with identical input repeatedly
-                        # (the classic runaway shape). Legit multi-step work varies tool/input, so
-                        # this only trips on stuck repetition - not on normal long tool sequences.
-                        try:
-                            _sig = _hashlib.sha1(
-                                (tool_name + _json.dumps(tool_input, sort_keys=True, default=str)).encode()
-                            ).hexdigest()
-                        except Exception:
-                            _sig = tool_name
-                        _tool_sig_counts[_sig] = _tool_sig_counts.get(_sig, 0) + 1
-                        if _tool_sig_counts[_sig] > _MAX_REPEAT:
-                            tool_result = (f"[loop-guard] '{tool_name}' was already called with identical "
-                                           f"input {_MAX_REPEAT} times. Refusing to repeat - change "
-                                           f"approach or give your final answer.")
-                            _loop_break = True
-                        else:
-                            try:
-                                tool_result = self.execute_tool(tool_name, tool_input)
-                            except Exception as e:
-                                tool_result = f"Tool error: {e}"
-                        # Consecutive-error backstop
-                        if str(tool_result).startswith(("Error", "Tool error", "[loop-guard]")):
-                            _consecutive_errors += 1
-                        else:
-                            _consecutive_errors = 0
-
-                        # Check for screenshots
-                        if tool_name in ['screenshot', 'capture_screen', 'screen']:
-                            if isinstance(tool_result, str) and Path(tool_result).exists():
-                                result['screenshots'].append(tool_result)
-                            elif isinstance(tool_result, dict) and tool_result.get('path'):
-                                result['screenshots'].append(tool_result['path'])
-
-                        assistant_content.append({
-                            "type": "tool_use",
-                            "id": block.id,
-                            "name": tool_name,
-                            "input": tool_input
-                        })
-
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": str(tool_result)[:8000]
-                        })
-
-                # Add to messages
-                messages.append({"role": "assistant", "content": assistant_content})
-
-                if tool_results:
-                    messages.append({"role": "user", "content": tool_results})
-                    # Stop if a loop or repeated tool errors were detected this turn.
-                    if _loop_break or _consecutive_errors >= 5:
-                        if not response_text.strip():
-                            response_text = ("I stopped because I was repeating the same step without "
-                                             "making progress. Tell me how you'd like to proceed.")
-                        break
-                    # Otherwise keep working through the tool sequence.
-                else:
-                    # No tools this turn. (assistant turn already appended above - do NOT re-append.)
-                    if response.stop_reason == "max_tokens":
-                        messages.append({"role": "user", "content": "Continue from where you left off."})
-                        continue
-                    # Finished naturally.
-                    break
-
-            # If the step budget was exhausted without an answer, say so (don't return blank/hang).
-            if iteration >= max_iterations and not response_text.strip():
-                response_text = ("I hit my step limit for this turn without finishing. The task may "
-                                 "need to be broken down - tell me which part to tackle first.")
-
-            # Update session history
-            self.add_to_history(chat_id, "user", message)
-            self.add_to_history(chat_id, "assistant", response_text or assistant_content)
-
-            # Record in cross-channel memory (non-blocking)
-            try:
-                from .memory_bus import get_memory_bus
-                bus = get_memory_bus()
-                bus.record_exchange(
-                    channel="tui_bridge",
-                    user_message=message,
-                    assistant_message=response_text or str(assistant_content)[:2000],
-                    metadata={"chat_id": chat_id},
-                    extract_knowledge=True
-                )
-            except Exception:
-                pass  # Don't fail on memory errors
-
-            result['text'] = response_text
-
-        except Exception as e:
-            result['success'] = False
-            result['error'] = str(e)
-            result['text'] = f"Error executing request: {e}"
-            # Crash guard: a failed message must never take the process down and must
-            # leave forensics. Full traceback to a dedicated, private crash log.
-            try:
-                import traceback
-                crash_log = HYPERCLAW_ROOT / "logs" / "crashes.log"
-                crash_log.parent.mkdir(parents=True, exist_ok=True)
-                with open(crash_log, "a") as fh:
-                    fh.write(f"\n=== {datetime.now().isoformat()} chat={chat_id} ===\n")
-                    fh.write(f"message: {str(message)[:500]}\n")
-                    traceback.print_exc(file=fh)
-                os.chmod(crash_log, 0o600)
-            except Exception:
-                pass
-
-        # Deliver any files tools queued for this conversation (send_file via='here',
-        # doc engines, charts). Channel adapters send these natively after the text.
-        try:
-            if _outbox is not None:
-                result['files'] = _outbox.drain(chat_id)
-        except Exception:
-            pass
-
-        return result
-
-    async def execute_gmail(self, action: str, **kwargs) -> Dict[str, Any]:
-        """
-        Execute Gmail-specific operations.
-
-        Actions:
-            - inbox: List inbox emails
-            - read: Read specific email
-            - send: Send email
-            - search: Search emails
-            - thread: Get email thread
-        """
-        try:
-            from .integrations_layer import (
-                gmail_list_inbox, gmail_get_message, gmail_send,
-                gmail_search, gmail_get_thread, gmail_read_message_text
-            )
-
-            if action == "inbox":
-                max_results = kwargs.get('max_results', 10)
-                emails = await asyncio.to_thread(gmail_list_inbox, max_results)
-                return {'success': True, 'data': emails}
-
-            elif action == "read":
-                message_id = kwargs.get('message_id')
-                if not message_id:
-                    return {'success': False, 'error': 'message_id required'}
-                text = await asyncio.to_thread(gmail_read_message_text, message_id)
-                return {'success': True, 'data': text}
-
-            elif action == "send":
-                to = kwargs.get('to')
-                subject = kwargs.get('subject')
-                body = kwargs.get('body')
-                cc = kwargs.get('cc', '')
-                reply_to = kwargs.get('reply_to_id', '')
-
-                if not all([to, subject, body]):
-                    return {'success': False, 'error': 'to, subject, and body required'}
-
-                result = await asyncio.to_thread(gmail_send, to, subject, body, cc, reply_to)
-                return {'success': True, 'data': result}
-
-            elif action == "search":
-                query = kwargs.get('query', '')
-                max_results = kwargs.get('max_results', 10)
-                results = await asyncio.to_thread(gmail_search, query, max_results)
-                return {'success': True, 'data': results}
-
-            elif action == "thread":
-                thread_id = kwargs.get('thread_id')
-                if not thread_id:
-                    return {'success': False, 'error': 'thread_id required'}
-                thread = await asyncio.to_thread(gmail_get_thread, thread_id)
-                return {'success': True, 'data': thread}
-
-            else:
-                return {'success': False, 'error': f'Unknown action: {action}'}
-
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+    def _execute_sync(self, message, chat_id, include_history=True):
+        return asyncio.run(self._execute_canonical(message, chat_id, include_history))
 
 
 # Singleton instance

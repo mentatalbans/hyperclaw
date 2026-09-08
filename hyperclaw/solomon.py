@@ -14,9 +14,6 @@ import anthropic
 from hyperclaw.api_utils import extract_text
 from dotenv import load_dotenv
 
-_OPENAI_API_BASE = os.environ.get("OPENAI_API_BASE", "")
-_USE_OPENAI_COMPAT = bool(_OPENAI_API_BASE)
-
 load_dotenv()
 
 # Paths - use environment variable or default to ~/.hyperclaw
@@ -70,16 +67,8 @@ class ChatAgent:
     """Chat agent - manages conversation and context."""
 
     def __init__(self):
-        if _USE_OPENAI_COMPAT:
-            import openai
-            self._oai = openai.AsyncOpenAI(
-                api_key=os.environ.get("OPENAI_API_KEY", ""),
-                base_url=_OPENAI_API_BASE,
-            )
-            self.client = None
-        else:
-            self._oai = None
-            self.client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+        from .inference import Inference
+        self.inference = Inference()
         self.ai_name, self.user_name = _get_identity()
         self.system_prompt = self._load_system_prompt()
 
@@ -143,122 +132,34 @@ class ChatAgent:
         return "\n".join(parts)
 
     async def chat(self, message: str, history: list[dict]) -> str:
-        """Send a message and get a response."""
-        messages = self._prepare_messages(message, history)
-        try:
-            if _USE_OPENAI_COMPAT:
-                resp = await self._oai.chat.completions.create(
-                    model=MODEL,
-                    max_tokens=MAX_TOKENS,
-                    messages=[{"role": "system", "content": self.system_prompt}] + messages,
-                )
-                return resp.choices[0].message.content or ""
-            else:
-                response = await asyncio.to_thread(
-                    self.client.messages.create,
-                    model=MODEL,
-                    max_tokens=MAX_TOKENS,
-                    system=self.system_prompt,
-                    messages=messages,
-                )
-                return extract_text(response)
-        except Exception as e:
-            return f"[Error: {e}]"
+        response, _ = await self.inference.complete(
+            self._prepare_messages(message, history), self._load_system_prompt(self._model()),
+            max_tokens=MAX_TOKENS)
+        return extract_text(response)
 
-    async def _attempt_stream(self, prov, model, messages) -> AsyncIterator[tuple]:
-        """One provider attempt for stream_events — yields ("thinking"|"text", delta)."""
-        system = self._load_system_prompt(model)
-        if prov.kind == "anthropic":
-            model = os.environ.get("HYPERCLAW_MODEL", "").strip() or model
-            async_client = anthropic.AsyncAnthropic(api_key=prov.api_key)
-            async with async_client.messages.stream(
-                model=model,
-                max_tokens=MAX_TOKENS,
-                system=system,
-                messages=messages,
-            ) as stream:
-                async for event in stream:
-                    if event.type == "content_block_delta":
-                        dtype = getattr(event.delta, "type", "")
-                        if dtype == "thinking_delta":
-                            yield ("thinking", event.delta.thinking)
-                        elif dtype == "text_delta":
-                            yield ("text", event.delta.text)
-            return
-        # openai_compat / openai: chat-completions schema, text content only
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=prov.api_key, base_url=prov.base_url or None)
-        oai = [{"role": "system", "content": system}]
-        for m in messages:
-            c = m.get("content")
-            if isinstance(c, list):
-                c = "\n".join(b.get("text", "") for b in c
-                              if isinstance(b, dict) and b.get("type") == "text")
-            if c:
-                oai.append({"role": m["role"], "content": c})
-        stream = await client.chat.completions.create(
-            model=model, messages=oai, max_tokens=MAX_TOKENS, stream=True,
-        )
-        async for chunk in stream:
-            delta = chunk.choices[0].delta.content if chunk.choices else None
-            if delta:
-                yield ("text", delta)
+    def _model(self, slot="primary"):
+        candidates = self.inference.candidates(slot)
+        return candidates[0][1] if candidates else "unconfigured"
 
     async def stream_events(self, message: str, history: list[dict],
                             attachments: list | None = None) -> AsyncIterator[tuple]:
-        """Stream ("thinking", delta) and ("text", delta) tuples.
-
-        Routes by capability: plain text turns use the `primary` slot,
-        attachment turns need documents/images and use `vision`. Failover
-        walks the slot ladder before the first token; a mid-stream death is
-        marked, never re-answered.
-        """
-        from hyperclaw.providers import registry, stream_with_failover
-
-        messages = self._prepare_messages(message, history, attachments)
-        if attachments:
-            slot, need = "vision", {"chat", "documents", "images"}
-        else:
-            slot, need = "primary", {"chat", "streaming"}
-        candidates = registry().resolve(slot, need)
-        if not candidates:
-            yield ("text", f"[Error: no configured provider supports this turn ({slot})]")
-            return
-
-        async def attempt(prov, model):
-            async for item in self._attempt_stream(prov, model, messages):
-                yield item
-
-        async for item in stream_with_failover(candidates, attempt):
+        needs = {"chat", "streaming"}
+        for block in attachments or []:
+            if block.get("type") == "image":
+                needs.add("images")
+            elif block.get("type") == "document":
+                needs.add("documents")
+        slot = "vision" if attachments else "primary"
+        async for item in self.inference.stream_events(
+                self._prepare_messages(message, history, attachments),
+                self._load_system_prompt(self._model(slot)), slot=slot,
+                required_capabilities=needs, max_tokens=MAX_TOKENS):
             yield item
 
     async def stream_chat(self, message: str, history: list[dict]) -> AsyncIterator[str]:
-        """Stream a response token by token."""
-        messages = self._prepare_messages(message, history)
-        try:
-            if _USE_OPENAI_COMPAT:
-                stream = await self._oai.chat.completions.create(
-                    model=MODEL,
-                    max_tokens=MAX_TOKENS,
-                    messages=[{"role": "system", "content": self.system_prompt}] + messages,
-                    stream=True,
-                )
-                async for chunk in stream:
-                    delta = chunk.choices[0].delta.content
-                    if delta:
-                        yield delta
-            else:
-                async_client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-                async with async_client.messages.stream(
-                    model=MODEL,
-                    max_tokens=MAX_TOKENS,
-                    system=self.system_prompt,
-                    messages=messages,
-                ) as stream:
-                    async for text in stream.text_stream:
-                        yield text
-        except Exception as e:
-            yield f"[Error: {e}]"
+        async for kind, text in self.stream_events(message, history):
+            if kind == "text":
+                yield text
 
     def _prepare_messages(self, message: str, history: list[dict],
                           attachments: list | None = None) -> list[dict]:

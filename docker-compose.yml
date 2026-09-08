@@ -1,35 +1,31 @@
-version: '3.9'
-
 services:
   hyperclaw:
     build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8001:8001"
     environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=${DATABASE_URL}
-    depends_on:
-      redis:
-        condition: service_healthy
+      HOST: 0.0.0.0
+      PORT: "8001"
+      HYPERCLAW_ROOT: /app/data
+      HYPERCLAW_PROVIDER: ${HYPERCLAW_PROVIDER:-ollama}
+      HYPERCLAW_MODEL: ${HYPERCLAW_MODEL:-qwen3.8:27b-mlx}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3.8:27b-mlx}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      HYPERCLAW_ENABLE_TELEGRAM: ${HYPERCLAW_ENABLE_TELEGRAM:-false}
+      HYPERCLAW_ENABLE_SCHEDULER: ${HYPERCLAW_ENABLE_SCHEDULER:-false}
+      HYPERCLAW_ENABLE_TOOLS: ${HYPERCLAW_ENABLE_TOOLS:-false}
+      HYPERCLAW_ENABLE_DATABASE: ${HYPERCLAW_ENABLE_DATABASE:-false}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DATABASE_URL: ${DATABASE_URL:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     volumes:
-      - ./logs:/app/logs
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
+      - hyperclaw_data:/app/data
 
 volumes:
-  redis_data:
+  hyperclaw_data:

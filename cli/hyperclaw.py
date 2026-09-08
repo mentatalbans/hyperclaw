@@ -30,6 +30,53 @@ app.add_typer(audit_app, name="audit")
 
 console = Console()
 
+
+@app.callback()
+def bootstrap():
+    """Load selected runtime configuration before importing application services."""
+    from hyperclaw.local import load_profile
+    load_profile()
+
+
+@app.command("local")
+def local_model(
+    model: str = typer.Option("qwen3.8:27b-mlx", help="Installed Ollama model"),
+    base_url: str = typer.Option("http://127.0.0.1:11434", help="Ollama server URL"),
+    port: int = typer.Option(8001, help="HyperClaw API port"),
+    chat: bool = typer.Option(False, "--chat", help="Open terminal chat"),
+    setup_only: bool = typer.Option(False, "--setup-only", help="Save the local profile without starting"),
+    probe: bool = typer.Option(True, "--probe/--no-probe", help="Verify the model is installed"),
+):
+    """Configure and run HyperClaw with local Ollama Qwen (no cloud key needed)."""
+    from hyperclaw.local import configure
+    try:
+        path = configure(model, base_url, probe)
+    except Exception as exc:
+        console.print(f"[red]Local setup failed:[/red] {exc}")
+        raise typer.Exit(1)
+    console.print(f"Local profile: {path}\nModel: {model}\nOllama: {base_url}")
+    if setup_only:
+        return
+    if chat:
+        from hyperclaw.terminal import main
+        main()
+    else:
+        server_command(port=port, host="127.0.0.1")
+
+
+@app.command("server")
+def server_command(port: int = 8001, host: str = "127.0.0.1"):
+    """Run the canonical HTTP application."""
+    import uvicorn
+    uvicorn.run("hyperclaw.server:app", host=host, port=port)
+
+
+@app.command("chat")
+def chat_command(session: str = "terminal", tools: bool = True):
+    """Chat using the configured provider and durable session."""
+    from hyperclaw.terminal import main
+    main(session, tools)
+
 try:
     from hyperclaw import __version__ as VERSION
 except Exception:  # pragma: no cover
@@ -170,48 +217,9 @@ def init(
 
 @app.command()
 def start() -> None:
-    """Start HyperClaw and chat with your AI."""
-    import os
-
-    # Load all vars from ~/.hyperclaw/.env into the environment
-    from pathlib import Path
-    env_file = Path.home() / ".hyperclaw" / ".env"
-    if env_file.exists():
-        for line in env_file.read_text().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, val = line.split("=", 1)
-            os.environ.setdefault(key.strip(), val.strip().strip('"'))
-
-    provider = os.environ.get("LLM_PROVIDER", "anthropic")
-    if provider == "openai_compat":
-        if not os.environ.get("OPENAI_API_KEY"):
-            console.print("[red]OPENAI_API_KEY not set.[/red]")
-            console.print("\nRun [bold cyan]hyperclaw init --reset[/bold cyan] to reconfigure.")
-            raise typer.Exit(1)
-    elif provider == "bedrock":
-        pass  # boto3 uses IAM role or env creds — no explicit key required
-    elif provider in ("anthropic", "anthropic_compat"):
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            console.print("[red]ANTHROPIC_API_KEY not set.[/red]")
-            console.print("\nRun [bold cyan]hyperclaw init[/bold cyan] to set up your API key.")
-            console.print("\nOr set it manually:")
-            console.print("  export ANTHROPIC_API_KEY=sk-ant-...")
-            raise typer.Exit(1)
-    else:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            console.print("[red]ANTHROPIC_API_KEY not set.[/red]")
-            console.print("\nRun [bold cyan]hyperclaw init[/bold cyan] to set up your API key.")
-            raise typer.Exit(1)
-
-    # Launch TUI directly
-    try:
-        from hyperclaw.tui import main as tui_main
-        tui_main()
-    except Exception as e:
-        console.print(f"[red]Error starting HyperClaw:[/red] {e}")
-        raise typer.Exit(1)
+    """Start terminal chat using the selected provider."""
+    from hyperclaw.terminal import main
+    main()
 
 
 @app.command()

@@ -579,7 +579,7 @@ class GilTelegramBot:
             logger.error(f"TUI Bridge error: {e}")
             return f"Processing error. {str(e)[:100]}"
 
-    async def handle_command(self, text: str) -> str:
+    async def handle_command(self, text: str, chat_id: int | None = None) -> str:
         """Handle bot commands."""
         if text == "/start":
             return (
@@ -627,7 +627,7 @@ class GilTelegramBot:
         elif text == "/clear":
             tui_bridge = self._load_tui_bridge()
             if tui_bridge:
-                tui_bridge.clear_session(ALLOWED_CHAT_ID)
+                await tui_bridge.clear_session_async(ALLOWED_CHAT_ID if chat_id is None else chat_id)
             return "Session cleared. Fresh context."
         elif text == "/tools":
             tui_bridge = self._load_tui_bridge()
@@ -1008,7 +1008,7 @@ class GilTelegramBot:
 
             # Handle commands
             if text.startswith("/"):
-                cmd_response = await self.handle_command(text)
+                cmd_response = await self.handle_command(text, chat_id=chat_id)
                 if cmd_response:
                     await self.send_message(cmd_response)
                     return

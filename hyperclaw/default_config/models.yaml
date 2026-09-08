@@ -73,6 +73,11 @@ models:
 # add entries freely — "hyperspeed" is a placeholder name for any
 # OpenAI-compatible endpoint (Ollama, vLLM, a hosted gateway...).
 providers:
+  ollama:
+    kind: anthropic  # Ollama implements the Messages API, including tool blocks
+    base_url_env: OLLAMA_BASE_URL
+    model_env: OLLAMA_MODEL
+    capabilities: [chat, streaming, tool_use, images, thinking]
   anthropic:
     kind: anthropic            # native Messages API
     api_key_env: ANTHROPIC_API_KEY
@@ -104,9 +109,9 @@ providers:
     capabilities: [chat, streaming]
 
 slots:
-  primary:    [hyperspeed, openai_default, anthropic]
-  tools:      [anthropic]
-  vision:     [anthropic, hyperspeed]
-  fast:       [chatjimmy, anthropic:fast, hyperspeed]
+  primary:    [ollama, hyperspeed, openai_default, anthropic]
+  tools:      [ollama, anthropic]
+  vision:     [ollama, anthropic, hyperspeed]
+  fast:       [ollama, chatjimmy, anthropic:fast, hyperspeed]
   embeddings: [openai, hyperspeed]
   images:     [openai]
