@@ -4,4 +4,4 @@ Runtime v2 targets one local operator on macOS/Linux. The default root is ~/.hyp
 
 M1 is text chat only. It has no tool execution, shell fallback, model-authorized policy changes, or imported skills. The configured Ollama endpoint is explicit; there is no fallback or automatic download. A loopback endpoint does not prove the model server itself is offline.
 
-The authenticated daemon and durable run controls are implemented in the following M1 tasks. Later execution policy and Docker ownership gates must pass before enabling tools. Switching any existing service requires a separate operational action.
+The daemon binds only 127.0.0.1:8011 by default. Every /v1 route requires the private operator bearer token with constant-time comparison. /healthz reports liveness only. Host validation and origin rejection apply; tokens never appear in URLs or daemon metadata. Only one owner locks a root. Clients observe durable events and cannot cancel by disconnecting. Later execution policy and Docker ownership gates must pass before enabling tools. Switching any existing service requires a separate operational action.

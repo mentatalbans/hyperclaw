@@ -19,3 +19,9 @@ M1 replaces the legacy test suite; raw count parity is not a goal. Historical so
 Legacy PostgreSQL, cloud routing, swarm, dashboards, trading, auto-learning and alternate entrypoint tests are retired with their implementations. They are not skipped successes.
 
 Offline tests use disposable roots and loopback providers. Live tests require explicit selection and fail if the requested service/model is unavailable. Tests never download models or switch running services.
+
+Run `make test` for offline checks, `make test-coverage` for statement/branch reports, and `make test-live` for the three M1 Qwen scenarios. `make test-all` runs offline and explicitly selected live checks with coverage. Set `OLLAMA_URL`/`OLLAMA_MODEL` as Make variables to choose an already-installed target. The runner modes are `quick`, `live`, and `all`; reports persist under ignored `test-results/<mode>-<timestamp>/` as summary JSON, JUnit, logs, and optional coverage.
+
+The live M1 scenarios now use authenticated HTTP and real disposable daemon processes: text/provenance/usage, stream/provenance/usage, and an opaque conversation label across restart/new session/reset. Image and fresh-store memory-tool tests remain M2/M4 acceptance work, not skipped M1 checks.
+
+Protocol basis: the transport uses [Ollama's Messages compatibility](https://docs.ollama.com/api/anthropic-compatibility). Reproducible installs use a checked [uv lockfile](https://docs.astral.sh/uv/concepts/projects/sync/).
