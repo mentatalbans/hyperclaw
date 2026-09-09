@@ -1,54 +1,5 @@
-# Contributing to HyperClaw
+# Contributing
 
-HyperClaw is MIT-licensed and open for contributions. Here's how to get involved.
+Runtime v2 lives in src/hyperclaw; Python 3.11 and 3.13 are tested in CI. Use `uv sync --locked --extra dev`, then `make test`. Narrow pytest runs use `uv run --locked pytest PATH -q`.
 
-## Getting Started
-
-```bash
-git clone https://github.com/mentatalbans/hyperclaw.git
-cd hyperclaw
-pip install -e ".[dev]"
-make test PYTHON=python
-```
-
-## Adding an Agent
-
-1. Pick a domain: `swarm/agents/{personal,business,scientific,creative,recursive}/`
-2. Inherit `BaseAgent`, define `agent_id`, `domain`, `supported_task_types`, `preferred_model`
-3. Implement `async run(task, state, context) -> str`
-4. Register in `swarm/registry.py` inside `build_default()`
-5. Add tests in `tests/unit/`
-
-## Writing Tests
-
-- Use `pytest-asyncio` for async tests
-- Use the disposable PostgreSQL fixture for persistence contracts; use `unittest.mock.AsyncMock` for narrow database-failure simulations.
-- Maintain 90%+ coverage on all `core/`, `memory/`, `security/` modules
-- Run `make test-full` before submitting, and `make test-coverage` to inspect measured coverage. PostgreSQL binaries and a non-root user are required.
-- Mark database-dependent tests with `pytest.mark.postgres`; mark real-model tests with `pytest.mark.ollama`. Live checks are deselected unless `--run-ollama` is supplied.
-- See [docs/testing.md](docs/testing.md) for the test matrix, saved reports, and live-model commands.
-
-## Code Style
-
-- Python 3.11+ type hints on all functions
-- Async-first — avoid blocking calls
-- Pydantic v2 for all data models
-- No references to other agent platforms in code or comments
-
-## Security Rules (enforced)
-
-- ChatJimmy outputs are **never** auto-certified — always route through Claude first
-- VITALS and MEDICUS must always append medical disclaimer to output
-- COUNSEL must always append legal disclaimer to output
-- All new agents must work within HyperShield policies
-
-## Submitting
-
-1. Fork the repo
-2. Create a feature branch: `git checkout -b feat/your-feature`
-3. Commit with a descriptive message
-4. Open a PR — all tests must pass
-
-## Questions?
-
-Open a [GitHub Discussion](https://github.com/mentatalbans/hyperclaw/discussions) — that's the best place for ideas, questions, and showcasing what you've built with HyperClaw.
+Follow the September 9 design and milestone plans under docs/superpowers. Test behavior through public contracts, loopback providers and disposable subprocesses. Select live Ollama tests explicitly; never use personal runtime roots or modify running services during tests. Preserve research/planning history. Commit dependency changes in uv.lock.

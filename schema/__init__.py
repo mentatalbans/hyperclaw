@@ -1,1 +1,0 @@
-"""Shipped database schema resources."""

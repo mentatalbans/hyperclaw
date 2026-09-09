@@ -27,15 +27,12 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ matrix.python }}
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - name: Install disposable database and test dependencies
+      - name: Install locked dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql
-          python -m pip install -e '.[dev]'
-      - name: Run deterministic and required database battery
-        run: python scripts/test_battery.py full --coverage
+          python -m pip install uv
+          uv sync --locked --extra dev
+      - name: Run isolated offline battery
+        run: make test PYTHON=.venv/bin/python
       - name: Save test, timing, and coverage reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

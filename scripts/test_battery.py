@@ -28,11 +28,10 @@ def test_counts(path: Path) -> dict | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("quick", "full", "live", "all"), nargs="?", default="quick")
+    parser.add_argument("mode", choices=("quick", "live", "all"), nargs="?", default="quick")
     parser.add_argument("paths", nargs="*", help="Optional focused test paths, relative to the repository")
     parser.add_argument("--report-dir", type=Path, default=ROOT / "test-results")
-    parser.add_argument("--coverage", action="store_true", help="Record coverage for the five main packages")
-    parser.add_argument("--postgres-bin", help="Directory containing initdb, pg_ctl, and postgres")
+    parser.add_argument("--coverage", action="store_true", help="Record coverage for src/hyperclaw")
     parser.add_argument("--ollama-url", default="http://127.0.0.1:11434")
     parser.add_argument("--ollama-model", default="qwen3.8:27b-mlx")
     arguments = parser.parse_args()
@@ -43,41 +42,24 @@ def main() -> int:
     command = [sys.executable, "-m", "pytest", *paths, "-q", "-ra", "--durations=15",
                f"--junitxml={report / 'junit.xml'}"]
     if arguments.mode == "quick":
-        command += ["-m", "not postgres and not ollama"]
-    elif arguments.mode == "full":
-        command += ["-m", "not ollama", "--require-postgres"]
+        command += ["-m", "not ollama"]
     if arguments.mode in {"live", "all"}:
         command += ["--run-ollama", "--ollama-url", arguments.ollama_url,
                     "--ollama-model", arguments.ollama_model]
-        if arguments.mode == "all":
-            command += ["--require-postgres"]
-        else:
+        if arguments.mode == "live":
             command += ["-m", "ollama"]
-    if arguments.postgres_bin:
-        command += ["--postgres-bin", arguments.postgres_bin]
     if arguments.coverage:
-        command += [f"--cov={package}" for package in ("hyperclaw", "core", "memory", "security", "models")]
+        command += ["--cov=src/hyperclaw"]
         command += [f"--cov-report=xml:{report / 'coverage.xml'}",
                     f"--cov-report=json:{report / 'coverage.json'}",
                     f"--cov-report=html:{report / 'htmlcov'}", "--cov-report=term:skip-covered"]
     print(f"Running {arguments.mode} battery. Reports: {report}", flush=True)
     elapsed = time.monotonic()
     with tempfile.TemporaryDirectory(prefix="hyperclaw-battery-") as runtime_root:
-        environment = dict(os.environ)
-        # Tests supply synthetic provider and integration configuration themselves.
-        for key in tuple(environment):
-            if key.startswith("HYPERCLAW_") or key.endswith(("_API_KEY", "_TOKEN", "_SECRET", "_PASSWORD")) or key in {
-                "DATABASE_URL", "HYPERCLAW_PROVIDER", "ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN",
-                "OPENAI_BASE_URL", "OLLAMA_BASE_URL", "OLLAMA_MODEL", "OLLAMA_THINK", "PYTEST_PLUGINS",
-                "DAILY_BUDGET_USD", "PREFER_CHEAP_MODELS", "PYTHONPATH", "PERSONA_FILE",
-                "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy",
-            }:
-                environment.pop(key, None)
+        environment = {key: os.environ[key] for key in (
+            "PATH", "LANG", "LC_ALL", "SYSTEMROOT",
+        ) if key in os.environ}
         environment.update({"HYPERCLAW_ROOT": runtime_root,
-                            "SECRETS_MOUNT": str(Path(runtime_root) / "secrets"),
-                            "PYTHON_DOTENV_DISABLED": "1", "HYPERCLAW_ENABLE_DATABASE": "0",
-                            "HYPERCLAW_ENABLE_TELEGRAM": "0", "HYPERCLAW_ENABLE_SCHEDULER": "0",
-                            "HYPERCLAW_ENABLE_TOOLS": "0",
                             "COVERAGE_FILE": str(report / ".coverage"), "PYTEST_ADDOPTS": ""})
         with (report / "pytest.log").open("w", encoding="utf-8") as log:
             with subprocess.Popen(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,
