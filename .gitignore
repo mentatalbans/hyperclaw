@@ -24,6 +24,7 @@ dist/
 .coverage.*
 .pytest_cache/
 test-results/
+.worktrees/
 
 # Logs & runtime state
 logs/
