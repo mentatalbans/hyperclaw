@@ -1,6 +1,6 @@
 # HyperClaw runtime v2
 
-A local assistant with durable text chat in one Python package. M1 is implemented; verification and remaining feature destinations are in [testing](docs/testing.md). The old platform remains in git at dcad202.
+A local assistant with durable chat, image input, scoped file tools, and owned Docker commands in one Python package. M1 and M2 are implemented. [Testing](docs/testing.md) records verification and later milestones. The original platform remains in git at `dcad202`.
 
 Python 3.11+ on macOS/Linux. Install with `uv sync --locked --extra dev`.
 
@@ -12,16 +12,16 @@ uv run --locked hyperclaw doctor --probe
 make test
 ```
 
-The default root is `~/.hyperclaw-v2`, selected by `--root`, then `HYPERCLAW_ROOT`. Settings are CLI overrides over `root/config.toml` over shipped defaults. Default model: `qwen3.8:27b-mlx` at `http://127.0.0.1:11434`. No automatic model downloads or cloud fallback. Ordinary setup and doctor do not contact a model; `--probe` checks the installed catalog.
+The default root is `~/.hyperclaw-v2`, selected by `--root`, then `HYPERCLAW_ROOT`. Settings are CLI overrides over `root/config.toml` over shipped defaults. Default model: `qwen3.8:27b-mlx` at `http://127.0.0.1:11434`. There is no automatic model download or cloud fallback. Ordinary setup and doctor do not contact a model; `--probe` checks the installed catalog.
 
-Initialization refuses nonempty unmarked roots and v1 data. Existing tokens are reused with local permissions. No legacy client compatibility, migration, tools, images, memory, scheduler, web client or messaging adapters are promised by M1.
+Initialization refuses nonempty unmarked roots and v1 data. M1 runtime-v2 databases migrate transactionally with a backup; already accepted M1 requests retain an empty tool allowlist. Personal data and existing running installations are not automatically adopted.
 
-Start the daemon in one terminal, then submit from another:
+Start a disposable daemon, then submit from another terminal:
 
 ```sh
 hyperclaw --root /tmp/hyperclaw-demo init
-hyperclaw --root /tmp/hyperclaw-demo serve --port 8011
-hyperclaw --root /tmp/hyperclaw-demo chat "Describe a paper kite."
+hyperclaw --root /tmp/hyperclaw-demo serve --port 0
+hyperclaw --root /tmp/hyperclaw-demo chat "Describe a paper kite." --no-tools
 hyperclaw --root /tmp/hyperclaw-demo chat "Draft a short note." --detach
 hyperclaw --root /tmp/hyperclaw-demo run inspect RUN_ID
 hyperclaw --root /tmp/hyperclaw-demo run events RUN_ID --after 3
@@ -29,10 +29,57 @@ hyperclaw --root /tmp/hyperclaw-demo run cancel RUN_ID
 hyperclaw --root /tmp/hyperclaw-demo session reset SESSION_ID
 ```
 
-Use a fresh demo directory. The default listener is `127.0.0.1:8011`; `serve --port 0` selects a free port. `root/daemon.json` contains discovery metadata, and `root/token` contains the private bearer token. All `/v1` requests require `Authorization: Bearer TOKEN`; public `/healthz` returns only liveness. Host must match the selected loopback endpoint. Cross-origin requests are disabled.
+Use a fresh demo directory. Default listener: `127.0.0.1:8011`; `serve --port 0` selects a free port. `root/daemon.json` contains discovery metadata, and `root/token` contains the private bearer token. All `/v1` requests require `Authorization: Bearer TOKEN`; public `/healthz` reports liveness. Host must match the selected loopback endpoint; cross-origin requests are disabled.
 
-`chat` reports session/run IDs on stderr; reuse `--session SESSION_ID` to continue. `--request-id ID` makes deliberate repeat submissions idempotent; changing the payload conflicts. `--retry-of RUN_ID` links an explicit new attempt to a failed, cancelled or interrupted run in the same session generation. There is no automatic retry. Only one active run occupies a session; other sessions queue behind one worker.
+`chat` reports session/run IDs on stderr; reuse `--session SESSION_ID` to continue. `--request-id ID` makes identical submissions idempotent; changing the payload conflicts. `--retry-of RUN_ID` links an explicit new attempt to a failed, cancelled or interrupted run in the same generation. Unknown outcomes are `uncertain` and cannot be retried through that operation. Only one active run occupies a session, including while waiting for approval; other sessions share one worker.
 
-Ctrl-C while observing detaches. Explicit `run cancel` stops work. Only complete successful turns enter later prompts; partial text remains inspectable through events. Reset increments the generation, hiding old messages from new prompts without deleting old runs; reset fails while that session has active work. Shutdown interrupts active work and preserves queued work. After abrupt process death, startup marks active work interrupted before starting the queue.
+Ctrl-C while observing detaches. Explicit `run cancel` stops work and waits for owned process termination evidence. Prior effects are not undone. Only complete successful turns, with intact tool-call/result groups, enter later prompts. Partial text remains in events. Reset hides old messages without deleting old runs. Shutdown interrupts active work and preserves queued work. Startup reconciles owned invocations before starting the queue.
 
-M1 supports text/thinking and usage. General answers have `verification=not_requested`; response completion is not proof of an external task. Tools, images and controlled execution remain M2, schedules M3, explicit memory M4, MCP/skills M5, and web/Telegram M6.
+## Workspace and approvals
+
+The default workspace is `root/workspace`. To select a project, explicitly set an absolute `workspace_path` in `root/config.toml` before launching the daemon. The current directory is never implicitly mounted. One daemon uses one workspace; grants bind its path and filesystem identity. The runtime root and operator home cannot be selected as the workspace.
+
+Available tools are `workspace_read`, `workspace_list`, `workspace_search`, `workspace_write`, and `command`. Use repeated `--tool NAME` to restrict a run, or `--no-tools` for chat only. File tools reject symlinks, parent traversal, absolute paths, hardlinks and nonregular files. Reads and writes are limited to 64 KiB; writes require existing parent directories. Search is literal and bounded.
+
+Reads are admitted by default. Writes and commands have separate authority. Grant workspace writes once before submitting a file task:
+
+```sh
+hyperclaw --root /tmp/hyperclaw-demo workspace
+hyperclaw --root /tmp/hyperclaw-demo grant write --workspace-id WORKSPACE_ID
+hyperclaw --root /tmp/hyperclaw-demo chat "Write hello into answer.txt." --tool workspace_write
+hyperclaw --root /tmp/hyperclaw-demo run receipts RUN_ID
+```
+
+Without a grant, an effect pauses for an exact invocation approval. Chat displays the call and detaches. Review the durable arguments and hashes, then approve or deny:
+
+```sh
+hyperclaw --root /tmp/hyperclaw-demo approval list
+hyperclaw --root /tmp/hyperclaw-demo approval approve APPROVAL_ID --arguments-sha256 ARGUMENT_HASH --policy-sha256 POLICY_HASH
+hyperclaw --root /tmp/hyperclaw-demo run events RUN_ID
+```
+
+`approval deny` takes the same IDs/hashes. Approvals expire after 24 hours and release the worker while pending. Resume uses persisted arguments and remaining execution time. Changing a grant, schema or workspace invalidates prior approval; cancel and submit a fresh request under the new policy. The model cannot approve itself or change grants. Persistent grants are configured through the authenticated operator interface.
+
+A write receipt reports the observed SHA-256. Commands may request file/hash checks. A wrong expected hash fails verification and the run even if the model claims success. General answers have `verification=not_requested`; a complete answer is not proof of an external task.
+
+## Commands and images
+
+Commands execute argv inside Docker, with no host-shell fallback. A shell can be explicitly selected *inside* the container. The versioned image is pinned to:
+
+```text
+python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e
+```
+
+Prepare it with `docker pull` using that exact reference. Containers have an unprivileged user, read-only root, dropped capabilities, no new privileges, no network, 1 CPU, 256 MiB memory, 64 PIDs, and a 16 MiB temporary filesystem. Only the selected workspace is mounted. Execution approval alone keeps the workspace read-only; a separate write grant makes it writable. Runtime credentials, operator home and Docker socket are not mounted. Docker unavailability produces an actionable failure; ordinary chat and scoped file tools remain usable. On Linux, run the daemon as your ordinary user so private workspace permissions match the container UID. A root daemon uses UID 65532 and requires an explicitly accessible workspace.
+
+Each invocation records intent before effects and a receipt before cleanup. Cancellation stops/kills and inspects the container; closing the Docker client process is not termination evidence. Lost backend/outcome evidence produces `uncertain`, never an automatic re-execution. These controls are a deployment boundary, not a claim of absolute isolation; see [Security](SECURITY.md).
+
+Image input supports PNG, JPEG, GIF and WebP with validated base64/type/size limits. The CLI reads only explicitly selected image files:
+
+```sh
+hyperclaw --root /tmp/hyperclaw-demo chat "Describe this image." --image sample.png --context-bytes 8388608 --no-tools
+```
+
+The default serialized conversation budget is 64 KiB; attachments can explicitly raise it to at most 8 MiB. The loop allows at most 12 model rounds and three identical tool calls, with 64 KiB tool output and tool deadlines up to 60 seconds. Default model/run deadlines are 120/600 seconds. Run time excludes queue and approval waits; after abrupt death, a running interval is conservatively charged until recovery because the crash instant is unknown.
+
+Durable scheduling remains M3, explicit memory M4, MCP/skills M5, and web/Telegram M6. No legacy client parity or service switch is implied by these milestones.

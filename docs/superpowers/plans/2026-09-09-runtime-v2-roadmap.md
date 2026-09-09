@@ -1,6 +1,6 @@
 # HyperClaw Runtime v2 Roadmap Implementation Plan
 
-M1 completed 2026-09-09: [acceptance report](../../reports/2026-09-09-runtime-v2-m1.md). M2–M6 are not started. Baseline notes below describe the original planning state.
+M1 and M2 completed 2026-09-09: [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md), [M2 acceptance](../../reports/2026-09-09-runtime-v2-m2.md). M3–M6 are not started. Baseline notes below describe the original planning state.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -102,6 +102,8 @@ The new API intentionally replaces legacy /chat and /api/swarm routes. Tools, me
 
 **Deliverable:** useful scoped file operations and container command execution, with durable approvals/receipts and verified cancellation. Restore image/tool model support.
 
+**Plan:** [M2 implementation tasks](2026-09-09-runtime-v2-m2.md).
+
 **Consumes:** M1 Runtime, Store, run events, and Ollama content contracts.
 
 **Produces:** `Executor.invoke(run_id: str, call: ToolCall) -> ToolReceipt`; `Executor.cancel(run_id: str) -> None`; `Executor.reconcile() -> list[ToolReceipt]`. ToolCall contains id/name/JSON arguments. ToolReceipt contains invocation_id, status, bounded output, artifact references, and verification evidence. Persist these through Store; do not add a second database connection.
@@ -112,14 +114,14 @@ Start with a focused Docker ownership test before expanding the tool catalog. Re
 
 **Gate:**
 
-- [ ] An admitted workspace read/write succeeds; symlink, parent traversal, absolute path, and device access fail through public tools.
-- [ ] An unknown/disallowed tool or changed arguments cannot reuse an approval.
-- [ ] A workspace write grant avoids repeated prompts within that scope; missing command authority pauses durably for approval. Restart/resume uses the persisted call arguments and remaining active execution budget; approval expires after 24 hours.
-- [ ] A container with a child that writes a delayed marker is cancelled; neither parent nor child can write afterward.
-- [ ] Backend loss yields uncertain, without re-execution; restart reconciles owned containers before queued work.
-- [ ] Denied writes cannot be achieved through a writable command mount; network and secret sentinels are unavailable.
-- [ ] Tool call/result grouping, 12-round limit, repeated-call bound, total deadline, bounded output, and live synthetic image behavior pass.
-- [ ] A generated file is reported with its observed hash, and a deliberately wrong expected hash fails verification.
+- [x] An admitted workspace read/write succeeds; symlink, parent traversal, absolute path, and device access fail through public tools.
+- [x] An unknown/disallowed tool or changed arguments cannot reuse an approval.
+- [x] A workspace write grant avoids repeated prompts within that scope; missing command authority pauses durably for approval. Restart/resume uses the persisted call arguments and remaining active execution budget; approval expires after 24 hours.
+- [x] A container with a child that writes a delayed marker is cancelled; neither parent nor child can write afterward.
+- [x] Backend loss yields uncertain, without re-execution; restart reconciles owned containers before queued work.
+- [x] Denied writes cannot be achieved through a writable command mount; network and secret sentinels are unavailable.
+- [x] Tool call/result grouping, 12-round limit, repeated-call bound, total deadline, bounded output, and live synthetic image behavior pass.
+- [x] A generated file is reported with its observed hash, and a deliberately wrong expected hash fails verification.
 
 ### M3 — Prove background recovery and add durable schedules
 

@@ -1,0 +1,287 @@
+{
+  "milestone": "M2",
+  "date": "2026-09-09",
+  "branch": "refactor/runtime-v2",
+  "baseline_commit": "7fa9dee3fd023f01ee547d025718d0a6cc30206f",
+  "status": "implemented_and_verified",
+  "tool_image": "python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e",
+  "gates": {
+    "macos_python311_offline": {
+      "mode": "quick",
+      "started_at": "2026-09-09T22:14:08.204579+00:00",
+      "elapsed_seconds": 33.7,
+      "exit_code": 0,
+      "python": "3.11.13",
+      "command": [
+        "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/.venv/bin/python3",
+        "-m",
+        "pytest",
+        "tests",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/quick-20260909T221408204579Z/junit.xml",
+        "-m",
+        "not ollama and not docker",
+        "--cov=src/hyperclaw",
+        "--cov-report=xml:/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/quick-20260909T221408204579Z/coverage.xml",
+        "--cov-report=json:/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/quick-20260909T221408204579Z/coverage.json",
+        "--cov-report=html:/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/quick-20260909T221408204579Z/htmlcov",
+        "--cov-report=term:skip-covered"
+      ],
+      "tests": {
+        "total": 162,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "coverage": {
+        "statements": {
+          "covered": 2141,
+          "total": 2507
+        },
+        "branches": {
+          "covered": 537,
+          "total": 746
+        }
+      },
+      "local_artifact": "test-results/quick-20260909T221408204579Z/summary.json",
+      "deselected": 11
+    },
+    "macos_python313_offline": {
+      "mode": "quick",
+      "started_at": "2026-09-09T22:14:08.209704+00:00",
+      "elapsed_seconds": 27.607,
+      "exit_code": 0,
+      "python": "3.13.5",
+      "command": [
+        "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m2-py313-6ubwv_ys/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/quick-20260909T221408209704Z/junit.xml",
+        "-m",
+        "not ollama and not docker"
+      ],
+      "tests": {
+        "total": 162,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "local_artifact": "test-results/quick-20260909T221408209704Z/summary.json",
+      "deselected": 11
+    },
+    "macos_docker": {
+      "mode": "docker",
+      "started_at": "2026-09-09T22:09:05.347437+00:00",
+      "elapsed_seconds": 34.459,
+      "exit_code": 0,
+      "python": "3.11.13",
+      "command": [
+        "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/.venv/bin/python3",
+        "-m",
+        "pytest",
+        "tests/live",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/docker-20260909T220905347437Z/junit.xml",
+        "--run-docker",
+        "-m",
+        "docker"
+      ],
+      "tests": {
+        "total": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "local_artifact": "test-results/docker-20260909T220905347437Z/summary.json",
+      "deselected": 5
+    },
+    "macos_live_qwen": {
+      "mode": "live",
+      "started_at": "2026-09-09T22:14:08.219747+00:00",
+      "elapsed_seconds": 11.589,
+      "exit_code": 0,
+      "python": "3.11.13",
+      "command": [
+        "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/.venv/bin/python3",
+        "-m",
+        "pytest",
+        "tests/live",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/live-20260909T221408219747Z/junit.xml",
+        "--run-ollama",
+        "--ollama-url",
+        "http://127.0.0.1:11434",
+        "--ollama-model",
+        "qwen3.8:27b-mlx",
+        "-m",
+        "ollama"
+      ],
+      "tests": {
+        "total": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "local_artifact": "test-results/live-20260909T221408219747Z/summary.json",
+      "deselected": 6
+    },
+    "linux_docker": {
+      "mode": "docker",
+      "started_at": "2026-09-09T22:14:14.037663+00:00",
+      "elapsed_seconds": 16.329,
+      "exit_code": 0,
+      "python": "3.13.5",
+      "command": [
+        "/tmp/hyperclaw-linux.tQcNqt/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/live",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/tmp/hyperclaw-linux.tQcNqt/reports/docker-20260909T221414037663Z/junit.xml",
+        "--run-docker",
+        "-m",
+        "docker"
+      ],
+      "tests": {
+        "total": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "local_artifact": "test-results/m2-linux-initial/docker-20260909T221414037663Z/summary.json",
+      "deselected": 5,
+      "platform": "Debian bookworm / aarch64 container; Docker Engine 28.4.0"
+    },
+    "linux_python313_offline": {
+      "mode": "quick",
+      "started_at": "2026-09-09T22:19:19.146879+00:00",
+      "elapsed_seconds": 52.642,
+      "exit_code": 0,
+      "python": "3.13.5",
+      "command": [
+        "/tmp/hyperclaw-linux.6AbruD/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/tmp/hyperclaw-linux.6AbruD/reports/quick-20260909T221919146879Z/junit.xml",
+        "-m",
+        "not ollama and not docker"
+      ],
+      "tests": {
+        "total": 162,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "local_artifact": "test-results/m2-linux-final/quick-20260909T221919146879Z/summary.json",
+      "deselected": 11,
+      "platform": "Debian bookworm / aarch64 container; native Linux temporary storage"
+    }
+  },
+  "wheel": {
+    "wheel": "hyperclaw-2.0.0.dev0-py3-none-any.whl",
+    "sha256": "6881b032cce943e6024ddb30c37355a96ef28cc55491844efd8351024c390074",
+    "file_count": 19,
+    "package_only": true,
+    "source_matches": true,
+    "fresh_install": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m2-final-wheel-ygink42u/venv",
+    "unrelated_cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m2-final-wheel-ygink42u",
+    "import": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m2-final-wheel-ygink42u/venv/lib/python3.11/site-packages/hyperclaw/__init__.py",
+    "cli_smoke": "passed"
+  },
+  "locked_install": "passed",
+  "build": "passed",
+  "independent_review": "no_remaining_important_findings",
+  "hosted_ci": {
+    "configured": true,
+    "executed": false
+  },
+  "m3_started": false,
+  "preservation": {
+    "personal_data_modified": false,
+    "running_services_restarted": false,
+    "main_checkout_modified": false,
+    "existing_containers": [
+      {
+        "id": "80daac629e79",
+        "name": "buildx_buildkit_rowingx0",
+        "status": "Up 2 days"
+      },
+      {
+        "id": "99bc23bc5418",
+        "name": "smart-cache",
+        "status": "Up 2 days"
+      }
+    ],
+    "main_checkout_head": "6f758390996b61f86fe57415954aa3f8fced583a",
+    "main_checkout_status": "Only pre-existing untracked .engram/",
+    "verification_containers_removed": true
+  },
+  "diagnostic_attempts": [
+    {
+      "name": "linux_offline_on_docker_desktop_shared_filesystem",
+      "summary": {
+        "mode": "quick",
+        "started_at": "2026-09-09T22:12:48.267198+00:00",
+        "elapsed_seconds": 58.709,
+        "exit_code": 1,
+        "python": "3.13.5",
+        "command": [
+          "/tmp/hyperclaw-linux.tQcNqt/venv/bin/python",
+          "-m",
+          "pytest",
+          "tests",
+          "-q",
+          "-ra",
+          "--durations=15",
+          "--junitxml=/tmp/hyperclaw-linux.tQcNqt/reports/quick-20260909T221248267198Z/junit.xml",
+          "-m",
+          "not ollama and not docker"
+        ],
+        "tests": {
+          "total": 162,
+          "failures": 2,
+          "errors": 0,
+          "skipped": 0
+        }
+      },
+      "local_artifact": "test-results/m2-linux-initial/quick-20260909T221248267198Z/summary.json",
+      "cause": "Cross-process root lock tests fail on Docker Desktop bind-mounted temporary storage; corrected runner uses container-native temporary storage for offline tests."
+    }
+  ],
+  "source_sha256": {
+    "src/hyperclaw/__init__.py": "cbce46810e6319159862bd29a0826e628852e69172e2752ac867c6cf937f37b4",
+    "src/hyperclaw/__main__.py": "a46eaf19e57db9541fcbfff27022acdf42176d13baaca97fe6570443dd726d42",
+    "src/hyperclaw/api.py": "89e70c27e4da1fd46397d242ce973b9c7f25908b219c420a00103f6a07922ec5",
+    "src/hyperclaw/cli.py": "bcde59a7a9b3b18a789ba049c82498b9b659ecd2eddee0c071e2c97e3c005d47",
+    "src/hyperclaw/config.py": "237a6ab45e80105273a25c1d93914f7e5c6c76fc8ba2af3278adc818b828e197",
+    "src/hyperclaw/contracts.py": "fdcb6d299fc7ddda08da6a7b0f10a0d8bb674207860cedd11306cd6853e93a2f",
+    "src/hyperclaw/execution/__init__.py": "d7adc5131209e4eb2bd23a57d61fa7723022e4c81f38f1a42f33ff0cb365218e",
+    "src/hyperclaw/execution/docker.py": "a8efaa7e018e477f462509d4b0112f19bca7e79aba2539b6cb80c6f946d283ed",
+    "src/hyperclaw/execution/policy.py": "f41da2647d96295495beaab2bb595391c4624673db809735e8d5111b34134117",
+    "src/hyperclaw/execution/workspace.py": "05265e4e1cd3858cd29662c211233469d5e5509378311d5ec1593769b480f3ef",
+    "src/hyperclaw/ollama.py": "204a26ea228c8d8eac153637df2604224924d98f5cf71397351464cc9da440d3",
+    "src/hyperclaw/runtime.py": "3d985a99a43d6e0d3a81c7cf4776d65e368c9cab99d767d2d2441ae0e277a3ba",
+    "src/hyperclaw/store.py": "3b2d5e19d9a4a945047c194e8089763721464dfbc3b7b67f7e5fc73a7af999e7"
+  },
+  "diff_check": "passed",
+  "implementation_commit": "b11a34c044ebdcda9681bbe4386a838814851aee",
+  "plan_commit": "5e4621a",
+  "intermediate_history_ref": "refs/codex/runtime-v2-m2-implementation-history",
+  "linux_source_snapshot_matches": true
+}
