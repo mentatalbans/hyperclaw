@@ -1,6 +1,7 @@
 """Single-owner SQLite storage. Every state transition and its events commit together."""
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from datetime import datetime, timezone
 import fcntl
 import json
@@ -93,11 +94,11 @@ class Store:
         for index in range(version, len(MIGRATIONS)):
             destructive, statements = MIGRATIONS[index]
             if destructive:
-                backup_path = self.root / f'backup-v{index}.sqlite3'
+                backup_path = self.root / f'backup-v{index}-{uuid4().hex}.sqlite3'
                 # A failed migration's original backup must never be overwritten.
                 fd = os.open(backup_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
                 os.close(fd)
-                with sqlite3.connect(backup_path) as backup:
+                with closing(sqlite3.connect(backup_path)) as backup:
                     self._db.backup(backup)
             def migrate():
                 for statement in statements:

@@ -229,5 +229,25 @@ async def test_failed_future_destructive_migration_rolls_back_and_has_backup(tmp
     with sqlite3.connect(tmp_path / 'runtime.sqlite3') as db:
         assert db.execute('SELECT id FROM sessions').fetchone()[0] == session.id
         assert db.execute('SELECT version FROM schema_version').fetchone()[0] == 1
-    with sqlite3.connect(tmp_path / 'backup-v1.sqlite3') as db:
+    with sqlite3.connect(next(tmp_path.glob('backup-v1-*.sqlite3'))) as db:
         assert db.execute('SELECT id FROM sessions').fetchone()[0] == session.id
+
+
+async def test_corrected_migration_can_follow_failed_attempt_without_overwriting_backup(tmp_path, monkeypatch):
+    import hyperclaw.store as module
+    store = await Store.open(tmp_path)
+    session = await store.create_session()
+    await store.close()
+    initial = module.MIGRATIONS
+    monkeypatch.setattr(module, 'MIGRATIONS', (*initial, (True, ('SELECT * FROM missing_table',))))
+    with pytest.raises(StorageFailure):
+        await Store.open(tmp_path)
+    backups = {p: p.read_bytes() for p in tmp_path.glob('backup-*.sqlite3')}
+    monkeypatch.setattr(module, 'MIGRATIONS', (*initial, (True, ('CREATE TABLE new_table (id INTEGER)',))))
+    reopened = await Store.open(tmp_path)
+    try:
+        assert (await reopened.get_session(session.id)).generation == 0
+        assert all(p.read_bytes() == data for p, data in backups.items())
+        assert len(list(tmp_path.glob('backup-*.sqlite3'))) == 2
+    finally:
+        await reopened.close()
