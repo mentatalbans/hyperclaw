@@ -137,3 +137,28 @@ async def test_incremental_output_and_cancellation_close_io(tmp_path):
 async def test_request_deadline_is_bounded(tmp_path):
     _, error, _ = await collect(tmp_path, Reply(gate=threading.Event()), request_timeout_s=0.1)
     assert error.code == 'request_timeout'
+
+
+async def test_consumer_delay_past_deadline_does_not_cancel_consumer(tmp_path):
+    peer = ProviderStub()
+    peer.enqueue(Reply(gate=threading.Event()))
+    model = Ollama(load_settings(root=tmp_path, overrides={'model': MODEL, 'ollama_url': peer.url, 'request_timeout_s': 0.05}))
+    stream = model.stream([Message(role='user', content='hello')])
+    try:
+        assert (await anext(stream)).kind == 'text'
+        await asyncio.sleep(0.1)
+        with pytest.raises(ProviderFailure) as raised:
+            await anext(stream)
+        assert raised.value.code == 'request_timeout'
+    finally:
+        await stream.aclose()
+        await model.aclose()
+        peer.close()
+
+
+async def test_initial_output_count_does_not_invent_final_count(tmp_path):
+    start = {**START, 'message': {**START['message'], 'usage': {'input_tokens': 12, 'output_tokens': 0}}}
+    delta = {**DELTA, 'usage': {}}
+    received, error, _ = await collect(tmp_path, Reply(frames=tuple(frame(e) for e in [start, BLOCK, TEXT, STOP, delta, END])))
+    assert error is None
+    assert next(e.data for e in received if e.kind == 'usage')['output_tokens'] is None
