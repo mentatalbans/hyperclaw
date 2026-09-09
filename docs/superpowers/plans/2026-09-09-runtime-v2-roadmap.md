@@ -1,5 +1,7 @@
 # HyperClaw Runtime v2 Roadmap Implementation Plan
 
+M1 completed 2026-09-09: [acceptance report](../../reports/2026-09-09-runtime-v2-m1.md). M2–M6 are not started. Baseline notes below describe the original planning state.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the sprawling platform with a dependable local assistant, shipping six demonstrable milestones.
@@ -87,12 +89,12 @@ flowchart LR
 
 **Gate:**
 
-- [ ] Real HTTP text arrives before the fixture provider finishes; usage and thinking remain distinct.
-- [ ] Restart preserves completed history and replay cursors; a new session/reset sees no old prompt history.
-- [ ] Duplicate request IDs return one run; conflicting payloads fail; a second owner cannot start.
-- [ ] EOF without message_stop fails; no implicit provider/model retry occurs.
-- [ ] Killing the process produces interrupted, not succeeded, on restart.
-- [ ] Locked fresh install and three applicable live Qwen scenarios pass: text/usage, streaming/usage, conversation restart/isolation/reset.
+- [x] Real HTTP text arrives before the fixture provider finishes; usage and thinking remain distinct.
+- [x] Restart preserves completed history and replay cursors; a new session/reset sees no old prompt history.
+- [x] Duplicate request IDs return one run; conflicting payloads fail; a second owner cannot start.
+- [x] EOF without message_stop fails; no implicit provider/model retry occurs.
+- [x] Killing the process produces interrupted, not succeeded, on restart.
+- [x] Locked fresh install and three applicable live Qwen scenarios pass: text/usage, streaming/usage, conversation restart/isolation/reset.
 
 The new API intentionally replaces legacy /chat and /api/swarm routes. Tools, memory, images, and channels are not advertised by this milestone.
 

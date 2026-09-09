@@ -1,6 +1,6 @@
 # HyperClaw runtime v2 design
 
-Status: proposed architecture; implementation has not started. Date: 2026-09-09.
+Status: M1 implemented and verified; M2–M6 remain planned. Design date: 2026-09-09. [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md).
 
 ## Decision
 

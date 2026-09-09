@@ -1,4 +1,5 @@
 [run]
+source = src/hyperclaw
 branch = True
 parallel = True
 patch = subprocess

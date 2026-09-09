@@ -211,3 +211,52 @@ async def test_malformed_discovery_metadata_cannot_prevent_shutdown(tmp_path):
     assert (tmp_path / 'daemon.json').read_text() == '[]'
     store = await Store.open(tmp_path)
     await store.close()
+
+
+def test_cli_ctrl_c_detaches_without_cancelling_the_run(service):
+    import re
+    import select
+    app, peer = service
+    gate = threading.Event()
+    peer.enqueue(Reply(gate=gate))
+    child = subprocess.Popen([sys.executable, '-m', 'hyperclaw', '--root', str(app.root), 'chat', 'stay active'],
+                             cwd=app._cwd.name, env={'PATH': os.environ['PATH']},
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        assert select.select([child.stderr], [], [], 5)[0], 'CLI did not report acceptance'
+        accepted = child.stderr.readline()
+        run_id = re.search(r'run ([a-f0-9]+)', accepted).group(1)
+        peer.take_request()
+        child.send_signal(signal.SIGINT)
+        _, stderr = child.communicate(timeout=5)
+        assert child.returncode == 0 and run_id in stderr and 'Detached' in stderr
+        assert app.client.get(f'/v1/runs/{run_id}').json()['status'] == 'running'
+        gate.set()
+        assert events(app, run_id)[-1]['data']['status'] == 'succeeded'
+    finally:
+        gate.set()
+        if child.poll() is None:
+            child.kill()
+            child.wait(timeout=5)
+        child.stdout.close()
+        child.stderr.close()
+
+
+async def test_storage_failure_rejects_new_work_with_503(tmp_path):
+    import asyncio
+    from hyperclaw.api import create_app
+    from hyperclaw.config import load_settings, read_token
+    app = create_app(load_settings(root=tmp_path, overrides={'ollama_url': 'http://127.0.0.1:1'}))
+    async with app.router.lifespan_context(app):
+        runtime = app.state.runtime
+        await runtime.store._call(lambda: runtime.store._db.execute("CREATE TRIGGER fail_claim BEFORE UPDATE ON runs WHEN NEW.status='running' BEGIN SELECT RAISE(ABORT, 'injected'); END"))
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://127.0.0.1:8011',
+                                    headers={'Authorization': 'Bearer ' + read_token(tmp_path)}) as client:
+            session = (await client.post('/v1/sessions')).json()
+            response = await client.post('/v1/runs', json={'session_id': session['id'], 'generation': 0, 'request_id': 'first', 'text': 'hello'})
+            assert response.status_code == 202
+            async with asyncio.timeout(3):
+                while runtime.healthy:
+                    await asyncio.sleep(0.01)
+            assert (await client.post('/v1/sessions')).status_code == 503
+            assert (await client.get('/healthz')).json() == {'status': 'ok'}

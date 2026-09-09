@@ -1,11 +1,12 @@
 PYTHON ?= .venv/bin/python
+COVERAGE ?= 0
 OLLAMA_URL ?= http://127.0.0.1:11434
 OLLAMA_MODEL ?= qwen3.8:27b-mlx
 
 .PHONY: test test-live test-all test-coverage
 
 test:
-	$(PYTHON) scripts/test_battery.py quick
+	$(PYTHON) scripts/test_battery.py quick $(if $(filter 1,$(COVERAGE)),--coverage,)
 
 test-live:
 	$(PYTHON) scripts/test_battery.py live --ollama-url "$(OLLAMA_URL)" --ollama-model "$(OLLAMA_MODEL)"

@@ -8,7 +8,7 @@ M1 replaces the legacy test suite; raw count parity is not a goal. Historical so
 | Session ordering, restart/reset isolation, deduplication, terminal transactions | tests/unit/test_store.py, tests/integration/test_runtime.py | M1 |
 | Text/thinking separation, usage, malformed streams and early EOF | tests/unit/test_ollama.py | M1 |
 | Loopback provider, real subprocess lifecycle, crash/replay, auth | tests/support, tests/integration/test_http.py | M1 |
-| Live text/usage, incremental stream/usage, conversation restart/isolation/reset | tests/live/test_ollama.py | M1 (pending task 5) |
+| Live text/usage, incremental stream/usage, conversation restart/isolation/reset | tests/live/test_ollama.py | M1 |
 | Environment isolation, explicit live selection, reports and subprocess coverage | scripts/test_battery.py, tests/unit/test_battery.py | M1 |
 | Image/tool blocks, deadlines, repeated calls, allowlist, controlled writes and cancellation | execution tests | M2, not shipped |
 | Detached tool recovery, invocation receipts, durable schedules | recovery/scheduling tests | M3, not shipped |
@@ -25,3 +25,5 @@ Run `make test` for offline checks, `make test-coverage` for statement/branch re
 The live M1 scenarios now use authenticated HTTP and real disposable daemon processes: text/provenance/usage, stream/provenance/usage, and an opaque conversation label across restart/new session/reset. Image and fresh-store memory-tool tests remain M2/M4 acceptance work, not skipped M1 checks.
 
 Protocol basis: the transport uses [Ollama's Messages compatibility](https://docs.ollama.com/api/anthropic-compatibility). Reproducible installs use a checked [uv lockfile](https://docs.astral.sh/uv/concepts/projects/sync/).
+
+Actual M1 results, gate mapping, coverage counts and a run/result/replay walkthrough are recorded in [the September 9 acceptance report](reports/2026-09-09-runtime-v2-m1.md). Python 3.11 and 3.13 each passed 88 offline tests; all three explicitly selected live Qwen cases passed. Hosted CI is configured but was not executed in this session.

@@ -1,6 +1,6 @@
 # HyperClaw runtime v2
 
-A local assistant being rebuilt as one Python package. M1 delivers durable text chat; implementation progress and feature destinations are in [testing](docs/testing.md). The old platform remains in git at dcad202.
+A local assistant with durable text chat in one Python package. M1 is implemented; verification and remaining feature destinations are in [testing](docs/testing.md). The old platform remains in git at dcad202.
 
 Python 3.11+ on macOS/Linux. Install with `uv sync --locked --extra dev`.
 

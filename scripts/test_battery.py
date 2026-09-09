@@ -84,6 +84,13 @@ def main() -> int:
         "exit_code": exit_code, "python": sys.version.split()[0],
         "command": command, "tests": test_counts(report / "junit.xml"),
     }
+    coverage_path = report / "coverage.json"
+    if coverage_path.exists():
+        totals = json.loads(coverage_path.read_text())["totals"]
+        summary["coverage"] = {
+            "statements": {"covered": totals["covered_lines"], "total": totals["num_statements"]},
+            "branches": {"covered": totals["covered_branches"], "total": totals["num_branches"]},
+        }
     (report / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(f"Battery exit status: {exit_code}. Summary: {report / 'summary.json'}", flush=True)
     return exit_code
