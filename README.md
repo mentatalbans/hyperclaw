@@ -183,8 +183,14 @@ The build context excludes `.env` files, local workspace data, virtual environme
 ```bash
 uv venv --python 3.11 .venv
 uv pip install --python .venv/bin/python -e '.[dev]'
-PYTHON_DOTENV_DISABLED=1 HYPERCLAW_ROOT="$(mktemp -d)" \
-  .venv/bin/python -m pytest tests/ -q
+make test           # Deterministic tests, including a real local HTTP server
+make test-full      # Also require disposable PostgreSQL
+make test-live      # Five checks against an already installed Ollama model
+make test-all       # Full suite + live model + coverage reports
 ```
+
+Each command uses temporary runtime data and saves JUnit, timing, and failure reports under `test-results/`. `make test-all` and `make test-coverage` also produce HTML/JSON/XML coverage reports. Live checks default to `qwen3.8:27b-mlx` at `http://127.0.0.1:11434`; override `OLLAMA_MODEL` and `OLLAMA_URL` as Make variables. Missing required PostgreSQL or Ollama prerequisites fail the selected battery.
+
+The [test battery guide](docs/testing.md) describes prerequisites, focused runs, coverage scope, and CI. GitHub Actions runs the deterministic and database suite on Python 3.11 and 3.13 for pushes and pull requests; live model checks run locally on demand.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines. HyperClaw is [MIT licensed](LICENSE).

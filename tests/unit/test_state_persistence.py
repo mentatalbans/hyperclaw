@@ -20,11 +20,11 @@ import pytest_asyncio
 from core.hyperstate.schema import HyperState, Task
 from core.hyperstate.store import HyperStateStore
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.postgres]
 
 
 @pytest.fixture(scope="module")
-def temporary_postgres():
+def temporary_postgres(request):
     candidates = [
         Path(binary).parent
         for binary in [shutil.which("initdb")]
@@ -32,9 +32,17 @@ def temporary_postgres():
     ]
     candidates.extend(Path("/opt/homebrew/opt").glob("postgresql*/bin"))
     candidates.extend(Path("/usr/lib/postgresql").glob("*/bin"))
-    pg_bin = next((path for path in candidates if (path / "initdb").exists()), None)
+    override = request.config.getoption("--postgres-bin")
+    if override is not None:
+        candidates = [Path(override)]
+    pg_bin = next((path for path in candidates if all(
+        (path / binary).is_file() for binary in ("initdb", "pg_ctl", "postgres")
+    )), None)
     if pg_bin is None or (hasattr(os, "geteuid") and os.geteuid() == 0):
-        pytest.skip("Disposable PostgreSQL tests need server binaries and a non-root user")
+        reason = "Disposable PostgreSQL tests need server binaries and a non-root user"
+        if request.config.getoption("--require-postgres"):
+            pytest.fail(reason, pytrace=False)
+        pytest.skip(reason)
 
     with tempfile.TemporaryDirectory(prefix="hc-state-pg-", dir="/tmp") as directory:
         root = Path(directory)

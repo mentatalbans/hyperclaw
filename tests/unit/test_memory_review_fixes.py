@@ -94,7 +94,7 @@ async def test_transactional_append_preserves_supplied_ids_and_detaches_content(
     }]
 
 
-@pytest.fixture(params=["file", "postgres"])
+@pytest.fixture(params=["file", pytest.param("postgres", marks=pytest.mark.postgres)])
 def memory_dsn(request):
     return request.getfixturevalue("memory_database") if request.param == "postgres" else None
 

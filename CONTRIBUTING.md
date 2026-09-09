@@ -8,7 +8,7 @@ HyperClaw is MIT-licensed and open for contributions. Here's how to get involved
 git clone https://github.com/mentatalbans/hyperclaw.git
 cd hyperclaw
 pip install -e ".[dev]"
-pytest tests/ -v  # confirm 184/184 passing
+make test PYTHON=python
 ```
 
 ## Adding an Agent
@@ -22,9 +22,11 @@ pytest tests/ -v  # confirm 184/184 passing
 ## Writing Tests
 
 - Use `pytest-asyncio` for async tests
-- Mock asyncpg pools with `unittest.mock.AsyncMock`
+- Use the disposable PostgreSQL fixture for persistence contracts; use `unittest.mock.AsyncMock` for narrow database-failure simulations.
 - Maintain 90%+ coverage on all `core/`, `memory/`, `security/` modules
-- Run: `pytest tests/ --cov=core --cov=memory --cov=security --cov=models`
+- Run `make test-full` before submitting, and `make test-coverage` to inspect measured coverage. PostgreSQL binaries and a non-root user are required.
+- Mark database-dependent tests with `pytest.mark.postgres`; mark real-model tests with `pytest.mark.ollama`. Live checks are deselected unless `--run-ollama` is supplied.
+- See [docs/testing.md](docs/testing.md) for the test matrix, saved reports, and live-model commands.
 
 ## Code Style
 
