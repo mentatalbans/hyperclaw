@@ -242,12 +242,20 @@ class ModelRouter:
         return ModelTier.STANDARD
 
     def _slot(self, message, preferred_tier=None):
-        return self._apply_budget("fast" if preferred_tier == ModelTier.FAST else "primary")
+        # Budget advice runs after inference derives the complete request needs.
+        return "fast" if preferred_tier == ModelTier.FAST else "primary"
 
-    def _apply_budget(self, slot):
+    def _apply_budget(self, slot, required_capabilities=None, model_override=None):
         if self.stats.last_reset.date() != datetime.now().date():
             self.reset_daily_stats()
-        return "fast" if self.stats.unpriced_requests_by_model or self.stats.total_cost >= self._daily_budget else slot
+        if self.stats.unpriced_requests_by_model or self.stats.total_cost >= self._daily_budget:
+            candidates = self.inference.providers.resolve("fast", required_capabilities or {"chat"})
+            if model_override:
+                candidates = [(provider, model) for provider, model in candidates
+                              if model_override == model or model_override in provider.models.values()]
+            if candidates:
+                return "fast"
+        return slot
 
     def _record_usage(self, metadata):
         if self.stats.last_reset.date() != datetime.now().date():

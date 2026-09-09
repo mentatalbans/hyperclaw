@@ -46,7 +46,7 @@ class Inference:
 
     def candidates(self, slot="primary", required_capabilities=None, model_override=None):
         if self.route_slot:
-            slot = self.route_slot(slot)
+            slot = self.route_slot(slot, required_capabilities or {"chat"}, model_override)
         candidates = self.providers.resolve(slot, required_capabilities or {"chat"})
         if model_override:
             matches = [(p, model_override) for p, model in candidates

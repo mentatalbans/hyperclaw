@@ -3113,10 +3113,12 @@ def chat(message):
     """Compatibility entrypoint; the canonical runtime owns tools and history."""
     import asyncio
     from .orchestrator import Orchestrator
+    from .terminal import import_legacy_session
     async def turn():
         runtime = Orchestrator()
         try:
             await runtime.initialize()
+            await import_legacy_session(runtime)
             stream = await runtime.chat(message, session_id="terminal", channel="terminal", stream=True,
                                         tools=True, tool_set=(TOOLS, execute_tool))
             async for text in stream:

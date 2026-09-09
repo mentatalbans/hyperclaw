@@ -77,6 +77,42 @@ def chat_command(session: str = "terminal", tools: bool = True):
     from hyperclaw.terminal import main
     main(session, tools)
 
+
+@app.command("import-memories")
+def import_memories_command(
+    source: Path = typer.Argument(..., exists=True, dir_okay=False, resolve_path=True),
+) -> None:
+    """Copy a legacy vector-memory database into the configured memory store once."""
+    async def run_import() -> dict:
+        from hyperclaw.server import _load_environment
+        _load_environment()
+        from hyperclaw.memory_manager import MemoryManager
+        pool = None
+        database_url = os.environ.get("DATABASE_URL", "").strip()
+        database_enabled = os.environ.get("HYPERCLAW_ENABLE_DATABASE", "").lower() not in {"false", "0", "no"}
+        if database_url and database_enabled:
+            import asyncpg
+            try:
+                pool = await asyncpg.create_pool(
+                    database_url, min_size=1, max_size=1, timeout=10, command_timeout=30,
+                )
+            except Exception as exc:
+                raise RuntimeError("Could not connect to the configured database; import was not started") from exc
+        try:
+            memory = MemoryManager(db_pool=pool)
+            await memory.initialize()
+            return await memory.import_legacy_vectors(source)
+        finally:
+            if pool is not None:
+                await pool.close()
+
+    try:
+        result = asyncio.run(run_import())
+    except Exception as exc:
+        console.print(f"[red]Memory import failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    console.print(json.dumps(result, indent=2))
+
 try:
     from hyperclaw import __version__ as VERSION
 except Exception:  # pragma: no cover

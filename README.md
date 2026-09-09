@@ -46,6 +46,8 @@ For terminal chat:
 
 Inside terminal chat, `/reset` persistently clears the current session and `/quit` exits. `hyperclaw start` is also a terminal-chat entrypoint.
 
+On upgrade, the default `terminal` session imports the old `session_history.json` once. Named sessions start independently, and an existing canonical session or reset marker prevents another import. The original history file is preserved.
+
 To select a different installed Ollama model or endpoint:
 
 ```bash
@@ -74,7 +76,9 @@ Selecting `HYPERCLAW_PROVIDER=ollama` restricts model routing and fallback to Ol
 
 Provider definitions and capability routing live in the user's `config/models.yaml`, seeded from the shipped configuration. An explicit provider override must name a configured provider with its required credentials and endpoint. Ollama uses its Messages-compatible API for chat, streaming, image blocks, and tool blocks. PDF document support is not advertised for this local model.
 
-Cloud cost estimates use explicit per-model rates in `models.yaml`. Missing rates are marked unknown; the reported total is then only the known subtotal, and routing switches to the compatible fast slot. The daily budget guides routing rather than imposing a hard spending cap. Ollama has no API usage charge in this accounting.
+Cloud cost estimates use explicit per-model rates in `models.yaml`. Missing rates are marked unknown; the reported total is then only the known subtotal. Budget routing uses a fast provider when it supports the request, otherwise it keeps the requested route. The daily budget guides routing rather than imposing a hard spending cap. Ollama has no API usage charge in this accounting.
+
+`HYPERCLAW_TOOL_TIMEOUT` sets the default tool deadline in seconds (120 by default). Existing longer deadlines for shell, document, media, and research tools are retained, capped by the remaining overall turn deadline. A memory file write or deletion already in progress settles before cancellation returns, keeping the cache consistent with disk while allowing other requests to run.
 
 The optional [.env.example](.env.example) documents runtime variables and integration credentials. You do not need to copy it for the local setup above. Telegram polling requires an explicit enable flag, a bot token, and an allowed chat ID. Telegram webhooks separately require `TELEGRAM_WEBHOOK_SECRET`, the matching `X-Telegram-Bot-Api-Secret-Token` header, and an allowed chat ID. See [SECURITY.md](SECURITY.md) for channel configuration.
 
@@ -95,6 +99,18 @@ One application lifespan starts the orchestrator and task workers, plus explicit
 Chat, streaming chat, Telegram, and terminal chat use the shared provider transport and durable conversation runtime. Each supplied `session_id` selects its own history. Reuse that ID to resume after a restart; reset persists across restarts. An HTTP request with a null session ID creates a new ID, while an omitted ID uses `default`.
 
 Reset clears the session's conversation messages. Explicit remembered facts persist and remain available through recall.
+
+Terminal and bridge `memory_store`, `memory_search`, `memory_list`, `memory_forget`, and `memory_stats` use the canonical memory store. Automatically recorded facts tagged for another session are excluded from these tools. Independent `HyperClawAgent()` instances also use independent sessions; pass `session_id="my-agent"` to intentionally resume or share one.
+
+To bring facts from an old vector-memory SQLite database into this workspace, select its source explicitly:
+
+```bash
+.venv/bin/hyperclaw import-memories /path/to/legacy/vectors.db
+```
+
+The import preserves the source database and records original IDs in metadata. Completion is tracked separately for the workspace's file store and each PostgreSQL destination. Repeating a completed import into that destination adds nothing, including facts subsequently forgotten. A configured, enabled database must be reachable; a failed connection stops the command. Set `HYPERCLAW_ENABLE_DATABASE=0` to explicitly import into files instead.
+
+PostgreSQL imports commit the copied rows and completion record together. The first import creates a small `hyperclaw_memory_imports` table in the same schema as `memories`, requiring permission to create that table. File imports retain completed entries after a partial failure and safely resume on retry. Restart any already-running server or terminal process after importing so it reloads its memory cache. Legacy vector databases are not automatically imported into unrelated workspace roots.
 
 File storage supports conversation history and explicit remember/recall without PostgreSQL. Optional database storage and the separate research, recursive, and civilization modules remain available. Those modules have their own workflows and setup requirements; this consolidation covers the interactive runtime and its coordinated task path.
 

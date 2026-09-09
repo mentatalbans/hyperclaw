@@ -127,10 +127,12 @@ class Orchestrator:
     # =========================================================================
 
     async def chat(self, message: str, session_id: str = "default", channel: str = "api",
-                   stream: bool = False, force_model: str = None, attachments=None, tools=None, tool_set=None):
+                   stream: bool = False, force_model: str = None, attachments=None, tools=None, tool_set=None,
+                   tool_timeouts=None, default_tool_timeout=None):
         async def text_stream():
             async with aclosing(self._turn_events(message, session_id, channel, force_model,
-                    attachments, tools, streaming=stream, tool_set=tool_set)) as events:
+                    attachments, tools, streaming=stream, tool_set=tool_set,
+                    tool_timeouts=tool_timeouts, default_tool_timeout=default_tool_timeout)) as events:
                 async for kind, text in events:
                     if kind == "text":
                         yield text
@@ -139,13 +141,16 @@ class Orchestrator:
         return "".join([text async for text in text_stream()])
 
     async def stream_events(self, message: str, session_id: str = "default", channel: str = "api",
-                            force_model: str = None, attachments=None, tools=None, tool_set=None):
+                            force_model: str = None, attachments=None, tools=None, tool_set=None,
+                            tool_timeouts=None, default_tool_timeout=None):
         async with aclosing(self._turn_events(message, session_id, channel, force_model,
-                attachments, tools, streaming=True, tool_set=tool_set)) as events:
+                attachments, tools, streaming=True, tool_set=tool_set,
+                tool_timeouts=tool_timeouts, default_tool_timeout=default_tool_timeout)) as events:
             async for item in events:
                 yield item
 
-    async def _turn_events(self, message, session_id, channel, force_model, attachments, tools, streaming, tool_set=None):
+    async def _turn_events(self, message, session_id, channel, force_model, attachments, tools, streaming,
+                           tool_set=None, tool_timeouts=None, default_tool_timeout=None):
         if not self._initialized:
             await self.initialize()
         session_id = session_id or "default"
@@ -181,8 +186,11 @@ class Orchestrator:
                 max_tokens = int(os.environ.get("HYPERCLAW_MAX_TOKENS", "4096"))
                 if enabled_tools:
                     from .tool_loop import ToolLoop, local_tools
+                    from .memory_tools import bind_memory_tools
                     definitions, execute = tool_set if tool_set is not None else local_tools()
-                    loop = ToolLoop(self._model_router.inference, definitions, execute)
+                    execute = bind_memory_tools(self._memory, execute, session_id=session_id)
+                    loop = ToolLoop(self._model_router.inference, definitions, execute,
+                                    tool_timeouts=tool_timeouts, default_tool_timeout=default_tool_timeout)
                     self._last_turns[session_id]["tools_used"] = loop.tools_used
                     events = loop.run(messages, system, model_override=force_model, max_tokens=max_tokens)
                 elif streaming:

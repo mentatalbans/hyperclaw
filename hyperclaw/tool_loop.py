@@ -4,12 +4,24 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import math
+import os
 import time
 from collections import Counter
+from collections.abc import Mapping
+
+
+# Preserve the long-running operations previously configured by the bridge.
+DEFAULT_TOOL_TIMEOUTS = {
+    "python_exec": 300, "bash": 300, "create_document": 300, "create_presentation": 300,
+    "create_spreadsheet": 300, "zimage_generate": 300, "deep_research": 600,
+}
 
 
 class ToolLoop:
-    def __init__(self, inference, tools, execute, *, max_rounds=12, timeout=600):
+    def __init__(self, inference, tools, execute, *, max_rounds=12, timeout=600,
+                 tool_timeouts: Mapping[str, float] | None = None,
+                 default_tool_timeout: float | None = None):
         self.inference = inference
         self.tools = tools
         self.execute = execute
@@ -17,6 +29,17 @@ class ToolLoop:
         self.timeout = timeout
         self.tools_used = []
         self.model_used = ""
+        configured = os.environ.get("HYPERCLAW_TOOL_TIMEOUT", "120") if default_tool_timeout is None else default_tool_timeout
+        self.default_tool_timeout = self._validated_timeout(configured)
+        overrides = DEFAULT_TOOL_TIMEOUTS if tool_timeouts is None else tool_timeouts
+        self.tool_timeouts = {name: self._validated_timeout(value) for name, value in overrides.items()}
+
+    @staticmethod
+    def _validated_timeout(value) -> float:
+        timeout = float(value)
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("Tool timeouts must be finite and positive")
+        return timeout
 
     async def run(self, messages, system, *, model_override=None, max_tokens=4096):
         messages = list(messages)
@@ -63,7 +86,8 @@ class ToolLoop:
                                 work = self.execute(name, inputs)
                             else:
                                 work = asyncio.to_thread(self.execute, name, inputs)
-                            result = await asyncio.wait_for(work, timeout=min(120, remaining))
+                            tool_timeout = self.tool_timeouts.get(name, self.default_tool_timeout)
+                            result = await asyncio.wait_for(work, timeout=min(tool_timeout, remaining))
                     except asyncio.TimeoutError:
                         # A timed-out thread can still have side effects. Ending
                         # the turn prevents the model from blindly retrying it.

@@ -4,6 +4,8 @@ Handles memory persistence across sessions with database + file fallback.
 """
 
 import asyncio
+from collections import Counter
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 import hashlib
@@ -11,6 +13,7 @@ import json
 import logging
 import os
 import re
+import sqlite3
 import tempfile
 import uuid
 from datetime import datetime
@@ -55,6 +58,8 @@ class MemoryManager:
         self.memory_path = self.root / "memory"
         self.workspace_path = self.root / "workspace"
         self._file_cache: dict[str, list[Memory]] = {}
+        self._file_memory_lock = asyncio.Lock()
+        self._file_import_lock = asyncio.Lock()
         self._conversation_history: dict[str, list[dict]] = {}
         self._embeddings_client = None
 
@@ -154,6 +159,22 @@ class MemoryManager:
             await self._save_conversation_db(session_id, history)
         else:
             await self._save_conversation_file(session_id, history)
+
+    async def append_messages(self, session_id: str, messages: list[dict]) -> None:
+        """Persist appended messages before publishing the cache under the caller's session lock."""
+        history = deepcopy(self._conversation_history.get(session_id, []))
+        for message in messages:
+            history.append({
+                "id": str(uuid.uuid4()),
+                "timestamp": datetime.now().isoformat(),
+                **deepcopy(message),
+            })
+        history = history[-100:]
+        if self.db_pool:
+            await self._save_conversation_db(session_id, history)
+        else:
+            await self._save_conversation_file(session_id, history)
+        self._conversation_history[session_id] = history
 
     async def _save_conversation_db(self, session_id: str, history: list[dict]):
         """Save conversation to database."""
@@ -383,8 +404,227 @@ class MemoryManager:
         """Commit a complete memory record before making it recallable."""
         record = asdict(memory)
         record["created_at"] = memory.created_at.isoformat()
-        self._write_json_atomic(self.memory_path / "entries" / f"{memory.id}.json", record)
-        self._file_cache.setdefault("entries", []).append(deepcopy(memory))
+        async with self._file_memory_lock:
+            await self._commit_file_memory_change(
+                lambda: self._write_json_atomic(self.memory_path / "entries" / f"{memory.id}.json", record),
+                lambda: self._file_cache.setdefault("entries", []).append(deepcopy(memory)),
+            )
+
+    async def _commit_file_memory_change(
+        self, write: Callable[[], None], publish: Callable[[], None],
+    ) -> None:
+        """Yield during disk I/O, settling disk and cache before cancellation exits."""
+        async def commit() -> None:
+            await asyncio.to_thread(write)
+            publish()
+
+        pending = asyncio.create_task(commit())
+        cancelled = False
+        while True:
+            try:
+                await asyncio.shield(pending)
+                break
+            except asyncio.CancelledError:
+                if pending.cancelled():
+                    raise
+                # A running filesystem operation cannot be cancelled safely.
+                # Keep the mutation lock until it and cache publication finish.
+                cancelled = True
+            except Exception:
+                if cancelled:
+                    # Preserve the deadline even if the disk later reports an
+                    # error, so the tool loop cannot retry a cancelled write.
+                    raise asyncio.CancelledError from None
+                raise
+        if cancelled:
+            raise asyncio.CancelledError
+
+    async def list_memories(
+        self, limit: Optional[int] = 20, domain: str = None, *, session_id: str = None,
+    ) -> list[Memory]:
+        """List independent memory records, newest first; None includes all records."""
+        if limit is not None:
+            limit = max(0, limit)
+        if self.db_pool:
+            async with self.db_pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT id, content, summary, memory_type, domain, importance,
+                           source, is_core, metadata, created_at
+                    FROM memories
+                    WHERE ($1::text IS NULL OR domain = $1)
+                    AND ($3::text IS NULL OR COALESCE(metadata->>'session_id', '') IN ('', $3))
+                    ORDER BY created_at DESC, id
+                    LIMIT $2
+                    """, domain, limit, session_id,
+                )
+            return [Memory(
+                id=str(row["id"]), content=row["content"], summary=row["summary"],
+                memory_type=row["memory_type"], domain=row["domain"], importance=row["importance"],
+                source=row["source"] or "conversation", is_core=row["is_core"],
+                metadata=json.loads(row["metadata"] or "{}"), created_at=row["created_at"],
+            ) for row in rows]
+        memories = [memory for entries in self._file_cache.values() for memory in entries
+                    if (domain is None or memory.domain == domain)
+                    and (session_id is None or not memory.metadata.get("session_id")
+                         or memory.metadata["session_id"] == session_id)]
+        memories.sort(key=lambda memory: memory.created_at, reverse=True)
+        return deepcopy(memories[:limit])
+
+    async def forget(self, memory_id: str, *, session_id: str = None) -> bool:
+        """Delete a stored memory durably before removing its cached record."""
+        if self.db_pool:
+            try:
+                identifier = uuid.UUID(memory_id)
+            except ValueError:
+                return False
+            async with self.db_pool.acquire() as conn:
+                deleted = await conn.fetchval(
+                    """DELETE FROM memories WHERE id = $1
+                    AND ($2::text IS NULL OR COALESCE(metadata->>'session_id', '') IN ('', $2))
+                    RETURNING id""", identifier, session_id,
+                )
+            return deleted is not None
+        async with self._file_memory_lock:
+            entries = self._file_cache.get("entries", [])
+            if not any(memory.id == memory_id and (
+                session_id is None or not memory.metadata.get("session_id")
+                or memory.metadata["session_id"] == session_id
+            ) for memory in entries):
+                return False
+
+            def publish() -> None:
+                self._file_cache["entries"] = [memory for memory in entries if memory.id != memory_id]
+
+            await self._commit_file_memory_change(
+                lambda: (self.memory_path / "entries" / f"{memory_id}.json").unlink(), publish,
+            )
+        return True
+
+    async def memory_stats(self, *, session_id: str = None) -> dict:
+        """Count records in the same store used by remember and recall."""
+        memories = await self.list_memories(limit=None, session_id=session_id)
+        return {
+            "total_memories": len(memories),
+            "by_source": dict(Counter(memory.source for memory in memories)),
+            "by_domain": dict(Counter(memory.domain for memory in memories if memory.domain)),
+        }
+
+    async def import_legacy_vectors(self, path: Path) -> dict:
+        """Copy a legacy source once per destination, retaining completion after forget."""
+        source = Path(path).expanduser().resolve(strict=True)
+        digest = hashlib.sha256(str(source).encode("utf-8")).hexdigest()
+        if self.db_pool:
+            return await self._import_legacy_vectors_db(source, digest)
+        async with self._file_import_lock:
+            return await self._import_legacy_vectors_file(source, digest)
+
+    async def _import_legacy_vectors_file(self, source: Path, digest: str) -> dict:
+        """Check completion and copy under the manager's whole-import lock."""
+        marker = self.memory_path / "imports" / f"legacy-vectors-files-{digest}.json"
+        if marker.exists():
+            return {"imported": 0, "already_imported": True}
+        rows = await asyncio.to_thread(self._read_legacy_vectors, source)
+        existing = {memory.id: memory for memory in await self.list_memories(limit=None)}
+        imported = 0
+        for row in rows:
+            memory = self._legacy_vector_memory(source, row)
+            if memory.id in existing:
+                if existing[memory.id].metadata.get("legacy_vector_import") != memory.metadata["legacy_vector_import"]:
+                    raise ValueError(f"Legacy memory ID collision: {memory.id}")
+                continue
+            await self._store_memory_file(memory)
+            existing[memory.id] = memory
+            imported += 1
+        self._write_json_atomic(marker, {
+            "source": str(source), "destination": "files", "completed_at": datetime.now().isoformat(),
+        })
+        return {"imported": imported, "already_imported": False}
+
+    async def _import_legacy_vectors_db(self, source: Path, digest: str) -> dict:
+        """Commit copied rows and target-owned completion on the same connection."""
+        from asyncpg import InsufficientPrivilegeError
+
+        async with self.db_pool.acquire() as conn:
+            async with conn.transaction():
+                schema = await conn.fetchval(
+                    "SELECT n.nspname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+                    "WHERE c.oid = 'memories'::regclass"
+                )
+                quoted_schema = '"' + schema.replace('"', '""') + '"'
+                memories_table = f"{quoted_schema}.memories"
+                marker_table = f"{quoted_schema}.hyperclaw_memory_imports"
+                lock = int.from_bytes(hashlib.sha256(
+                    f"hyperclaw-memory-imports:{schema}".encode("utf-8")
+                ).digest()[:8], "big", signed=True)
+                # Serialize explicit imports, including first-time marker-table creation.
+                await conn.execute("SELECT pg_advisory_xact_lock($1)", lock)
+                try:
+                    await conn.execute(f"""
+                        CREATE TABLE IF NOT EXISTS {marker_table} (
+                            source_digest TEXT PRIMARY KEY,
+                            completed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+                except InsufficientPrivilegeError as exc:
+                    raise PermissionError(
+                        "Legacy database import requires permission to create "
+                        "hyperclaw_memory_imports in the memories schema"
+                    ) from exc
+                if await conn.fetchval(f"SELECT 1 FROM {marker_table} WHERE source_digest = $1", digest):
+                    return {"imported": 0, "already_imported": True}
+                rows = await asyncio.to_thread(self._read_legacy_vectors, source)
+                imported = 0
+                for row in rows:
+                    memory = self._legacy_vector_memory(source, row)
+                    existing = await conn.fetchrow(
+                        f"SELECT metadata FROM {memories_table} WHERE id = $1", memory.id,
+                    )
+                    if existing is not None:
+                        metadata = json.loads(existing["metadata"] or "{}")
+                        if metadata.get("legacy_vector_import") != memory.metadata["legacy_vector_import"]:
+                            raise ValueError(f"Legacy memory ID collision: {memory.id}")
+                        continue
+                    # Legacy vectors lack reliable model provenance. Follow the
+                    # destination's current embedding policy instead of copying them.
+                    embedding = await self._get_embedding(memory.content) if self._embeddings_client else None
+                    await conn.execute(f"""
+                        INSERT INTO {memories_table} (id, memory_type, content, summary, domain,
+                            importance, embedding, source, is_core, metadata, created_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                    """, memory.id, memory.memory_type, memory.content, memory.summary,
+                        memory.domain, memory.importance, embedding, memory.source,
+                        memory.is_core, json.dumps(memory.metadata), memory.created_at,
+                    )
+                    imported += 1
+                await conn.execute(f"INSERT INTO {marker_table} (source_digest) VALUES ($1)", digest)
+                return {"imported": imported, "already_imported": False}
+
+    @staticmethod
+    def _legacy_vector_memory(source: Path, row: dict) -> Memory:
+        provenance = {"source": str(source), "id": row["id"]}
+        identifier = str(uuid.uuid5(uuid.NAMESPACE_URL, json.dumps(provenance, sort_keys=True)))
+        metadata = json.loads(row["metadata"] or "{}")
+        if "legacy_vector_import" in metadata:
+            raise ValueError("Legacy metadata already uses the reserved legacy_vector_import key")
+        return Memory(
+            id=identifier, content=row["content"], memory_type="semantic",
+            domain=row["domain"], source=row["source"] or "conversation",
+            metadata={**metadata, "legacy_vector_import": provenance},
+            created_at=datetime.fromtimestamp(row["created_at"]),
+        )
+
+    @staticmethod
+    def _read_legacy_vectors(path: Path) -> list[dict]:
+        """Read an explicitly selected source without creating or modifying SQLite files."""
+        connection = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
+        try:
+            connection.row_factory = sqlite3.Row
+            return [dict(row) for row in connection.execute(
+                "SELECT id, content, source, domain, metadata, created_at FROM embeddings ORDER BY created_at, id"
+            )]
+        finally:
+            connection.close()
 
     async def recall(
         self,
@@ -392,13 +632,14 @@ class MemoryManager:
         limit: int = 5,
         memory_type: str = None,
         domain: str = None,
-        min_importance: float = 0.0
+        min_importance: float = 0.0,
+        *, session_id: str = None,
     ) -> list[Memory]:
         """Recall relevant memories."""
         if self.db_pool:
-            return await self._recall_db(query, limit, memory_type, domain, min_importance)
+            return await self._recall_db(query, limit, memory_type, domain, min_importance, session_id)
         else:
-            return await self._recall_file(query, limit, memory_type, domain, min_importance)
+            return await self._recall_file(query, limit, memory_type, domain, min_importance, session_id)
 
     async def _recall_db(
         self,
@@ -406,7 +647,8 @@ class MemoryManager:
         limit: int,
         memory_type: str,
         domain: str,
-        min_importance: float
+        min_importance: float,
+        session_id: str = None,
     ) -> list[Memory]:
         """Recall from database with semantic search."""
         try:
@@ -428,6 +670,7 @@ class MemoryManager:
                         AND importance >= $2
                         AND ($3::text IS NULL OR memory_type = $3)
                         AND ($4::text IS NULL OR domain = $4)
+                        AND ($6::text IS NULL OR COALESCE(metadata->>'session_id', '') IN ('', $6))
                         ORDER BY embedding <=> $1::vector
                         LIMIT $5
                         """,
@@ -435,7 +678,8 @@ class MemoryManager:
                         min_importance,
                         memory_type,
                         domain,
-                        limit
+                        limit,
+                        session_id,
                     )
                 else:
                     # Fallback to text search
@@ -448,6 +692,7 @@ class MemoryManager:
                         AND importance >= $2
                         AND ($3::text IS NULL OR memory_type = $3)
                         AND ($4::text IS NULL OR domain = $4)
+                        AND ($6::text IS NULL OR COALESCE(metadata->>'session_id', '') IN ('', $6))
                         ORDER BY importance DESC, created_at DESC
                         LIMIT $5
                         """,
@@ -455,7 +700,8 @@ class MemoryManager:
                         min_importance,
                         memory_type,
                         domain,
-                        limit
+                        limit,
+                        session_id,
                     )
 
                 return [
@@ -484,6 +730,7 @@ class MemoryManager:
         memory_type: str,
         domain: str,
         min_importance: float = 0.0,
+        session_id: str = None,
     ) -> list[Memory]:
         """Recall from file cache with keyword matching."""
         results = []
@@ -497,6 +744,8 @@ class MemoryManager:
                 if domain and memory.domain != domain:
                     continue
                 if memory.importance < min_importance:
+                    continue
+                if session_id is not None and memory.metadata.get("session_id") not in (None, "", session_id):
                     continue
 
                 # Simple relevance scoring

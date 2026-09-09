@@ -150,10 +150,8 @@ This request is coming via a chat channel. Keep responses under 2000 characters.
         return base
 
     # Tools allowed to run long (doc/media generation, research); everything else 120s.
-    _TOOL_TIMEOUTS = {
-        "python_exec": 300, "bash": 300, "create_document": 300, "create_presentation": 300,
-        "create_spreadsheet": 300, "zimage_generate": 300, "deep_research": 600,
-    }
+    from .tool_loop import DEFAULT_TOOL_TIMEOUTS
+    _TOOL_TIMEOUTS = DEFAULT_TOOL_TIMEOUTS.copy()
     _DEFAULT_TOOL_TIMEOUT = int(os.environ.get("HYPERCLAW_TOOL_TIMEOUT", "120"))
 
     def _load_tools(self):
@@ -336,14 +334,7 @@ This request is coming via a chat channel. Keep responses under 2000 characters.
             if session_id not in runtime._loaded_sessions:
                 await memory.load_conversation(session_id)
                 runtime._loaded_sessions.add(session_id)
-            previous = memory.get_conversation_history(session_id)
-            try:
-                for message in pending:
-                    memory.add_message(session_id, message["role"], message["content"])
-                await memory.save_conversation(session_id)
-            except BaseException:
-                memory._conversation_history[session_id] = previous
-                raise
+            await memory.append_messages(session_id, pending)
             with _session_lock:
                 del _session_histories[chat_id][:len(pending)]
 
@@ -430,7 +421,8 @@ This request is coming via a chat channel. Keep responses under 2000 characters.
             if include_history:
                 await self._flush_pending_history(runtime, chat_id)
             text = await runtime.chat(message, session_id, channel="bridge", tools=True,
-                                      tool_set=(self.tools, execute_tool))
+                                      tool_set=(self.tools, execute_tool), tool_timeouts=self._TOOL_TIMEOUTS,
+                                      default_tool_timeout=self._DEFAULT_TOOL_TIMEOUT)
             meta = runtime._last_turns.get(session_id, {})
             return {"text": text, "tools_used": meta.get("tools_used", []), "screenshots": screenshots,
                     "files": outbox.drain(chat_id), "success": True, "error": None,

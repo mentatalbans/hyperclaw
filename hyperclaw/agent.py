@@ -8,6 +8,8 @@ import asyncio
 import subprocess
 import glob as globlib
 import re
+import uuid
+from contextlib import aclosing
 from datetime import datetime
 from pathlib import Path
 from typing import AsyncIterator, Optional, Any
@@ -340,7 +342,8 @@ def _exec_list_dir(path: str) -> str:
 class HyperClawAgent:
     """Assistant agent with full tool execution."""
 
-    def __init__(self):
+    def __init__(self, session_id: Optional[str] = None):
+        self.session_id = session_id if session_id is not None else str(uuid.uuid4())
         self.system_prompt = self._load_system_prompt()
         self.history: list[dict] = []
 
@@ -403,11 +406,14 @@ class HyperClawAgent:
         """Compatibility adapter for the shared durable tool runtime."""
         from .orchestrator import get_orchestrator
         runtime = await get_orchestrator()
-        stream = await runtime.chat(message, session_id="agent", channel="agent", stream=True,
+        stream = await runtime.chat(message, session_id=self.session_id, channel="agent", stream=True,
                                     tools=True, tool_set=(TOOLS, execute_tool))
-        async for text in stream:
-            yield text
-        self.history = runtime._memory.get_conversation_history("agent")
+        try:
+            async with aclosing(stream):
+                async for text in stream:
+                    yield text
+        finally:
+            self.history = runtime._memory.get_conversation_history(self.session_id)
 
 
 # Singleton
