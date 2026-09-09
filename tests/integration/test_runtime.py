@@ -235,3 +235,60 @@ async def test_idle_worker_sleeps_and_storage_failure_stops_acceptance(tmp_path)
     finally:
         await runtime.close()
         peer.close()
+
+
+async def test_shutdown_during_admitted_append_does_not_duplicate_text(tmp_path, monkeypatch):
+    gate, entered, release = threading.Event(), threading.Event(), threading.Event()
+    peer = ProviderStub()
+    peer.enqueue(Reply(gate=gate))
+    runtime = await open_runtime(tmp_path, peer)
+    original = runtime.store._event
+    def gated(run_id, kind, data):
+        value = original(run_id, kind, data)
+        if kind == 'model.text' and not entered.is_set():
+            entered.set()
+            assert release.wait(5)
+        return value
+    monkeypatch.setattr(runtime.store, '_event', gated)
+    run = await submit(runtime)
+    try:
+        assert await asyncio.to_thread(entered.wait, 3)
+        closing = asyncio.create_task(runtime.close())
+        await asyncio.sleep(0.02)
+        release.set()
+        await closing
+        reopened = await Store.open(tmp_path)
+        try:
+            replay = await reopened.events(run.id)
+            assert [e.data['text'] for e in replay if e.kind == 'model.text'] == ['Hello ']
+            assert replay[-1].data['status'] == 'interrupted'
+        finally:
+            await reopened.close()
+    finally:
+        release.set()
+        gate.set()
+        await runtime.close()
+        peer.close()
+
+
+async def test_cancel_waits_for_worker_terminal_reconciliation(tmp_path, monkeypatch):
+    peer = ProviderStub()
+    peer.enqueue(Reply())
+    runtime = await open_runtime(tmp_path, peer)
+    entered = asyncio.Event()
+    original = runtime.store.finish
+    async def gated(run_id, status, **kwargs):
+        if status == 'succeeded':
+            entered.set()
+            await asyncio.Event().wait()
+        return await original(run_id, status, **kwargs)
+    monkeypatch.setattr(runtime.store, 'finish', gated)
+    try:
+        run = await submit(runtime)
+        await asyncio.wait_for(entered.wait(), 3)
+        result = await asyncio.wait_for(runtime.cancel(run.id), 3)
+        assert result.status == 'cancelled'
+        assert (await observe(runtime, run))[-1].data['status'] == 'cancelled'
+    finally:
+        await runtime.close()
+        peer.close()

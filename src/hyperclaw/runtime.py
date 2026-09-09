@@ -20,6 +20,7 @@ class Runtime:
         self._worker = None
         self._active = None
         self._active_task = None
+        self._completion = None
         self._cancel_status = None
         self._closing = False
         self._close_task = None
@@ -76,11 +77,15 @@ class Runtime:
             if self._active is None or self._active.id != run_id or self._active_task is None:
                 raise StorageFailure()
             task = self._active_task
+            completion = self._completion
             if self._cancel_status is None:
                 self._cancel_status = 'cancelled'
                 task.cancel()
-        await asyncio.shield(task)
-        return await self.store.get_run(run_id)
+        await completion.wait()
+        result = await self.store.get_run(run_id)
+        if result.status not in TERMINAL:
+            raise StorageFailure()
+        return result
 
     async def close(self):
         if self._close_task is None:
@@ -123,6 +128,7 @@ class Runtime:
                     if run:
                         self._active = run
                         self._cancel_status = None
+                        self._completion = asyncio.Event()
                         self._active_task = asyncio.create_task(self._execute(run))
                 if run is None:
                     await self._wake.wait()
@@ -135,6 +141,7 @@ class Runtime:
                     await self.store.finish(run.id, self._cancel_status or 'interrupted')
                     self._changed.set()
                 finally:
+                    self._completion.set()
                     self._active = None
                     self._active_task = None
         except Exception:
@@ -178,8 +185,9 @@ class Runtime:
         async def flush():
             nonlocal buffer, buffer_bytes, flush_at
             if buffer:
-                await self._append(run.id, 'model.' + buffer_kind, {'text': buffer})
+                chunk = buffer
                 buffer, buffer_bytes, flush_at = '', 0, None
+                await self._append(run.id, 'model.' + buffer_kind, {'text': chunk})
 
         async def consume(event):
             nonlocal buffer, buffer_kind, buffer_bytes, flush_at, finished
