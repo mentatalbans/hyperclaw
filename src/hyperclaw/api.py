@@ -28,6 +28,11 @@ def create_app(settings: Settings) -> FastAPI:
     instance = uuid4().hex
     url = f'http://127.0.0.1:{settings.port}'
     metadata_path = settings.root / 'daemon.json'
+    hosts = {f'127.0.0.1:{settings.port}'}
+    origins = {url}
+    if settings.port == 80:
+        hosts.add('127.0.0.1')
+        origins.add('http://127.0.0.1')
 
     @asynccontextmanager
     async def lifespan(app):
@@ -57,7 +62,8 @@ def create_app(settings: Settings) -> FastAPI:
             # Remove only our metadata, while the root lock is still held.
             if published:
                 try:
-                    if json.loads(metadata_path.read_text()).get('instance_id') == instance:
+                    metadata = json.loads(metadata_path.read_text())
+                    if isinstance(metadata, dict) and metadata.get('instance_id') == instance:
                         metadata_path.unlink()
                 except (OSError, ValueError):
                     pass
@@ -73,9 +79,9 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.middleware('http')
     async def boundary(request, call_next):
-        if request.headers.get('host') != f'127.0.0.1:{settings.port}':
+        if request.headers.get('host') not in hosts:
             return JSONResponse({'error': {'code': 'invalid_host', 'message': 'Invalid local host.'}}, status_code=400)
-        if request.headers.get('origin') not in (None, url):
+        if request.headers.get('origin') is not None and request.headers['origin'] not in origins:
             return JSONResponse({'error': {'code': 'invalid_origin', 'message': 'Cross-origin requests are disabled.'}}, status_code=403)
         if request.url.path != '/healthz':
             supplied = request.headers.get('authorization', '')

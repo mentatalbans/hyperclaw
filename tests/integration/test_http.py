@@ -186,3 +186,28 @@ def test_cli_missing_daemon_does_not_create_runtime(tmp_path):
                             cwd=tmp_path, capture_output=True, text=True, timeout=10)
     assert result.returncode != 0 and 'serve' in result.stderr
     assert not (tmp_path / 'absent').exists()
+
+
+async def test_default_http_port_accepts_normalized_loopback_host(tmp_path):
+    from hyperclaw.api import create_app
+    from hyperclaw.config import load_settings, read_token
+    settings = load_settings(root=tmp_path, overrides={'port': 80, 'ollama_url': 'http://127.0.0.1:1'})
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://127.0.0.1') as client:
+            assert (await client.get('/healthz')).status_code == 200
+            auth = {'Authorization': 'Bearer ' + read_token(tmp_path), 'Origin': 'http://127.0.0.1'}
+            assert (await client.post('/v1/sessions', headers=auth)).status_code == 200
+            assert (await client.get('/healthz', headers={'Host': '127.0.0.1:81'})).status_code == 400
+
+
+async def test_malformed_discovery_metadata_cannot_prevent_shutdown(tmp_path):
+    from hyperclaw.api import create_app
+    from hyperclaw.config import load_settings
+    from hyperclaw.store import Store
+    app = create_app(load_settings(root=tmp_path, overrides={'ollama_url': 'http://127.0.0.1:1'}))
+    async with app.router.lifespan_context(app):
+        (tmp_path / 'daemon.json').write_text('[]')
+    assert (tmp_path / 'daemon.json').read_text() == '[]'
+    store = await Store.open(tmp_path)
+    await store.close()
