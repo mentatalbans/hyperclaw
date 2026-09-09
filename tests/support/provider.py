@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 import queue
+import select
+import socket
+import time
 import threading
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -22,6 +25,10 @@ class Reply:
     thinking: str = ""
     gate: threading.Event | None = None
     truncate: bool = False
+    stop_reason: str = "end_turn"
+    frames: tuple[bytes, ...] | None = None
+    split_bytes: int = 0
+    disconnected: threading.Event | None = None
 
 
 def message(text: str) -> dict:
@@ -89,6 +96,13 @@ class ProviderStub:
                 self.send_header("Connection", "close")
                 self.end_headers()
                 self.close_connection = True
+                if reply.frames is not None:
+                    for frame in reply.frames:
+                        width = reply.split_bytes or len(frame)
+                        for offset in range(0, len(frame), width):
+                            self.wfile.write(frame[offset:offset + width])
+                            self.wfile.flush()
+                    return
                 start = message("")
                 start.update(content=[], stop_reason=None)
                 start["usage"]["output_tokens"] = 0
@@ -109,13 +123,19 @@ class ProviderStub:
                     self.event({"type": "content_block_delta", "index": index,
                                 "delta": {"type": "text_delta", "text": chunk}})
                     if number == 0 and reply.gate is not None:
-                        if not reply.gate.wait(IO_TIMEOUT * 2):
-                            raise TimeoutError("Client did not acknowledge the first SSE chunk")
+                        deadline = time.monotonic() + IO_TIMEOUT * 2
+                        while not reply.gate.wait(0.01):
+                            if reply.disconnected is not None and select.select([self.connection], [], [], 0)[0]:
+                                if self.connection.recv(1, socket.MSG_PEEK) == b'':
+                                    reply.disconnected.set()
+                                    return
+                            if time.monotonic() > deadline:
+                                raise TimeoutError("Client did not acknowledge the first SSE chunk")
                 if reply.truncate:
                     return  # Clean HTTP EOF, deliberately missing the protocol completion marker.
                 self.event({"type": "content_block_stop", "index": index})
                 self.event({"type": "message_delta", "delta": {
-                    "stop_reason": "end_turn", "stop_sequence": None}, "usage": {"output_tokens": 4}})
+                    "stop_reason": reply.stop_reason, "stop_sequence": None}, "usage": {"output_tokens": 4}})
                 self.event({"type": "message_stop"})
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -139,4 +159,3 @@ class ProviderStub:
         self.server.server_close()
         self.thread.join(timeout=IO_TIMEOUT)
         assert not self.thread.is_alive(), "Provider stub did not stop"
-
