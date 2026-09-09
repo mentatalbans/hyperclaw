@@ -77,6 +77,7 @@ def ensure_root(root: Path) -> None:
         if not marker.exists():
             if any(root.iterdir()):
                 raise InvalidRequest('unmarked_root', 'Refusing a nonempty root without a v2 format marker.')
+            root.chmod(0o700)
             try:
                 with marker.open('x') as stream:
                     stream.write('{"version":2}\n')
@@ -84,6 +85,7 @@ def ensure_root(root: Path) -> None:
                 pass
         if json.loads(marker.read_text()) != {'version': 2}:
             raise InvalidRequest('root_version', 'Runtime root format must be version 2.')
+        root.chmod(0o700)
     except (OSError, ValueError):
         raise InvalidRequest('invalid_root', 'Runtime root or format marker is unavailable or malformed.') from None
 

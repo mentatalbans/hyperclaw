@@ -105,3 +105,11 @@ def test_import_and_doctor_are_read_only(tmp_path):
     assert result.exit_code == 0, result.output
     assert 'qwen3.8:27b-mlx' in result.output and 'FTS5' in result.output
     assert list(tmp_path.iterdir()) == []
+
+
+def test_adopting_empty_root_makes_it_private(tmp_path):
+    root = tmp_path / 'precreated'
+    root.mkdir(mode=0o755)
+    root.chmod(0o755)
+    initialize_root(load_settings(root=root, environ={}))
+    assert root.stat().st_mode & 0o777 == 0o700
