@@ -6,9 +6,12 @@ import re
 import httpx
 
 from hyperclaw.config import Settings
-from hyperclaw.contracts import Message, ModelEvent, ProviderFailure
+from hyperclaw.contracts import Message, ModelEvent, ProviderFailure, ToolCall
 
 FRAME_LIMIT = 1024 * 1024
+TOOL_ARGUMENT_LIMIT = 64 * 1024
+TOOL_CALL_LIMIT = 16
+THINKING_SIGNATURE_LIMIT = 64 * 1024
 SEPARATOR = re.compile(br'\r?\n\r?\n')
 
 
@@ -56,7 +59,7 @@ class Ollama:
     async def aclose(self):
         await self._client.aclose()
 
-    async def stream(self, messages: list[Message], system: str = ''):
+    async def stream(self, messages: list[Message], system: str = '', tools: list[dict] | None = None):
         settings = self.settings
         payload = {
             'model': settings.model,
@@ -67,11 +70,21 @@ class Ollama:
         }
         if system:
             payload['system'] = system
+        if tools is not None:
+            payload['tools'] = tools
+        offered_names = {
+            tool.get('name') for tool in tools or ()
+            if isinstance(tool, dict) and isinstance(tool.get('name'), str)
+        }
         started = False
         active = None
         next_index = 0
         final_delta = False
         reason = None
+        content = []
+        call_ids = set()
+        call_count = 0
+        signature_bytes = 0
         usage = {'model': settings.model, 'input_tokens': None, 'output_tokens': None}
 
         def counts(value, final=False):
@@ -125,39 +138,105 @@ class Ollama:
                     raise invalid()
                 if kind == 'content_block_start':
                     index = value['index']
-                    if final_delta or active is not None or type(index) is not int or index != next_index:
+                    if final_delta or active is not None or type(index) is not int or index != next_index or next_index >= 256:
                         raise invalid()
                     block = value['content_block']
                     block_type = block['type']
                     if block_type == 'tool_use':
-                        raise ProviderFailure('tools_disabled', 'Model requested a tool while tools are disabled.')
+                        if not offered_names:
+                            raise ProviderFailure('tools_disabled', 'Model requested a tool while tools are disabled.')
+                        call_id, name, initial = block['id'], block['name'], block['input']
+                        if (not isinstance(call_id, str) or not isinstance(name, str)
+                                or not isinstance(initial, dict) or name not in offered_names
+                                or call_id in call_ids or call_count >= TOOL_CALL_LIMIT):
+                            raise invalid()
+                        call_ids.add(call_id)
+                        call_count += 1
+                        active = {
+                            'index': index, 'type': block_type, 'id': call_id, 'name': name,
+                            'initial': initial, 'partial_json': '', 'partial_bytes': 0,
+                        }
+                        next_index += 1
+                        continue
                     if block_type not in {'text', 'thinking'}:
                         raise invalid()
                     text = block.get(block_type, '')
                     if not isinstance(text, str):
                         raise invalid()
-                    active = (index, block_type)
+                    active = {'index': index, 'type': block_type, block_type: text}
+                    if block_type == 'thinking':
+                        signature = block.get('signature', '')
+                        if not isinstance(signature, str):
+                            raise invalid()
+                        added_signature_bytes = len(signature.encode('utf-8'))
+                        if signature_bytes + added_signature_bytes > THINKING_SIGNATURE_LIMIT:
+                            raise ProviderFailure(
+                                'response_limit', 'Model response content exceeded its limit.')
+                        signature_bytes += added_signature_bytes
+                        active['signature'] = signature
                     next_index += 1
                     if text:
                         yield ModelEvent(kind=block_type, data={'text': text})
                 elif kind == 'content_block_delta':
-                    if active is None or type(value['index']) is not int or value['index'] != active[0]:
+                    if active is None or type(value['index']) is not int or value['index'] != active['index']:
                         raise invalid()
                     delta = value['delta']
-                    if delta.get('type') == 'signature_delta' and active[1] == 'thinking':
-                        if not isinstance(delta.get('signature'), str):
+                    block_type = active['type']
+                    if block_type == 'tool_use':
+                        if delta.get('type') != 'input_json_delta':
                             raise invalid()
+                        partial = delta.get('partial_json')
+                        if not isinstance(partial, str):
+                            raise invalid()
+                        partial_bytes = len(partial.encode('utf-8'))
+                        if active['partial_bytes'] + partial_bytes > TOOL_ARGUMENT_LIMIT:
+                            raise invalid()
+                        active['partial_json'] += partial
+                        active['partial_bytes'] += partial_bytes
                         continue
-                    if delta.get('type') != active[1] + '_delta':
+                    if delta.get('type') == 'signature_delta' and block_type == 'thinking':
+                        signature = delta.get('signature')
+                        if not isinstance(signature, str):
+                            raise invalid()
+                        added_signature_bytes = len(signature.encode('utf-8'))
+                        if signature_bytes + added_signature_bytes > THINKING_SIGNATURE_LIMIT:
+                            raise ProviderFailure(
+                                'response_limit', 'Model response content exceeded its limit.')
+                        signature_bytes += added_signature_bytes
+                        active['signature'] += signature
+                        continue
+                    if delta.get('type') != block_type + '_delta':
                         raise invalid()
-                    text = delta[active[1]]
+                    text = delta[block_type]
                     if not isinstance(text, str):
                         raise invalid()
+                    active[block_type] += text
                     if text:
-                        yield ModelEvent(kind=active[1], data={'text': text})
+                        yield ModelEvent(kind=block_type, data={'text': text})
                 elif kind == 'content_block_stop':
-                    if active is None or type(value['index']) is not int or value['index'] != active[0]:
+                    if active is None or type(value['index']) is not int or value['index'] != active['index']:
                         raise invalid()
+                    block_type = active['type']
+                    if block_type == 'tool_use':
+                        partial = active['partial_json']
+                        if partial and active['initial']:
+                            raise invalid()
+                        arguments = json.loads(partial) if partial else active['initial']
+                        call = ToolCall(id=active['id'], name=active['name'], arguments=arguments)
+                        content.append({
+                            'type': 'tool_use', 'id': call.id, 'name': call.name,
+                            'input': call.arguments,
+                        })
+                        yield ModelEvent(kind='tool_call', data={
+                            'id': call.id, 'name': call.name, 'arguments': call.arguments,
+                        })
+                    elif block_type == 'thinking':
+                        content.append({
+                            'type': 'thinking', 'thinking': active['thinking'],
+                            'signature': active['signature'],
+                        })
+                    else:
+                        content.append({'type': 'text', 'text': active['text']})
                     active = None
                 elif kind == 'message_delta':
                     if active is not None or final_delta:
@@ -173,9 +252,12 @@ class Ollama:
                     yield ModelEvent(kind='usage', data=usage)
                     if reason == 'max_tokens':
                         raise ProviderFailure('output_limit', 'Model reached the output token limit before completing its answer.')
-                    if reason == 'tool_use':
+                    if reason == 'tool_use' and not offered_names:
                         raise ProviderFailure('tools_disabled', 'Model requested a tool while tools are disabled.')
-                    yield ModelEvent(kind='finish', data={'stop_reason': reason})
+                    has_calls = bool(call_ids)
+                    if (reason == 'tool_use') != has_calls:
+                        raise invalid()
+                    yield ModelEvent(kind='finish', data={'stop_reason': reason, 'content': content})
                     return
                 else:
                     raise invalid()

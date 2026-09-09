@@ -127,7 +127,7 @@ async def test_incomplete_turns_excluded_and_generation_reset(tmp_path):
         next_run = await submit(runtime, 'next prompt', session, 'next')
         await observe(runtime, next_run)
         assert peer.take_request()['messages'] == [
-            {'role': 'user', 'content': 'retry prompt'}, {'role': 'assistant', 'content': 'complete'},
+            {'role': 'user', 'content': 'retry prompt'}, {'role': 'assistant', 'content': [{'type':'text', 'text':'complete'}]},
             {'role': 'user', 'content': 'next prompt'}]
         reset = await runtime.reset_session(session.id, 0)
         last = await submit(runtime, 'fresh', reset)
@@ -188,7 +188,8 @@ async def test_total_deadline_fails_with_inspectable_partial_output(tmp_path):
     gate = threading.Event()
     peer = ProviderStub()
     peer.enqueue(Reply(gate=gate))
-    runtime = await open_runtime(tmp_path, peer, run_timeout_s=0.15)
+    # Allow the real provider and FULL SQLite commits to schedule before the deadline.
+    runtime = await open_runtime(tmp_path, peer, run_timeout_s=2.0)
     try:
         run = await submit(runtime)
         events = await observe(runtime, run)

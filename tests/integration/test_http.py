@@ -106,7 +106,7 @@ def test_restart_new_session_and_reset_prompt_content(service):
     assert events(app, first['id']) == original
     second = submit(app, 'continue', session, 'second')
     events(app, second['id'])
-    assert peer.take_request()['messages'] == [{'role': 'user', 'content': 'opaque prompt'}, {'role': 'assistant', 'content': 'opaque answer'}, {'role': 'user', 'content': 'continue'}]
+    assert peer.take_request()['messages'] == [{'role': 'user', 'content': 'opaque prompt'}, {'role': 'assistant', 'content': [{'type':'text','text':'opaque answer'}]}, {'role': 'user', 'content': 'continue'}]
     fresh = submit(app, 'new conversation')
     events(app, fresh['id'])
     assert peer.take_request()['messages'] == [{'role': 'user', 'content': 'new conversation'}]
@@ -260,3 +260,47 @@ async def test_storage_failure_rejects_new_work_with_503(tmp_path):
                     await asyncio.sleep(0.01)
             assert (await client.post('/v1/sessions')).status_code == 503
             assert (await client.get('/healthz')).json() == {'status': 'ok'}
+
+
+def test_tool_approval_controls_and_observed_artifact_through_http(service):
+    from tests.support.tool_provider import frames, message_start, tool_block, message_end
+    app, peer = service
+    peer.enqueue(Reply(frames=frames(message_start(), *tool_block(0,'write-1','workspace_write', ('{"path":"answer.txt","content":"hello"}',)), *message_end())), Reply(chunks=('Done.',)))
+    run = submit(app,'Create answer.txt')
+    deadline = time.monotonic()+5
+    while time.monotonic()<deadline:
+        approvals = app.client.get('/v1/approvals')
+        assert approvals.status_code == 200, approvals.text
+        if approvals.json():
+            break
+        time.sleep(.01)
+    approval = approvals.json()[0]
+    assert not (app.root/'workspace/answer.txt').exists()
+    app.restart()
+    assert app.client.get('/v1/approvals').json()[0] == approval
+    decision = {'approved':True, 'arguments_sha256':approval['arguments_sha256'], 'policy_sha256':approval['policy_sha256']}
+    path = f"/v1/approvals/{approval['id']}/decision"
+    assert app.client.post(path,json=dict(decision,arguments_sha256='changed')).status_code == 409
+    assert app.client.post(path,json=decision).status_code == 200
+    received = events(app,run['id'])
+    assert received[-1]['data'] == {'status':'succeeded','verification':'passed'}
+    receipt = app.client.get(f"/v1/runs/{run['id']}/receipts").json()[0]
+    assert receipt['artifacts'][0]['sha256'] == '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'
+    assert (app.root/'workspace/answer.txt').read_text() == 'hello'
+    peer.take_request()
+    continuation = peer.take_request()
+    assert continuation['messages'][-1]['content'][0]['tool_use_id'] == 'write-1'
+
+
+def test_operator_controls_require_authentication_and_selected_workspace(service):
+    app, peer = service
+    with httpx.Client(base_url=app.url,trust_env=False) as stranger:
+        for path in ('/v1/approvals','/v1/workspace','/v1/runs/missing/receipts'):
+            assert stranger.get(path).status_code == 401
+        for path in ('/v1/grants','/v1/approvals/missing/decision'):
+            assert stranger.post(path,json={}).status_code == 401
+    workspace = app.client.get('/v1/workspace')
+    assert workspace.status_code == 200
+    assert app.client.post('/v1/grants',json={'workspace_id':'other','capability':'write'}).status_code == 409
+    assert app.client.post('/v1/grants',json={'workspace_id':workspace.json()['id'],'capability':'write'}).status_code == 200
+    assert app.client.get('/v1/workspace').json()['grants'] == ['write']

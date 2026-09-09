@@ -17,6 +17,7 @@ class Settings(Value):
     root: Path
     ollama_url: str = 'http://127.0.0.1:11434'
     model: str = 'qwen3.8:27b-mlx'
+    workspace_path: str = ''
     thinking: bool = False
     max_output_tokens: int = Field(default=4096, gt=0)
     request_timeout_s: float = Field(default=120, gt=0)

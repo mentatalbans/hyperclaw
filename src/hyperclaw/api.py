@@ -5,6 +5,8 @@ import json
 import logging
 import os
 from uuid import uuid4
+from typing import Literal
+from pydantic import Field
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -22,6 +24,17 @@ from hyperclaw.store import Store
 
 class ResetRequest(Value):
     generation: Generation
+
+
+class ApprovalDecision(Value):
+    approved: bool = Field(strict=True)
+    arguments_sha256: str
+    policy_sha256: str
+
+
+class GrantRequest(Value):
+    workspace_id: str
+    capability: Literal['write', 'execute']
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -126,6 +139,26 @@ def create_app(settings: Settings) -> FastAPI:
     @app.post('/v1/runs/{run_id}/cancel')
     async def cancel(run_id: str):
         return await app.state.runtime.cancel(run_id)
+
+    @app.get('/v1/approvals')
+    async def approvals():
+        return await app.state.runtime.approvals()
+
+    @app.post('/v1/approvals/{approval_id}/decision')
+    async def decide_approval(approval_id: str, body: ApprovalDecision):
+        return await app.state.runtime.decide_approval(approval_id, body.approved, body.arguments_sha256, body.policy_sha256)
+
+    @app.get('/v1/workspace')
+    async def workspace():
+        return await app.state.runtime.workspace()
+
+    @app.post('/v1/grants')
+    async def grant(body: GrantRequest):
+        return await app.state.runtime.grant(body.workspace_id, body.capability)
+
+    @app.get('/v1/runs/{run_id}/receipts')
+    async def receipts(run_id: str):
+        return await app.state.runtime.receipts(run_id)
 
     @app.get('/v1/runs/{run_id}/events')
     async def events(run_id: str, after: str = '0'):

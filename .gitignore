@@ -75,3 +75,6 @@ CLAUDE.md
 
 # Example templates are shippable
 !*.example.plist
+
+# Agent review scratch, not runtime data
+.superpowers/

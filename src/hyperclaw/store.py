@@ -2,7 +2,8 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+import hashlib
 import fcntl
 import json
 import os
@@ -16,7 +17,7 @@ from hyperclaw.config import ensure_root
 from hyperclaw.contracts import (
     Conflict, Failure, InvalidRequest, Message, NotFound, RootInUse, Run,
     RunEvent, RunRequest, RunStatus, Session, StorageFailure, TERMINAL,
-    UnsupportedSchema, canonical,
+    UnsupportedSchema, canonical, Approval, Artifact, Checkpoint, Invocation, ToolCall, ToolReceipt,
 )
 
 # Each migration is (destructive, statements), executed in a single transaction.
@@ -35,6 +36,48 @@ MIGRATIONS = ((False, (
         role TEXT NOT NULL CHECK(role IN ('user','assistant')), content TEXT NOT NULL, UNIQUE(run_id, role))""",
     """CREATE TABLE events (run_id TEXT NOT NULL REFERENCES runs(id), seq INTEGER NOT NULL CHECK(seq > 0),
         kind TEXT NOT NULL, at TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(run_id, seq))""",
+)),)
+
+
+# Rebuild the checked run table and its two dependent tables in one backed-up
+# transaction. Copy children before dropping parents; foreign keys stay enabled.
+MIGRATIONS += ((True, (
+    'CREATE TEMP TABLE saved_messages AS SELECT * FROM messages',
+    'CREATE TEMP TABLE saved_events AS SELECT * FROM events',
+    'DROP TABLE messages', 'DROP TABLE events',
+    'DROP INDEX one_active_run_per_session',
+    'ALTER TABLE runs RENAME TO runs_v1',
+    """CREATE TABLE runs (
+        id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id),
+        generation INTEGER NOT NULL, request_id TEXT NOT NULL, payload_json TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('queued','running','waiting_approval','succeeded','failed','cancelled','interrupted','uncertain')),
+        output TEXT, error_json TEXT, created_at TEXT NOT NULL,
+        checkpoint_json TEXT, elapsed_s REAL NOT NULL DEFAULT 0, active_since TEXT,
+        verification TEXT NOT NULL DEFAULT 'not_requested',
+        UNIQUE(session_id,generation,request_id))""",
+    'INSERT INTO runs(id,session_id,generation,request_id,payload_json,status,output,error_json,created_at) SELECT * FROM runs_v1',
+    "UPDATE runs SET payload_json=json_set(payload_json,'$.tools',json('[]'),'$.images',json('[]'),'$.context_bytes',65536)",
+    'DROP TABLE runs_v1',
+    "CREATE UNIQUE INDEX one_active_run_per_session ON runs(session_id,generation) WHERE status IN ('queued','running','waiting_approval')",
+    """CREATE TABLE messages (id INTEGER PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id),
+        role TEXT NOT NULL CHECK(role IN ('user','assistant')), content TEXT NOT NULL, UNIQUE(run_id,role))""",
+    """CREATE TABLE events (run_id TEXT NOT NULL REFERENCES runs(id), seq INTEGER NOT NULL CHECK(seq > 0),
+        kind TEXT NOT NULL, at TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(run_id,seq))""",
+    'INSERT INTO messages SELECT * FROM saved_messages', 'INSERT INTO events SELECT * FROM saved_events',
+    'DROP TABLE saved_messages', 'DROP TABLE saved_events',
+    'CREATE TABLE installation (id TEXT PRIMARY KEY)',
+    "INSERT INTO installation VALUES (lower(hex(randomblob(16))))",
+    'CREATE TABLE grants (workspace_id TEXT NOT NULL, capability TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(workspace_id,capability))',
+    """CREATE TABLE invocations (id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id),
+        call_id TEXT NOT NULL, call_json TEXT NOT NULL, arguments_sha256 TEXT NOT NULL,
+        policy_sha256 TEXT NOT NULL, workspace_id TEXT NOT NULL, capability TEXT NOT NULL,
+        status TEXT NOT NULL, approved INTEGER NOT NULL DEFAULT 0, container_id TEXT, receipt_json TEXT,
+        UNIQUE(run_id,call_id))""",
+    """CREATE TABLE approvals (id TEXT PRIMARY KEY, invocation_id TEXT NOT NULL UNIQUE REFERENCES invocations(id),
+        expires_at TEXT NOT NULL, status TEXT NOT NULL)""",
+    """CREATE TABLE artifacts (invocation_id TEXT NOT NULL REFERENCES invocations(id),
+        path TEXT NOT NULL, sha256 TEXT NOT NULL, size_bytes INTEGER NOT NULL,
+        PRIMARY KEY(invocation_id,path))""",
 )),)
 
 
@@ -93,7 +136,7 @@ class Store:
             version = 0
         for index in range(version, len(MIGRATIONS)):
             destructive, statements = MIGRATIONS[index]
-            if destructive:
+            if destructive and version > 0:
                 backup_path = self.root / f'backup-v{index}-{uuid4().hex}.sqlite3'
                 # A failed migration's original backup must never be overwritten.
                 fd = os.open(backup_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
@@ -167,7 +210,8 @@ class Store:
         if row is None:
             raise NotFound()
         return Run(id=row['id'], request=RunRequest.model_validate_json(row['payload_json']),
-                   status=row['status'], output=row['output'],
+                   status=row['status'], output=row['output'], verification=row['verification'],
+                   elapsed_s=self._elapsed(row), artifacts=self._artifacts(run_id),
                    error=Failure.model_validate_json(row['error_json']) if row['error_json'] else None)
 
     def _event(self, run_id, kind, data):
@@ -194,7 +238,7 @@ class Store:
             session = self._session(session_id)
             if session.generation != generation:
                 raise Conflict('stale_generation', 'Session generation changed.')
-            if self._db.execute("SELECT 1 FROM runs WHERE session_id=? AND status IN ('queued','running')", (session_id,)).fetchone():
+            if self._db.execute("SELECT 1 FROM runs WHERE session_id=? AND status IN ('queued','running','waiting_approval')", (session_id,)).fetchone():
                 raise Conflict('session_busy', 'Session has an active run.')
             self._db.execute('UPDATE sessions SET generation=generation+1 WHERE id=?', (session_id,))
             return self._session(session_id)
@@ -213,7 +257,7 @@ class Store:
             previous = self._db.execute('SELECT id,payload_json FROM runs WHERE session_id=? AND generation=? AND request_id=?',
                                         (session.id, session.generation, request.request_id)).fetchone()
             if previous:
-                if previous['payload_json'] != payload:
+                if canonical(RunRequest.model_validate_json(previous['payload_json']).model_dump()) != payload:
                     raise Conflict('request_conflict', 'Request ID was used with a different payload.')
                 return self._run(previous['id'])
             if request.retry_of:
@@ -221,10 +265,10 @@ class Store:
                 if (source.request.session_id != session.id or source.request.generation != session.generation
                         or source.status not in {'failed', 'cancelled', 'interrupted'}):
                     raise Conflict('invalid_retry', 'Retry source must be a failed, cancelled or interrupted run in this generation.')
-            if self._db.execute("SELECT 1 FROM runs WHERE session_id=? AND generation=? AND status IN ('queued','running')", (session.id, session.generation)).fetchone():
+            if self._db.execute("SELECT 1 FROM runs WHERE session_id=? AND generation=? AND status IN ('queued','running','waiting_approval')", (session.id, session.generation)).fetchone():
                 raise Conflict('session_busy', 'Session has an active run.')
             run_id = uuid4().hex
-            self._db.execute('INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?)',
+            self._db.execute('INSERT INTO runs(id,session_id,generation,request_id,payload_json,status,output,error_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
                              (run_id, session.id, session.generation, request.request_id, payload, 'queued', None, None, now()))
             self._db.execute("INSERT INTO messages(run_id,role,content) VALUES (?,'user',?)", (run_id, request.text))
             self._event(run_id, 'run.queued', {})
@@ -239,7 +283,7 @@ class Store:
             row = self._db.execute("SELECT id FROM runs WHERE status='queued' ORDER BY rowid LIMIT 1").fetchone()
             if row is None:
                 return None
-            self._db.execute("UPDATE runs SET status='running' WHERE id=?", (row['id'],))
+            self._db.execute("UPDATE runs SET status='running',active_since=? WHERE id=?", (now(), row['id']))
             self._event(row['id'], 'run.started', {})
             return self._run(row['id'])
         return await self._call(lambda: self._transaction(claim))
@@ -278,7 +322,7 @@ class Store:
             return [Message(**dict(row)) for row in rows]
         return await self._call(read)
 
-    def _finish(self, run_id, status, output, error):
+    def _finish(self, run_id, status, output, error, verification='not_requested'):
         run = self._run(run_id)
         if run.status in TERMINAL:
             return run
@@ -288,20 +332,225 @@ class Store:
             raise InvalidRequest()
         if status != 'succeeded':
             output = None
-        self._db.execute('UPDATE runs SET status=?,output=?,error_json=? WHERE id=?',
-                         (status, output, canonical(error.model_dump()) if error else None, run_id))
+        self._stop_clock(run_id)
+        self._db.execute('UPDATE runs SET status=?,output=?,error_json=?,verification=? WHERE id=?',
+                         (status, output, canonical(error.model_dump()) if error else None, verification, run_id))
+        self._db.execute("UPDATE approvals SET status='cancelled' WHERE status='pending' AND invocation_id IN (SELECT id FROM invocations WHERE run_id=?)", (run_id,))
         if status == 'succeeded':
             self._db.execute("INSERT INTO messages(run_id,role,content) VALUES (?,'assistant',?)", (run_id, output))
-        self._event(run_id, 'run.finished', {'status': status, 'verification': 'not_requested'})
+        self._event(run_id, 'run.finished', {'status': status, 'verification': verification})
         return self._run(run_id)
 
-    async def finish(self, run_id, status: RunStatus, output=None, error=None):
+    async def finish(self, run_id, status: RunStatus, output=None, error=None, verification='not_requested'):
         if status not in TERMINAL:
             raise InvalidRequest()
-        return await self._call(lambda: self._transaction(lambda: self._finish(run_id, status, output, error)))
+        return await self._call(lambda: self._transaction(lambda: self._finish(run_id, status, output, error, verification)))
 
     async def recover(self):
         def recover():
             rows = self._db.execute("SELECT id FROM runs WHERE status='running' ORDER BY rowid").fetchall()
-            return [self._finish(row['id'], 'interrupted', None, Failure(code='interrupted', message='Owner stopped before the response completed.')) for row in rows]
+            recovered = []
+            for row in rows:
+                unknown = self._db.execute("SELECT 1 FROM invocations WHERE run_id=? AND status='uncertain'", (row['id'],)).fetchone()
+                status = 'uncertain' if unknown else 'interrupted'
+                recovered.append(self._finish(row['id'], status, None, Failure(code=status, message='Owner stopped before the response completed.')))
+            return recovered
         return await self._call(lambda: self._transaction(recover))
+
+    @staticmethod
+    def _elapsed(row):
+        elapsed = row['elapsed_s']
+        if row['active_since']:
+            elapsed += max(0, (datetime.now(timezone.utc) - datetime.fromisoformat(row['active_since'])).total_seconds())
+        return elapsed
+
+    def _stop_clock(self, run_id):
+        row = self._db.execute('SELECT elapsed_s,active_since FROM runs WHERE id=?', (run_id,)).fetchone()
+        self._db.execute('UPDATE runs SET elapsed_s=?,active_since=NULL WHERE id=?', (self._elapsed(row), run_id))
+
+    async def elapsed(self, run_id):
+        return (await self.get_run(run_id)).elapsed_s
+
+    def _artifacts(self, run_id):
+        rows = self._db.execute('SELECT a.path,a.sha256,a.size_bytes FROM artifacts a JOIN invocations i ON a.invocation_id=i.id WHERE i.run_id=? ORDER BY i.rowid,a.path', (run_id,)).fetchall()
+        return tuple(Artifact(**dict(row)) for row in rows)
+
+    async def installation_id(self):
+        return await self._call(lambda: self._db.execute('SELECT id FROM installation').fetchone()[0])
+
+    async def save_checkpoint(self, run_id, checkpoint: Checkpoint):
+        def save():
+            run = self._run(run_id)
+            if run.status != 'running':
+                raise Conflict('run_not_running', 'Checkpoint requires active execution.')
+            value = checkpoint.model_copy(update={'elapsed_s': run.elapsed_s})
+            self._db.execute('UPDATE runs SET checkpoint_json=? WHERE id=?', (value.model_dump_json(), run_id))
+            return value
+        return await self._call(lambda: self._transaction(save))
+
+    async def load_checkpoint(self, run_id):
+        def read():
+            self._run(run_id)
+            value = self._db.execute('SELECT checkpoint_json FROM runs WHERE id=?', (run_id,)).fetchone()[0]
+            return Checkpoint.model_validate_json(value) if value else None
+        return await self._call(read)
+
+    async def history_groups(self, session_id, generation):
+        def read():
+            self._session(session_id)
+            rows = self._db.execute("SELECT id,checkpoint_json FROM runs WHERE session_id=? AND generation=? AND status='succeeded' ORDER BY rowid", (session_id, generation)).fetchall()
+            result = []
+            for row in rows:
+                if row['checkpoint_json']:
+                    cp = Checkpoint.model_validate_json(row['checkpoint_json'])
+                    result.append(cp.messages[cp.history_length:])
+                else:
+                    messages = self._db.execute("SELECT role,content FROM messages WHERE run_id=? ORDER BY CASE role WHEN 'user' THEN 0 ELSE 1 END", (row['id'],)).fetchall()
+                    result.append([Message(**dict(m)) for m in messages])
+            return result
+        return await self._call(read)
+
+    async def grant(self, workspace_id, capability):
+        if capability not in {'write', 'execute'} or not workspace_id:
+            raise InvalidRequest()
+        def save():
+            self._db.execute('INSERT OR IGNORE INTO grants VALUES (?,?,?)', (workspace_id, capability, now()))
+            return {'workspace_id': workspace_id, 'capability': capability}
+        return await self._call(lambda: self._transaction(save))
+
+    async def grants(self, workspace_id):
+        return await self._call(lambda: {r[0] for r in self._db.execute('SELECT capability FROM grants WHERE workspace_id=?', (workspace_id,)).fetchall()})
+
+    def _invocation(self, invocation_id):
+        row = self._db.execute('SELECT * FROM invocations WHERE id=?', (invocation_id,)).fetchone()
+        if row is None:
+            raise NotFound()
+        return Invocation(id=row['id'], run_id=row['run_id'], call=ToolCall.model_validate_json(row['call_json']),
+            arguments_sha256=row['arguments_sha256'], policy_sha256=row['policy_sha256'], workspace_id=row['workspace_id'],
+            capability=row['capability'], status=row['status'], approved=bool(row['approved']), container_id=row['container_id'],
+            receipt=ToolReceipt.model_validate_json(row['receipt_json']) if row['receipt_json'] else None)
+
+    async def get_invocation(self, invocation_id):
+        return await self._call(lambda: self._invocation(invocation_id))
+
+    async def invocations(self, run_id=None):
+        def read():
+            if run_id is not None:
+                self._run(run_id)
+            query = 'SELECT id FROM invocations' + (' WHERE run_id=?' if run_id is not None else '') + ' ORDER BY rowid'
+            return [self._invocation(row[0]) for row in self._db.execute(query, (run_id,) if run_id is not None else ()).fetchall()]
+        return await self._call(read)
+
+    async def prepare_invocation(self, run_id, call, policy_sha256, workspace_id, capability):
+        def prepare():
+            run = self._run(run_id)
+            call_json = canonical(call.model_dump())
+            arguments_sha256 = hashlib.sha256(canonical(call.arguments).encode()).hexdigest()
+            existing = self._db.execute('SELECT id,call_json,policy_sha256,workspace_id FROM invocations WHERE run_id=? AND call_id=?', (run_id, call.id)).fetchone()
+            if existing:
+                if (existing['call_json'], existing['policy_sha256'], existing['workspace_id']) != (call_json, policy_sha256, workspace_id):
+                    raise Conflict('invocation_changed', 'Call arguments, schema, policy or workspace changed; prior authority is invalid.')
+                return self._invocation(existing['id'])
+            if run.status != 'running':
+                raise Conflict('run_not_running', 'Invocations require active execution.')
+            invocation_id = uuid4().hex
+            self._db.execute('INSERT INTO invocations(id,run_id,call_id,call_json,arguments_sha256,policy_sha256,workspace_id,capability,status) VALUES (?,?,?,?,?,?,?,?,?)',
+                (invocation_id, run_id, call.id, call_json, arguments_sha256, policy_sha256, workspace_id, capability, 'prepared'))
+            self._event(run_id, 'tool.requested', {'invocation_id': invocation_id, 'call': call.model_dump(),
+                'arguments_sha256': arguments_sha256, 'policy_sha256': policy_sha256, 'workspace_id': workspace_id, 'intent': capability})
+            return self._invocation(invocation_id)
+        return await self._call(lambda: self._transaction(prepare))
+
+    def _approval(self, approval_id):
+        row = self._db.execute('SELECT * FROM approvals WHERE id=?', (approval_id,)).fetchone()
+        if row is None:
+            raise NotFound()
+        inv = self._invocation(row['invocation_id'])
+        return Approval(id=row['id'], invocation_id=inv.id, run_id=inv.run_id, call=inv.call,
+            arguments_sha256=inv.arguments_sha256, policy_sha256=inv.policy_sha256, workspace_id=inv.workspace_id,
+            expires_at=row['expires_at'], status=row['status'])
+
+    async def get_approval(self, approval_id):
+        return await self._call(lambda: self._approval(approval_id))
+
+    async def require_approval(self, invocation_id):
+        def pause():
+            inv = self._invocation(invocation_id)
+            existing = self._db.execute('SELECT id FROM approvals WHERE invocation_id=?', (inv.id,)).fetchone()
+            if existing:
+                return self._approval(existing[0])
+            row = self._db.execute('SELECT status,checkpoint_json FROM runs WHERE id=?', (inv.run_id,)).fetchone()
+            if row['status'] != 'running' or not row['checkpoint_json']:
+                raise Conflict('checkpoint_required', 'Persist the pending call before approval.')
+            approval_id = uuid4().hex
+            expires = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+            self._db.execute('INSERT INTO approvals VALUES (?,?,?,?)', (approval_id, inv.id, expires, 'pending'))
+            self._db.execute("UPDATE invocations SET status='waiting_approval' WHERE id=?", (inv.id,))
+            self._stop_clock(inv.run_id)
+            self._db.execute("UPDATE runs SET status='waiting_approval' WHERE id=?", (inv.run_id,))
+            approval = self._approval(approval_id)
+            self._event(inv.run_id, 'approval.required', approval.model_dump())
+            return approval
+        return await self._call(lambda: self._transaction(pause))
+
+    async def approvals(self):
+        await self.expire_approvals()
+        return await self._call(lambda: [self._approval(row[0]) for row in self._db.execute("SELECT id FROM approvals WHERE status='pending' ORDER BY rowid").fetchall()])
+
+    async def expire_approvals(self):
+        def expire():
+            rows = self._db.execute("SELECT a.id,i.run_id FROM approvals a JOIN invocations i ON i.id=a.invocation_id WHERE a.status='pending' AND a.expires_at<=?", (now(),)).fetchall()
+            for row in rows:
+                self._db.execute("UPDATE approvals SET status='expired' WHERE id=?", (row['id'],))
+                self._finish(row['run_id'], 'failed', None, Failure(code='approval_expired', message='Operator approval expired after 24 hours.'))
+            return len(rows)
+        return await self._call(lambda: self._transaction(expire))
+
+    async def decide_approval(self, approval_id, approved, arguments_sha256, policy_sha256):
+        await self.expire_approvals()
+        def decide():
+            approval = self._approval(approval_id)
+            run = self._run(approval.run_id)
+            if approval.status != 'pending' or run.status != 'waiting_approval':
+                raise Conflict('approval_not_pending', 'This approval is no longer pending.')
+            if (approval.arguments_sha256, approval.policy_sha256) != (arguments_sha256, policy_sha256):
+                raise Conflict('approval_changed', 'Decision must bind the exact arguments and policy.')
+            self._db.execute('UPDATE approvals SET status=? WHERE id=?', ('approved' if approved else 'denied', approval_id))
+            self._event(run.id, 'approval.decided', {'approval_id': approval_id, 'approved': approved})
+            if approved:
+                self._db.execute("UPDATE invocations SET approved=1,status='prepared' WHERE id=?", (approval.invocation_id,))
+                self._db.execute("UPDATE runs SET status='queued' WHERE id=?", (run.id,))
+                self._event(run.id, 'run.queued', {'resumed_approval': approval_id})
+                return self._run(run.id)
+            return self._finish(run.id, 'failed', None, Failure(code='approval_denied', message='Operator denied this invocation.'))
+        return await self._call(lambda: self._transaction(decide))
+
+    async def mark_invocation_running(self, invocation_id):
+        def start():
+            inv = self._invocation(invocation_id)
+            if inv.status != 'prepared' or self._run(inv.run_id).status != 'running':
+                raise Conflict('invocation_not_prepared', 'An invocation can be dispatched only once.')
+            self._db.execute("UPDATE invocations SET status='running' WHERE id=?", (inv.id,))
+        return await self._call(lambda: self._transaction(start))
+
+    async def bind_container(self, invocation_id, container_id):
+        def bind():
+            inv = self._invocation(invocation_id)
+            if inv.container_id is not None and inv.container_id != container_id:
+                raise Conflict('container_changed', 'Invocation already owns another container.')
+            self._db.execute('UPDATE invocations SET container_id=? WHERE id=?', (container_id, inv.id))
+        return await self._call(lambda: self._transaction(bind))
+
+    async def complete_invocation(self, receipt: ToolReceipt):
+        def complete():
+            inv = self._invocation(receipt.invocation_id)
+            if inv.receipt:
+                if inv.receipt != receipt:
+                    raise Conflict('receipt_exists', 'A conclusive invocation receipt cannot be replaced.')
+                return inv.receipt
+            self._db.execute('UPDATE invocations SET status=?,receipt_json=? WHERE id=?', (receipt.status, receipt.model_dump_json(), inv.id))
+            for artifact in receipt.artifacts:
+                self._db.execute('INSERT INTO artifacts VALUES (?,?,?,?)', (inv.id, artifact.path, artifact.sha256, artifact.size_bytes))
+            self._event(inv.run_id, 'tool.finished', receipt.model_dump(mode='json'))
+            return receipt
+        return await self._call(lambda: self._transaction(complete))

@@ -113,3 +113,10 @@ def test_adopting_empty_root_makes_it_private(tmp_path):
     root.chmod(0o755)
     initialize_root(load_settings(root=root, environ={}))
     assert root.stat().st_mode & 0o777 == 0o700
+
+
+def test_workspace_selection_is_explicit_string_configuration(tmp_path):
+    settings = load_settings(root=tmp_path, environ={})
+    assert settings.workspace_path == ''
+    selected = load_settings(root=tmp_path, overrides={'workspace_path':str(tmp_path/'project')}, environ={})
+    assert selected.workspace_path == str(tmp_path/'project')

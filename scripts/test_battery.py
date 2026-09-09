@@ -28,7 +28,7 @@ def test_counts(path: Path) -> dict | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("quick", "live", "all"), nargs="?", default="quick")
+    parser.add_argument("mode", choices=("quick", "docker", "live", "all"), nargs="?", default="quick")
     parser.add_argument("paths", nargs="*", help="Optional focused test paths, relative to the repository")
     parser.add_argument("--report-dir", type=Path, default=ROOT / "test-results")
     parser.add_argument("--coverage", action="store_true", help="Record coverage for src/hyperclaw")
@@ -38,16 +38,20 @@ def main() -> int:
     started = datetime.now(timezone.utc)
     report = arguments.report_dir.resolve() / f"{arguments.mode}-{started:%Y%m%dT%H%M%S%fZ}"
     report.mkdir(parents=True)
-    paths = arguments.paths or (["tests/live"] if arguments.mode == "live" else ["tests"])
+    paths = arguments.paths or (["tests/live"] if arguments.mode in {"docker", "live"} else ["tests"])
     command = [sys.executable, "-m", "pytest", *paths, "-q", "-ra", "--durations=15",
                f"--junitxml={report / 'junit.xml'}"]
     if arguments.mode == "quick":
-        command += ["-m", "not ollama"]
+        command += ["-m", "not ollama and not docker"]
+    if arguments.mode == "docker":
+        command += ["--run-docker", "-m", "docker"]
     if arguments.mode in {"live", "all"}:
         command += ["--run-ollama", "--ollama-url", arguments.ollama_url,
                     "--ollama-model", arguments.ollama_model]
         if arguments.mode == "live":
             command += ["-m", "ollama"]
+    if arguments.mode == "all":
+        command += ["--run-docker"]
     if arguments.coverage:
         command += ["--cov=src/hyperclaw"]
         command += [f"--cov-report=xml:{report / 'coverage.xml'}",
@@ -59,7 +63,7 @@ def main() -> int:
         environment = {key: os.environ[key] for key in (
             "PATH", "LANG", "LC_ALL", "SYSTEMROOT",
         ) if key in os.environ}
-        environment.update({"HYPERCLAW_ROOT": runtime_root,
+        environment.update({"HYPERCLAW_ROOT": runtime_root, "TMPDIR": runtime_root,
                             "COVERAGE_FILE": str(report / ".coverage"), "PYTEST_ADDOPTS": ""})
         with (report / "pytest.log").open("w", encoding="utf-8") as log:
             with subprocess.Popen(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,

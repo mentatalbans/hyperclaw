@@ -5,8 +5,10 @@ import logging
 
 from hyperclaw.contracts import (
     CONTEXT_BYTES, Failure, Message, ProviderFailure, StorageFailure, TERMINAL,
-    canonical, message_bytes,
+    canonical, message_bytes, ApprovalRequired, Checkpoint, Conflict, InvalidRequest, RuntimeErrorBase, ToolCall,
 )
+
+from hyperclaw.execution import Executor
 
 log = logging.getLogger(__name__)
 
@@ -26,11 +28,15 @@ class Runtime:
         self._close_task = None
         self._started = False
         self.healthy = True
+        self.executor = None
 
     async def start(self):
         if self._started:
             return
         try:
+            self.executor = await Executor.open(self.store, self.settings)
+            await self.executor.reconcile()
+            await self.store.expire_approvals()
             await self.store.recover()
             self._started = True
             self._worker = asyncio.create_task(self._work(), name='hyperclaw-worker')
@@ -70,7 +76,7 @@ class Runtime:
             run = await self.store.get_run(run_id)
             if run.status in TERMINAL:
                 return run
-            if run.status == 'queued':
+            if run.status in {'queued', 'waiting_approval'}:
                 result = await self.store.finish(run_id, 'cancelled')
                 self._changed.set()
                 return result
@@ -114,6 +120,8 @@ class Runtime:
             try:
                 await self.ollama.aclose()
             finally:
+                if self.executor is not None:
+                    await self.executor.close()
                 await self.store.close()
                 self._changed.set()
 
@@ -131,14 +139,21 @@ class Runtime:
                         self._completion = asyncio.Event()
                         self._active_task = asyncio.create_task(self._execute(run))
                 if run is None:
-                    await self._wake.wait()
+                    try:
+                        await asyncio.wait_for(self._wake.wait(), 1)
+                    except TimeoutError:
+                        if await self.store.expire_approvals():
+                            self._changed.set()
                     continue
                 self._changed.set()
                 try:
                     await self._active_task
                 except asyncio.CancelledError:
                     # Cancellation can arrive before the task's first instruction.
-                    await self.store.finish(run.id, self._cancel_status or 'interrupted')
+                    await self.executor.cancel(run.id)
+                    receipts = await self.receipts(run.id)
+                    terminal = 'uncertain' if any(r.status == 'uncertain' for r in receipts) else self._cancel_status or 'interrupted'
+                    await self.store.finish(run.id, terminal)
                     self._changed.set()
                 finally:
                     self._completion.set()
@@ -154,24 +169,124 @@ class Runtime:
         await self.store.append(run_id, kind, data)
         self._changed.set()
 
+    async def approvals(self):
+        return await self.store.approvals()
+
+    async def decide_approval(self, approval_id, approved, arguments_sha256, policy_sha256):
+        self._accepting()
+        async with self._control:
+            result = await self.executor.decide_approval(approval_id, approved, arguments_sha256, policy_sha256)
+            self._wake.set()
+            self._changed.set()
+            return result
+
+    async def grant(self, workspace_id, capability):
+        self._accepting()
+        if workspace_id != self.executor.workspace.identity:
+            raise Conflict('workspace_changed', 'Grant must select the current workspace identity.')
+        return await self.store.grant(workspace_id, capability)
+
+    async def receipts(self, run_id):
+        return [i.receipt for i in await self.store.invocations(run_id) if i.receipt is not None]
+
+    async def workspace(self):
+        return {'id': self.executor.workspace.identity, 'path': str(self.executor.workspace.path),
+                'grants': sorted(await self.store.grants(self.executor.workspace.identity))}
+
     async def _context(self, run):
-        history = await self.store.history(run.request.session_id, run.request.generation)
-        current = Message(role='user', content=run.request.text)
-        retained = []
-        for index in range(len(history) - 2, -1, -2):
-            group = history[index:index + 2]
-            if len(message_bytes(group + retained + [current])) <= CONTEXT_BYTES:
+        history = await self.store.history_groups(run.request.session_id, run.request.generation)
+        current = run.request.current_message()
+        retained, count = [], 0
+        for group in reversed(history):
+            if len(message_bytes(group + retained + [current])) <= run.request.context_bytes:
                 retained = group + retained
+                count += 1
         messages = retained + [current]
         encoded = message_bytes(messages)
         await self._append(run.id, 'run.context', {
-            'sha256': hashlib.sha256(encoded).hexdigest(), 'retained_turns': len(retained) // 2,
+            'sha256': hashlib.sha256(encoded).hexdigest(), 'retained_turns': count,
             'serialized_bytes': len(encoded), 'model': self.settings.model,
             'config_sha256': hashlib.sha256(canonical(self.settings.model_dump(mode='json')).encode()).hexdigest(),
+            'tool_schema_sha256': hashlib.sha256(canonical(await self.executor.definitions(run.request.tools)).encode()).hexdigest(),
+            'workspace_id': self.executor.workspace.identity,
         })
-        return messages
+        return Checkpoint(messages=messages, history_length=len(retained), workspace_id=self.executor.workspace.identity)
 
     async def _execute(self, run):
+        status, error, output, verification = 'succeeded', None, '', 'not_requested'
+        try:
+            checkpoint = await self.store.load_checkpoint(run.id) or await self._context(run)
+            if checkpoint.workspace_id != self.executor.workspace.identity:
+                raise Conflict('workspace_changed', 'Selected workspace changed since this run was checkpointed.')
+            remaining = self.settings.run_timeout_s - await self.store.elapsed(run.id)
+            if remaining <= 0:
+                raise TimeoutError
+            async with asyncio.timeout(remaining):
+                while True:
+                    await self.store.save_checkpoint(run.id, checkpoint)
+                    if checkpoint.pending_calls:
+                        while checkpoint.pending_calls:
+                            call = checkpoint.pending_calls[0]
+                            receipt = await self.executor.invoke(run.id, call)
+                            self._changed.set()
+                            if receipt.status != 'succeeded':
+                                status = receipt.status
+                                verification = receipt.evidence.get('verification', 'not_requested')
+                                error = Failure(code='tool_' + status, message=receipt.output or 'Tool execution did not complete successfully.')
+                                break
+                            result = {'type': 'tool_result', 'tool_use_id': call.id, 'content': receipt.model_dump_json()}
+                            messages = list(checkpoint.messages)
+                            if messages[-1].role == 'user' and isinstance(messages[-1].content, list) and all(b.get('type') == 'tool_result' for b in messages[-1].content):
+                                messages[-1] = Message(role='user', content=messages[-1].content + [result])
+                            else:
+                                messages.append(Message(role='user', content=[result]))
+                            checkpoint = checkpoint.model_copy(update={'messages': messages, 'pending_calls': checkpoint.pending_calls[1:]})
+                            await self.store.save_checkpoint(run.id, checkpoint)
+                        if status != 'succeeded':
+                            break
+                    if checkpoint.round_count >= 12:
+                        raise InvalidRequest('tool_round_limit', 'Run reached the 12-round model limit.')
+                    if len(message_bytes(checkpoint.messages)) > run.request.context_bytes:
+                        raise InvalidRequest('context_limit', 'Tool conversation exceeds the selected context budget.')
+                    calls, content, text = await self._model_round(run, checkpoint.messages, await self.executor.definitions(run.request.tools))
+                    counts = dict(checkpoint.call_counts)
+                    for call in calls:
+                        key = hashlib.sha256(canonical({'name': call.name, 'arguments': call.arguments}).encode()).hexdigest()
+                        counts[key] = counts.get(key, 0) + 1
+                        if counts[key] > 3:
+                            raise InvalidRequest('repeated_tool_call', 'An identical tool request exceeded three invocations.')
+                    checkpoint = checkpoint.model_copy(update={'messages': checkpoint.messages + [Message(role='assistant', content=content)],
+                        'pending_calls': calls, 'call_counts': counts, 'round_count': checkpoint.round_count + 1})
+                    await self.store.save_checkpoint(run.id, checkpoint)
+                    if not calls:
+                        output = text
+                        break
+        except ApprovalRequired:
+            self._changed.set()
+            return
+        except asyncio.CancelledError:
+            await self.executor.cancel(run.id)
+            status = self._cancel_status or 'interrupted'
+            if status == 'interrupted':
+                error = Failure(code='interrupted', message='Owner stopped before the response completed.')
+        except TimeoutError:
+            await self.executor.cancel(run.id)
+            status, error = 'failed', Failure(code='run_timeout', message='Run exceeded its active execution deadline.')
+        except StorageFailure:
+            raise
+        except RuntimeErrorBase as exc:
+            status, error = 'failed', Failure(code=exc.code, message=exc.message)
+        receipts = await self.receipts(run.id)
+        if any(r.status == 'uncertain' for r in receipts):
+            status = 'uncertain'
+        if any(r.evidence.get('verification') == 'failed' for r in receipts):
+            verification = 'failed'
+        elif any(r.evidence.get('verification') == 'passed' for r in receipts):
+            verification = 'passed'
+        await self.store.finish(run.id, status, output=output if status == 'succeeded' else None, error=error, verification=verification)
+        self._changed.set()
+
+    async def _model_round(self, run, messages, definitions):
         parts = []
         buffer = ''
         buffer_kind = None
@@ -179,8 +294,9 @@ class Runtime:
         flush_at = None
         stream = None
         pending = None
-        status, error = 'succeeded', None
         finished = False
+        calls, content = [], []
+        response_bytes = 0
 
         async def flush():
             nonlocal buffer, buffer_bytes, flush_at
@@ -190,12 +306,15 @@ class Runtime:
                 await self._append(run.id, 'model.' + buffer_kind, {'text': chunk})
 
         async def consume(event):
-            nonlocal buffer, buffer_kind, buffer_bytes, flush_at, finished
+            nonlocal buffer, buffer_kind, buffer_bytes, flush_at, finished, content, response_bytes
             if event.kind in {'text', 'thinking'}:
                 if buffer_kind != event.kind:
                     await flush()
                     buffer_kind = event.kind
                 text = event.data['text']
+                response_bytes += len(text.encode())
+                if response_bytes > 1024 * 1024:
+                    raise ProviderFailure('response_limit', 'Model response exceeds 1 MiB.')
                 if event.kind == 'text':
                     parts.append(text)
                 # Bound committed chunks by UTF-8 bytes, preserving code points.
@@ -212,49 +331,41 @@ class Runtime:
             elif event.kind == 'usage':
                 await flush()
                 await self._append(run.id, 'model.usage', event.data)
+            elif event.kind == 'tool_call':
+                calls.append(ToolCall.model_validate(event.data))
+                if len(calls) > 16 or len({c.id for c in calls}) != len(calls):
+                    raise ProviderFailure('invalid_tool_calls', 'Invalid or excessive tool calls.')
             elif event.kind == 'finish':
                 await flush()
+                content = event.data.get('content') or [{'type': 'text', 'text': ''.join(parts)}]
                 finished = True
 
         try:
-            async with asyncio.timeout(self.settings.run_timeout_s):
-                messages = await self._context(run)
-                stream = self.ollama.stream(messages)
-                while True:
-                    if pending is None:
-                        pending = asyncio.create_task(anext(stream))
-                    delay = None if flush_at is None else max(0, flush_at - asyncio.get_running_loop().time())
-                    ready, _ = await asyncio.wait({pending}, timeout=delay)
-                    if not ready:
-                        await flush()
-                        continue
-                    completed, pending = pending, None
-                    try:
-                        event = completed.result()
-                    except StopAsyncIteration:
-                        break
-                    await consume(event)
-                if not finished:
-                    raise ProviderFailure('incomplete_stream', 'Model response did not complete.')
-        except asyncio.CancelledError:
-            status = self._cancel_status or 'interrupted'
-            if status == 'interrupted':
-                error = Failure(code='interrupted', message='Owner stopped before the response completed.')
-        except TimeoutError:
-            status = 'failed'
-            error = Failure(code='run_timeout', message='Run exceeded its execution deadline.')
-        except ProviderFailure as exc:
-            status = 'failed'
-            error = Failure(code=exc.code, message=exc.message)
+            stream = self.ollama.stream(messages, tools=definitions)
+            while True:
+                if pending is None:
+                    pending = asyncio.create_task(anext(stream))
+                delay = None if flush_at is None else max(0, flush_at - asyncio.get_running_loop().time())
+                ready, _ = await asyncio.wait({pending}, timeout=delay)
+                if not ready:
+                    await flush()
+                    continue
+                completed, pending = pending, None
+                try:
+                    event = completed.result()
+                except StopAsyncIteration:
+                    break
+                await consume(event)
+            if not finished:
+                raise ProviderFailure('incomplete_stream', 'Model response did not complete.')
         finally:
             if pending is not None:
                 pending.cancel()
                 await asyncio.gather(pending, return_exceptions=True)
             if stream is not None:
                 await stream.aclose()
-        await flush()
-        await self.store.finish(run.id, status, output=''.join(parts) if status == 'succeeded' else None, error=error)
-        self._changed.set()
+            await flush()
+        return calls, content, ''.join(parts)
 
     async def events(self, run_id, after=0):
         # Durable rows are authoritative. Notifications only shorten bounded polling.

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 @pytest.fixture
 def miniature_suite():
     def create(directory, source):
-        (directory / 'pytest.ini').write_text('[pytest]\nmarkers =\n    ollama: live model required\n')
+        (directory / 'pytest.ini').write_text('[pytest]\nmarkers =\n    docker: live Docker required\n    ollama: live model required\n')
         (directory / 'conftest.py').write_text((ROOT / 'tests/conftest.py').read_text())
         (directory / 'test_contract.py').write_text(source)
     return create
@@ -60,6 +60,7 @@ def test_isolated_write():
     root = Path(os.environ['HYPERCLAW_ROOT'])
     assert root.is_dir()
     assert root != Path(%r)
+    assert Path(os.environ['TMPDIR']) == root
     for key in ('OPENAI_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'HTTP_PROXY', 'HTTPS_PROXY',
                 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'OLLAMA_MODEL', 'PYTHONPATH'):
         assert key not in os.environ
@@ -83,3 +84,44 @@ def test_deliberate_failure():
     assert 'synthetic regression' in (summaries[0].parent / 'pytest.log').read_text()
     assert len(ET.parse(summaries[0].parent / 'junit.xml').findall('.//failure')) == 1
     assert {p.name: p.read_bytes() for p in supplied.iterdir()} == before
+
+
+def test_battery_modes_select_external_services_explicitly(tmp_path, miniature_suite):
+    suite = tmp_path / 'suite'
+    suite.mkdir()
+    miniature_suite(suite, '''
+import pytest
+def test_regular():
+    assert True
+@pytest.mark.docker
+def test_docker():
+    assert True
+@pytest.mark.ollama
+def test_ollama():
+    assert True
+''')
+    summaries = {}
+    for mode in ('quick', 'docker', 'live', 'all'):
+        reports = tmp_path / f'reports-{mode}'
+        result = subprocess.run([
+            sys.executable, str(ROOT / 'scripts/test_battery.py'), mode, str(suite / 'test_contract.py'),
+            '--report-dir', str(reports),
+        ], cwd=ROOT, text=True, capture_output=True, timeout=30)
+        assert result.returncode == 0, result.stdout + result.stderr
+        summary_path, = reports.glob('*/summary.json')
+        summaries[mode] = json.loads(summary_path.read_text())
+
+    assert summaries['quick']['tests']['total'] == 1
+    assert summaries['docker']['tests']['total'] == 1
+    assert summaries['live']['tests']['total'] == 1
+    assert summaries['all']['tests']['total'] == 3
+    assert summaries['quick']['command'][-2:] == ['-m', 'not ollama and not docker']
+    assert '--run-docker' in summaries['docker']['command']
+    assert summaries['docker']['command'][-2:] == ['-m', 'docker']
+    assert '--run-ollama' not in summaries['docker']['command']
+    assert '--run-ollama' in summaries['live']['command']
+    assert '--run-docker' not in summaries['live']['command']
+    assert summaries['live']['command'][-2:] == ['-m', 'ollama']
+    assert '--run-ollama' in summaries['all']['command']
+    assert '--run-docker' in summaries['all']['command']
+    assert summaries['all']['command'].count('-m') == 1  # Python's ``-m pytest`` only.

@@ -1,4 +1,6 @@
 """One explicit CLI. Commands never load legacy configuration."""
+import base64
+from enum import Enum
 import json
 from pathlib import Path
 import sqlite3
@@ -8,7 +10,7 @@ import httpx
 import typer
 
 from hyperclaw.config import initialize_root, load_settings
-from hyperclaw.contracts import RuntimeErrorBase
+from hyperclaw.contracts import ImageAttachment, RuntimeErrorBase
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -88,6 +90,22 @@ from hyperclaw.config import read_token
 from hyperclaw.contracts import InvalidRequest
 
 
+MAX_IMAGE_BYTES = 6 * 1024 * 1024
+
+
+class ToolName(str, Enum):
+    workspace_read = 'workspace_read'
+    workspace_list = 'workspace_list'
+    workspace_search = 'workspace_search'
+    workspace_write = 'workspace_write'
+    command = 'command'
+
+
+class Capability(str, Enum):
+    write = 'write'
+    execute = 'execute'
+
+
 @contextmanager
 def daemon_client(settings):
     client = None
@@ -129,6 +147,31 @@ def run_path(run_id):
     return '/v1/runs/' + quote(run_id, safe='')
 
 
+def image_attachment(path: Path) -> dict:
+    try:
+        with path.open('rb') as source:
+            raw = source.read(MAX_IMAGE_BYTES + 1)
+    except OSError:
+        raise InvalidRequest('invalid_image', f'Cannot read image: {path}') from None
+    if len(raw) > MAX_IMAGE_BYTES:
+        raise InvalidRequest('invalid_image', 'Image exceeds the bounded local file limit.')
+    if raw.startswith(b'\x89PNG\r\n\x1a\n'):
+        media_type = 'image/png'
+    elif raw.startswith(b'\xff\xd8\xff'):
+        media_type = 'image/jpeg'
+    elif raw.startswith((b'GIF87a', b'GIF89a')):
+        media_type = 'image/gif'
+    elif raw.startswith(b'RIFF') and raw[8:12] == b'WEBP':
+        media_type = 'image/webp'
+    else:
+        raise InvalidRequest('invalid_image', 'Image must contain PNG, JPEG, GIF, or WebP bytes.')
+    try:
+        attachment = ImageAttachment(media_type=media_type, data=base64.b64encode(raw).decode('ascii'))
+    except ValueError:
+        raise InvalidRequest('invalid_image', 'Image bytes are invalid or exceed the attachment limit.') from None
+    return attachment.model_dump(mode='json')
+
+
 def read_events(client, run_id, after=0):
     with client.stream('GET', run_path(run_id) + '/events', params={'after': after}, timeout=None) as response:
         if response.is_error:
@@ -148,13 +191,29 @@ def read_events(client, run_id, after=0):
 
 @app.command()
 def chat(ctx: typer.Context, text: str, session: str | None = None, detach: bool = False,
-         request_id: str | None = None, retry_of: str | None = None):
+         request_id: str | None = None, retry_of: str | None = None,
+         image: list[Path] = typer.Option([], '--image'),
+         context_bytes: int = typer.Option(65_536, min=65_536, max=8 * 1024 * 1024),
+         tool: list[ToolName] = typer.Option([], '--tool'),
+         no_tools: bool = typer.Option(False, '--no-tools')):
+    if no_tools and tool:
+        raise InvalidRequest('tool_selection', 'Choose explicit --tool values or --no-tools, not both.')
+    if len(image) > 4:
+        raise InvalidRequest('invalid_image', 'At most four images may be attached.')
+    attachments = [image_attachment(path) for path in image]
+    selected_tools = [] if no_tools else [name.value for name in tool] if tool else None
     with daemon_client(ctx.obj) as client:
         conversation = response_json(client.get('/v1/sessions/' + quote(session, safe=''))) if session else response_json(client.post('/v1/sessions', json={}))
-        run = response_json(client.post('/v1/runs', json={
+        body = {
             'session_id': conversation['id'], 'generation': conversation['generation'],
             'request_id': request_id or uuid4().hex, 'text': text, 'retry_of': retry_of,
-        }))
+            'context_bytes': context_bytes,
+        }
+        if attachments:
+            body['images'] = attachments
+        if selected_tools is not None:
+            body['tools'] = selected_tools
+        run = response_json(client.post('/v1/runs', json=body))
         run_id = run['id']
         if detach:
             typer.echo(run_id)
@@ -164,6 +223,11 @@ def chat(ctx: typer.Context, text: str, session: str | None = None, detach: bool
             for event in read_events(client, run_id):
                 if event['kind'] == 'model.text':
                     typer.echo(event['data']['text'], nl=False)
+                elif event['kind'] == 'approval.required':
+                    typer.echo('Approval required for this exact pending action:', err=True)
+                    typer.echo(json.dumps(event['data'], indent=2), err=True)
+                    typer.echo(f'Detached. Run {run_id} is waiting; review it with approval list.', err=True)
+                    return
                 elif event['kind'] == 'run.finished':
                     typer.echo()
                     if event['data']['status'] != 'succeeded':
@@ -177,8 +241,10 @@ def chat(ctx: typer.Context, text: str, session: str | None = None, detach: bool
 
 run_app = typer.Typer(no_args_is_help=True)
 session_app = typer.Typer(no_args_is_help=True)
+approval_app = typer.Typer(no_args_is_help=True)
 app.add_typer(run_app, name='run')
 app.add_typer(session_app, name='session')
+app.add_typer(approval_app, name='approval')
 
 
 @run_app.command('inspect')
@@ -201,6 +267,61 @@ def run_events(ctx: typer.Context, run_id: str, after: int = typer.Option(0, min
                 typer.echo(json.dumps(event))
         except KeyboardInterrupt:
             typer.echo(f'Detached from run {run_id}.', err=True)
+
+
+@run_app.command('receipts')
+def run_receipts(ctx: typer.Context, run_id: str):
+    with daemon_client(ctx.obj) as client:
+        typer.echo(json.dumps(response_json(client.get(run_path(run_id) + '/receipts')), indent=2))
+
+
+@approval_app.command('list')
+def list_approvals(ctx: typer.Context):
+    with daemon_client(ctx.obj) as client:
+        typer.echo(json.dumps(response_json(client.get('/v1/approvals')), indent=2))
+
+
+def decide_approval(ctx: typer.Context, approval_id: str, approved: bool,
+                    arguments_sha256: str, policy_sha256: str):
+    path = '/v1/approvals/' + quote(approval_id, safe='') + '/decision'
+    with daemon_client(ctx.obj) as client:
+        result = response_json(client.post(path, json={
+            'approved': approved,
+            'arguments_sha256': arguments_sha256,
+            'policy_sha256': policy_sha256,
+        }))
+        typer.echo(json.dumps(result, indent=2))
+
+
+@approval_app.command('approve')
+def approve(ctx: typer.Context, approval_id: str,
+            arguments_sha256: str = typer.Option(..., '--arguments-sha256'),
+            policy_sha256: str = typer.Option(..., '--policy-sha256')):
+    decide_approval(ctx, approval_id, True, arguments_sha256, policy_sha256)
+
+
+@approval_app.command('deny')
+def deny(ctx: typer.Context, approval_id: str,
+         arguments_sha256: str = typer.Option(..., '--arguments-sha256'),
+         policy_sha256: str = typer.Option(..., '--policy-sha256')):
+    decide_approval(ctx, approval_id, False, arguments_sha256, policy_sha256)
+
+
+@app.command()
+def grant(ctx: typer.Context, capability: Capability,
+          workspace_id: str = typer.Option(..., '--workspace-id')):
+    with daemon_client(ctx.obj) as client:
+        result = response_json(client.post('/v1/grants', json={
+            'workspace_id': workspace_id,
+            'capability': capability.value,
+        }))
+        typer.echo(json.dumps(result, indent=2))
+
+
+@app.command()
+def workspace(ctx: typer.Context):
+    with daemon_client(ctx.obj) as client:
+        typer.echo(json.dumps(response_json(client.get('/v1/workspace')), indent=2))
 
 
 @session_app.command('reset')
