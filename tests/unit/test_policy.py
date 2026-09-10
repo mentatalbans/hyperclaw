@@ -34,3 +34,34 @@ def test_command_rejects_nul_before_dispatch():
 def test_duplicate_artifact_checks_are_rejected_before_effects():
     with pytest.raises(InvalidRequest):
         Policy('w',{'execute'}).check(ToolCall(id='1',name='command',arguments={'argv':['true'],'checks':[{'path':'a'},{'path':'a'}]}),['command'])
+
+
+@pytest.mark.parametrize(('name', 'arguments'), [
+    ('memory_remember', {'text': 'Store this.', 'scope': 'workspace',
+                         'valid_until': '2030-01-01T00:00:00+00:00'}),
+    ('memory_search', {'query': 'Store', 'limit': 3}),
+    ('memory_correct', {'record_id': 'record-1', 'text': 'Replace this.'}),
+    ('memory_forget', {'record_id': 'record-1'}),
+])
+def test_memory_tools_are_scoped_by_admission_without_grants(name, arguments):
+    policy = Policy('workspace-a', set())
+
+    decision = policy.check(ToolCall(id='1', name=name, arguments=arguments), [name])
+
+    assert decision.capability == 'memory'
+    assert decision.effect == 'memory'
+    assert not decision.requires_approval
+    assert not decision.writable
+    assert [definition['name'] for definition in policy.definitions([name])] == [name]
+
+
+@pytest.mark.parametrize('field', ['workspace_id', 'session_id', 'source_run_id'])
+def test_memory_policy_rejects_model_selected_identity_and_authority(field):
+    call = ToolCall(id='1', name='memory_remember', arguments={
+        'text': 'Store this.', field: 'forged',
+    })
+
+    with pytest.raises(InvalidRequest) as caught:
+        Policy('workspace-a', {'write', 'execute'}).check(call, ['memory_remember'])
+
+    assert caught.value.code == 'invalid_tool_arguments'

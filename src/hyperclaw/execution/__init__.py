@@ -11,7 +11,7 @@ from hyperclaw.execution.policy import Policy
 
 
 async def settle(task):
-    """Complete a started file effect and its receipt even if its caller cancels."""
+    """Complete a started host effect and its receipt even if its caller cancels."""
     cancelled = False
     while not task.done():
         try:
@@ -27,6 +27,8 @@ async def settle(task):
 class Executor:
     def __init__(self, store, settings, workspace, backend):
         self.store, self.settings, self.workspace, self.backend = store, settings, workspace, backend
+        from hyperclaw.memory import Memory
+        self.memory = Memory(store)
 
     @classmethod
     async def open(cls, store, settings):
@@ -85,6 +87,8 @@ class Executor:
         if remaining <= 0:
             return await self.store.complete_invocation(ToolReceipt(invocation_id=inv.id, status='failed',
                 evidence={'reason': 'Run execution budget exhausted.'}))
+        if decision.effect == 'memory':
+            return await settle(asyncio.create_task(self.memory.invoke(inv.id)))
         if decision.effect != 'command':
             return await settle(asyncio.create_task(self._file(inv, decision)))
         return await self._command(inv, decision, min(remaining, decision.deadline_s))

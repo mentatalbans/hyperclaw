@@ -69,6 +69,10 @@ ScheduleStatus = Literal['active', 'paused', 'completed']
 SchedulePauseReason = Literal['operator', 'stale_generation', 'uncertain_effect']
 MemoryStatus = Literal['active', 'superseded', 'forgotten']
 MemoryToolScope = Literal['session', 'workspace']
+DEFAULT_TOOLS = (
+    'workspace_read', 'workspace_list', 'workspace_search', 'workspace_write', 'command',
+    'memory_remember', 'memory_search', 'memory_correct', 'memory_forget',
+)
 
 
 def canonical(value) -> str:
@@ -95,15 +99,15 @@ class RunRequest(Value):
     request_id: Identifier
     text: str = Field(min_length=1)
     retry_of: Identifier | None = None
-    tools: tuple[str, ...] = ('workspace_read', 'workspace_list', 'workspace_search', 'workspace_write', 'command')
+    tools: tuple[str, ...] = DEFAULT_TOOLS
     images: tuple['ImageAttachment', ...] = ()
     context_bytes: int = Field(default=CONTEXT_BYTES, ge=CONTEXT_BYTES, le=8 * 1024 * 1024, strict=True)
 
     @model_validator(mode='after')
     def bounded_request(self):
-        if len(self.tools) > 5 or len(set(self.tools)) != len(self.tools):
+        if len(self.tools) > len(DEFAULT_TOOLS) or len(set(self.tools)) != len(self.tools):
             raise ValueError('Invalid tool allowlist')
-        allowed = {'workspace_read', 'workspace_list', 'workspace_search', 'workspace_write', 'command'}
+        allowed = set(DEFAULT_TOOLS)
         if set(self.tools) - allowed:
             raise ValueError('Unknown tool')
         if len(self.images) > 4 or len(message_bytes([self.current_message()])) > self.context_bytes:
@@ -253,7 +257,7 @@ class ScheduleRequest(Value):
     input: str
     next_due_at: datetime
     interval_seconds: int | None = Field(default=None, ge=1, le=31_536_000, strict=True)
-    tools: tuple[str, ...] = ('workspace_read', 'workspace_list', 'workspace_search', 'workspace_write', 'command')
+    tools: tuple[str, ...] = DEFAULT_TOOLS
 
     @field_validator('id')
     @classmethod

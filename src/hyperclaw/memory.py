@@ -1,5 +1,6 @@
 """Explicit scoped memory stored on the runtime's single SQLite owner."""
 from datetime import datetime
+import json
 import re
 from uuid import uuid4
 
@@ -9,9 +10,14 @@ from hyperclaw.contracts import (
     Checkpoint,
     Conflict,
     InvalidRequest,
+    MemoryCorrectArguments,
+    MemoryForgetArguments,
     MemoryRecord,
+    MemoryRememberArguments,
     MemoryScope,
+    MemorySearchArguments,
     NotFound,
+    ToolReceipt,
     memory_instant,
     memory_query,
     memory_text,
@@ -20,6 +26,7 @@ from hyperclaw.store import instant, now
 
 
 _WORD = re.compile(r'[^\W_]+', re.UNICODE)
+_OUTPUT_LIMIT = 65536
 
 
 class Memory:
@@ -218,3 +225,99 @@ class Memory:
     async def forget(self, record_id, scope):
         return await self.store._call(lambda: self.store._transaction(
             lambda: self._forget(record_id, scope)))
+
+    @staticmethod
+    def _tool_arguments(schema, arguments):
+        try:
+            return schema.model_validate(arguments)
+        except ValidationError:
+            raise InvalidRequest(
+                'invalid_tool_arguments',
+                'Tool arguments do not match the admitted schema.',
+            ) from None
+
+    @staticmethod
+    def _record_output(records):
+        values = []
+        for record in records:
+            candidate = values + [record.model_dump(mode='json')]
+            output = json.dumps(candidate, ensure_ascii=False, separators=(',', ':'))
+            if len(output.encode('utf-8')) > _OUTPUT_LIMIT:
+                break
+            values = candidate
+        return json.dumps(values, ensure_ascii=False, separators=(',', ':'))
+
+    def _invoke(self, invocation):
+        run = self.store._run(invocation.run_id)
+        if run.status != 'running' or invocation.status != 'prepared':
+            raise Conflict('invocation_not_prepared', 'A memory invocation can be dispatched only once.')
+        if invocation.capability != 'memory':
+            raise InvalidRequest('tool_disallowed', 'This invocation is not a memory capability.')
+        checkpoint = Checkpoint.model_validate_json(
+            self.store._db.execute(
+                'SELECT checkpoint_json FROM runs WHERE id=?', (run.id,),
+            ).fetchone()['checkpoint_json']
+        )
+        if not checkpoint.workspace_id or checkpoint.workspace_id != invocation.workspace_id:
+            raise Conflict(
+                'workspace_changed',
+                'Selected workspace changed since this run was checkpointed.',
+            )
+
+        schemas = {
+            'memory_remember': MemoryRememberArguments,
+            'memory_search': MemorySearchArguments,
+            'memory_correct': MemoryCorrectArguments,
+            'memory_forget': MemoryForgetArguments,
+        }
+        schema = schemas.get(invocation.call.name)
+        if schema is None:
+            raise InvalidRequest('tool_disallowed', 'This invocation is not a memory tool.')
+        arguments = self._tool_arguments(schema, invocation.call.arguments)
+        scope = MemoryScope(
+            workspace_id=invocation.workspace_id,
+            session_id=run.request.session_id if arguments.scope == 'session' else None,
+        )
+        observed_at = self._observed_at()
+
+        if invocation.call.name == 'memory_remember':
+            record = self._remember(
+                scope, arguments.text, run.id,
+                valid_until=arguments.valid_until, observed_at=observed_at,
+            )
+            output = record.model_dump_json()
+        elif invocation.call.name == 'memory_search':
+            records = self._search(
+                scope, arguments.query, arguments.limit, observed_at=observed_at,
+            )
+            output = self._record_output(records)
+        elif invocation.call.name == 'memory_correct':
+            record = self._correct(
+                arguments.record_id, arguments.text, scope, source_run_id=run.id,
+                valid_until=arguments.valid_until, observed_at=observed_at,
+            )
+            output = record.model_dump_json()
+        else:
+            self._forget(arguments.record_id, scope)
+            output = 'null'
+        return ToolReceipt(
+            invocation_id=invocation.id, status='succeeded', output=output,
+        )
+
+    async def invoke(self, invocation_id):
+        def perform():
+            invocation = self.store._invocation(invocation_id)
+            if invocation.receipt:
+                return invocation.receipt
+            try:
+                receipt = self._invoke(invocation)
+            except (Conflict, InvalidRequest, NotFound) as exc:
+                receipt = ToolReceipt(
+                    invocation_id=invocation.id,
+                    status='failed',
+                    output=exc.message,
+                    evidence={'code': exc.code},
+                )
+            return self.store._complete_invocation(receipt)
+
+        return await self.store._call(lambda: self.store._transaction(perform))

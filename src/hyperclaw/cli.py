@@ -99,6 +99,10 @@ class ToolName(str, Enum):
     workspace_search = 'workspace_search'
     workspace_write = 'workspace_write'
     command = 'command'
+    memory_remember = 'memory_remember'
+    memory_search = 'memory_search'
+    memory_correct = 'memory_correct'
+    memory_forget = 'memory_forget'
 
 
 class Capability(str, Enum):

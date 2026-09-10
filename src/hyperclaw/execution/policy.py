@@ -4,7 +4,15 @@ import hashlib
 from typing import Annotated
 
 from pydantic import ConfigDict, Field, ValidationError, model_validator
-from hyperclaw.contracts import InvalidRequest, Value, canonical
+from hyperclaw.contracts import (
+    InvalidRequest,
+    MemoryCorrectArguments,
+    MemoryForgetArguments,
+    MemoryRememberArguments,
+    MemorySearchArguments,
+    Value,
+    canonical,
+)
 
 PathArgument = Annotated[str, Field(min_length=1, max_length=1024)]
 Digest = Annotated[str, Field(pattern=r'^[0-9a-f]{64}$')]
@@ -55,6 +63,10 @@ CATALOG = {
     'workspace_search': (Search, 'read', 'read', 'Search workspace text files for a literal string.'),
     'workspace_write': (Write, 'write', 'write', 'Write a UTF-8 file; optionally check an expected SHA-256.'),
     'command': (Command, 'execute', 'command', 'Run argv in an isolated, network-disabled container at /workspace. Execution authority and writable mount authority are separate. Supply file checks to publish verified artifacts.'),
+    'memory_remember': (MemoryRememberArguments, 'memory', 'memory', 'Remember an explicit fact in this session by default, or share it with the workspace.'),
+    'memory_search': (MemorySearchArguments, 'memory', 'memory', 'Search explicit memory visible to this session or the workspace.'),
+    'memory_correct': (MemoryCorrectArguments, 'memory', 'memory', 'Replace an accessible active memory record with a corrected version.'),
+    'memory_forget': (MemoryForgetArguments, 'memory', 'memory', 'Forget an accessible active memory record.'),
 }
 OUTPUT_LIMIT = 65536
 DEADLINE_S = 60
@@ -96,4 +108,5 @@ class Policy:
                  'grants': sorted(self.grants), 'capability': capability, 'effect': effect,
                  'output_limit': OUTPUT_LIMIT, 'deadline_s': deadline, 'network': False}
         return Decision(arguments, capability, effect, hashlib.sha256(canonical(value).encode()).hexdigest(),
-                        capability != 'read' and capability not in self.grants, 'write' in self.grants, deadline)
+                        capability not in {'read', 'memory'} and capability not in self.grants,
+                        'write' in self.grants, deadline)

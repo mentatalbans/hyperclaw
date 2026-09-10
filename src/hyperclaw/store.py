@@ -759,16 +759,20 @@ class Store:
             self._db.execute('UPDATE invocations SET container_id=? WHERE id=?', (container_id, inv.id))
         return await self._call(lambda: self._transaction(bind))
 
+    def _complete_invocation(self, receipt: ToolReceipt):
+        inv = self._invocation(receipt.invocation_id)
+        if inv.receipt:
+            if inv.receipt != receipt:
+                raise Conflict('receipt_exists', 'A conclusive invocation receipt cannot be replaced.')
+            return inv.receipt
+        self._db.execute('UPDATE invocations SET status=?,receipt_json=? WHERE id=?',
+                         (receipt.status, receipt.model_dump_json(), inv.id))
+        for artifact in receipt.artifacts:
+            self._db.execute('INSERT INTO artifacts VALUES (?,?,?,?)',
+                             (inv.id, artifact.path, artifact.sha256, artifact.size_bytes))
+        self._event(inv.run_id, 'tool.finished', receipt.model_dump(mode='json'))
+        return receipt
+
     async def complete_invocation(self, receipt: ToolReceipt):
-        def complete():
-            inv = self._invocation(receipt.invocation_id)
-            if inv.receipt:
-                if inv.receipt != receipt:
-                    raise Conflict('receipt_exists', 'A conclusive invocation receipt cannot be replaced.')
-                return inv.receipt
-            self._db.execute('UPDATE invocations SET status=?,receipt_json=? WHERE id=?', (receipt.status, receipt.model_dump_json(), inv.id))
-            for artifact in receipt.artifacts:
-                self._db.execute('INSERT INTO artifacts VALUES (?,?,?,?)', (inv.id, artifact.path, artifact.sha256, artifact.size_bytes))
-            self._event(inv.run_id, 'tool.finished', receipt.model_dump(mode='json'))
-            return receipt
-        return await self._call(lambda: self._transaction(complete))
+        return await self._call(lambda: self._transaction(
+            lambda: self._complete_invocation(receipt)))
