@@ -1,16 +1,17 @@
 """Authenticated loopback HTTP adapter; lifespan owns the only runtime."""
 from contextlib import asynccontextmanager
 import hmac
+from importlib.resources import files
 import json
 import logging
 import os
 from uuid import uuid4
-from typing import Literal
+from typing import Annotated, Literal
 from pydantic import Field
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from hyperclaw.config import Settings, initialize_root, read_token
 from hyperclaw.contracts import (
@@ -51,6 +52,9 @@ def create_app(settings: Settings) -> FastAPI:
     metadata_path = settings.root / 'daemon.json'
     hosts = {f'127.0.0.1:{settings.port}'}
     origins = {url}
+    public_web = {'/': ('index.html', 'text/html; charset=utf-8'),
+                  '/web/app.js': ('app.js', 'text/javascript; charset=utf-8'),
+                  '/web/style.css': ('style.css', 'text/css; charset=utf-8')}
     if settings.port == 80:
         hosts.add('127.0.0.1')
         origins.add('http://127.0.0.1')
@@ -104,7 +108,8 @@ def create_app(settings: Settings) -> FastAPI:
             return JSONResponse({'error': {'code': 'invalid_host', 'message': 'Invalid local host.'}}, status_code=400)
         if request.headers.get('origin') is not None and request.headers['origin'] not in origins:
             return JSONResponse({'error': {'code': 'invalid_origin', 'message': 'Cross-origin requests are disabled.'}}, status_code=403)
-        if request.url.path != '/healthz':
+        is_public_web = request.method in {'GET', 'HEAD'} and request.url.path in public_web
+        if request.url.path != '/healthz' and not is_public_web:
             supplied = request.headers.get('authorization', '')
             expected = 'Bearer ' + app.state.token
             if not hmac.compare_digest(supplied.encode(), expected.encode()):
@@ -129,13 +134,48 @@ def create_app(settings: Settings) -> FastAPI:
             return JSONResponse({'status': 'unavailable'}, status_code=503)
         return {'status': 'ok'}
 
+    @app.api_route('/', methods=['GET', 'HEAD'])
+    @app.api_route('/web/app.js', methods=['GET', 'HEAD'])
+    @app.api_route('/web/style.css', methods=['GET', 'HEAD'])
+    async def web_asset(request: Request):
+        name, media_type = public_web[request.url.path]
+        content = files('hyperclaw').joinpath('web', name).read_bytes()
+        return Response(content=content, media_type=media_type, headers={
+            'Cache-Control': 'no-store',
+            'Content-Security-Policy': (
+                "default-src 'none'; script-src 'self'; style-src 'self'; "
+                "connect-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'; "
+                "form-action 'self'"
+            ),
+            'Referrer-Policy': 'no-referrer',
+            'X-Content-Type-Options': 'nosniff',
+        })
+
     @app.post('/v1/sessions')
     async def create_session():
         return await app.state.runtime.create_session()
 
+    @app.get('/v1/sessions')
+    async def sessions(
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        before: str | None = None,
+    ):
+        return await app.state.runtime.sessions(limit=limit, before=before)
+
     @app.get('/v1/sessions/{session_id}')
     async def get_session(session_id: str):
         return await app.state.runtime.get_session(session_id)
+
+    @app.get('/v1/sessions/{session_id}/runs')
+    async def session_runs(
+        session_id: str,
+        generation: Annotated[int | None, Query(ge=0)] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        before: str | None = None,
+    ):
+        return await app.state.runtime.session_runs(
+            session_id, generation=generation, limit=limit, before=before,
+        )
 
     @app.post('/v1/sessions/{session_id}/reset')
     async def reset_session(session_id: str, body: ResetRequest):
@@ -147,7 +187,9 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.get('/v1/mcp')
     async def inspect_mcp():
-        return await app.state.runtime.executor.mcp.inspect_admission()
+        result = await app.state.runtime.executor.mcp.inspect_admission()
+        admission = await app.state.runtime.store.mcp_admission()
+        return result | {'admission': admission}
 
     @app.post('/v1/mcp/admit')
     async def admit_mcp(body: McpAdmission):

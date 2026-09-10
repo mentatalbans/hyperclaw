@@ -3,11 +3,15 @@ COVERAGE ?= 0
 MCP_DOCS_IMAGE ?=
 OLLAMA_URL ?= http://127.0.0.1:11434
 OLLAMA_MODEL ?= qwen3.8:27b-mlx
+BROWSER_CHANNEL ?= chromium
 
-.PHONY: test test-docker test-live test-all test-coverage
+.PHONY: test test-browser test-docker test-live test-all test-coverage
 
 test:
 	$(PYTHON) scripts/test_battery.py quick $(if $(filter 1,$(COVERAGE)),--coverage,)
+
+test-browser:
+	$(PYTHON) scripts/test_battery.py browser --browser-channel "$(BROWSER_CHANNEL)"
 
 test-docker:
 	$(PYTHON) scripts/test_battery.py docker --mcp-docs-image "$(MCP_DOCS_IMAGE)"

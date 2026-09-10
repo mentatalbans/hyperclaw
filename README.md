@@ -155,4 +155,10 @@ While a session is occupied, its earliest pending due time stays pending. After 
 
 Session reset pauses its schedules. `retarget` requires the schedule's expected generation and fetches the session's current generation before resuming. Pausing does not cancel queued runs; cancel those explicitly. An uncertain scheduled outcome pauses future occurrences as `uncertain_effect` and cannot be resumed through retarget. Completed schedules cannot be retargeted. Occurrences already accepted remain consumed after cancellation, failure or interruption.
 
-Reviewed skills and the admitted documentation MCP peer are included in M5; web/Telegram remain M6. No legacy client parity or service switch is implied by these milestones.
+## Local web client
+
+Start the daemon as usual, then open the loopback URL printed by `hyperclaw serve` (by default `http://127.0.0.1:8011/`). Enter the operator token from the selected runtime root's `token` file. The token stays in page memory only and is cleared from the input after connecting and from memory when you disconnect or reload; it is never placed in the URL or browser storage.
+
+The web client can create and select sessions, submit text with an explicit tool allowlist and admitted skills, inspect current and older-generation runs, reconnect event observation, cancel, reset the conversation generation, review receipts, and decide exact pending approvals. A submission whose HTTP outcome is ambiguous remains available as “Retry same request”; this deliberately reuses its original request ID. The browser never resubmits automatically during connection or stream recovery.
+
+The web surface is local and operator-authenticated. Only the empty shell and its two fixed assets are public; every `/v1` state request still requires the bearer token. Telegram remains an M6 follow-up and is not shipped by this change. No service installation or switch is implied.

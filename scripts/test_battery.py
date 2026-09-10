@@ -28,13 +28,14 @@ def test_counts(path: Path) -> dict | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("quick", "docker", "live", "all"), nargs="?", default="quick")
+    parser.add_argument("mode", choices=("quick", "browser", "docker", "live", "all"), nargs="?", default="quick")
     parser.add_argument("paths", nargs="*", help="Optional focused test paths, relative to the repository")
     parser.add_argument("--report-dir", type=Path, default=ROOT / "test-results")
     parser.add_argument("--coverage", action="store_true", help="Record coverage for src/hyperclaw")
     parser.add_argument("--ollama-url", default="http://127.0.0.1:11434")
     parser.add_argument("--ollama-model", default="qwen3.8:27b-mlx")
     parser.add_argument("--mcp-docs-image", default="")
+    parser.add_argument("--browser-channel", default="chromium")
     parser.add_argument("--with-docker", action="store_true", help="Explicitly include combined model and Docker cases in live mode")
     arguments = parser.parse_args()
     if arguments.with_docker and arguments.mode != "live":
@@ -51,6 +52,9 @@ def main() -> int:
         command += ["--run-docker"]
     if arguments.mode == "quick":
         command += ["-m", "not ollama and not docker"]
+    if arguments.mode == "browser":
+        command += ["--run-browser", "--browser-channel", arguments.browser_channel,
+                    "--browser-screenshot-dir", str(report / "screenshots"), "-m", "browser"]
     if arguments.mode == "docker":
         command += ["--run-docker", "-m", "docker"]
     if arguments.mode in {"live", "all"}:

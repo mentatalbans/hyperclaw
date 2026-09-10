@@ -309,6 +309,32 @@ class Store:
     async def get_session(self, session_id):
         return await self._call(lambda: self._session(session_id))
 
+    async def sessions(self, limit=50, before=None):
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise InvalidRequest()
+        if before is not None and (not isinstance(before, str) or not before or len(before) > 256):
+            raise Conflict('invalid_cursor', 'Session cursor must identify a session in this collection.')
+
+        def read():
+            bound = None
+            if before is not None:
+                row = self._db.execute(
+                    'SELECT rowid FROM sessions WHERE id=?', (before,),
+                ).fetchone()
+                if row is None:
+                    raise Conflict('invalid_cursor', 'Session cursor must identify a session in this collection.')
+                bound = row['rowid']
+            query = 'SELECT id FROM sessions'
+            values = []
+            if bound is not None:
+                query += ' WHERE rowid<?'
+                values.append(bound)
+            query += ' ORDER BY rowid DESC LIMIT ?'
+            values.append(limit)
+            return [self._session(row['id']) for row in self._db.execute(query, values).fetchall()]
+
+        return await self._call(read)
+
     async def reset_session(self, session_id, generation):
         if type(generation) is not int or generation < 0:
             raise InvalidRequest()
@@ -620,6 +646,41 @@ class Store:
 
     async def get_run(self, run_id):
         return await self._call(lambda: self._run(run_id))
+
+    async def session_runs(self, session_id, generation=None, limit=50, before=None):
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise InvalidRequest()
+        if generation is not None and (type(generation) is not int or generation < 0):
+            raise InvalidRequest()
+        if before is not None and (not isinstance(before, str) or not before or len(before) > 256):
+            raise Conflict('invalid_cursor', 'Run cursor must identify a run in this collection.')
+
+        def read():
+            self._session(session_id)
+            filters = ['session_id=?']
+            values = [session_id]
+            if generation is not None:
+                filters.append('generation=?')
+                values.append(generation)
+            if before is not None:
+                cursor_filters = list(filters) + ['id=?']
+                cursor_values = list(values) + [before]
+                row = self._db.execute(
+                    f"SELECT rowid FROM runs WHERE {' AND '.join(cursor_filters)}",
+                    cursor_values,
+                ).fetchone()
+                if row is None:
+                    raise Conflict('invalid_cursor', 'Run cursor must identify a run in this collection.')
+                filters.append('rowid<?')
+                values.append(row['rowid'])
+            values.append(limit)
+            rows = self._db.execute(
+                f"SELECT id FROM runs WHERE {' AND '.join(filters)} ORDER BY rowid DESC LIMIT ?",
+                values,
+            ).fetchall()
+            return [self._run(row['id']) for row in rows]
+
+        return await self._call(read)
 
     async def next_run(self):
         def claim():

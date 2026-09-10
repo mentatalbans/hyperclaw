@@ -64,6 +64,9 @@ class Runtime:
     async def get_session(self, session_id):
         return await self.store.get_session(session_id)
 
+    async def sessions(self, limit=50, before=None):
+        return await self.store.sessions(limit=limit, before=before)
+
     async def reset_session(self, session_id, generation):
         self._accepting()
         return await self.store.reset_session(session_id, generation)
@@ -119,6 +122,11 @@ class Runtime:
 
     async def get_run(self, run_id):
         return await self.store.get_run(run_id)
+
+    async def session_runs(self, session_id, generation=None, limit=50, before=None):
+        return await self.store.session_runs(
+            session_id, generation=generation, limit=limit, before=before,
+        )
 
     async def cancel(self, run_id):
         async with self._control:
