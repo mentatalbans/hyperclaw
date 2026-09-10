@@ -1,6 +1,6 @@
 # HyperClaw Runtime v2 Roadmap Implementation Plan
 
-M1 and M2 completed 2026-09-09: [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md), [M2 acceptance](../../reports/2026-09-09-runtime-v2-m2.md). M3 completed 2026-09-09: [M3 acceptance](../../reports/2026-09-09-runtime-v2-m3.md). M4 completed 2026-09-10: [M4 evidence](../../reports/2026-09-10-runtime-v2-m4.md). M5 implementation and acceptance gates completed 2026-09-10; final review is pending: [M5 evidence](../../reports/2026-09-10-runtime-v2-m5.md). M6 is not started. Baseline notes below describe the original planning state.
+M1 and M2 completed 2026-09-09: [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md), [M2 acceptance](../../reports/2026-09-09-runtime-v2-m2.md). M3 completed 2026-09-09: [M3 acceptance](../../reports/2026-09-09-runtime-v2-m3.md). M4 completed 2026-09-10: [M4 evidence](../../reports/2026-09-10-runtime-v2-m4.md). M5 completed 2026-09-10 after final review, scoped fixes and refreshed acceptance: [M5 evidence](../../reports/2026-09-10-runtime-v2-m5.md). M6 is not started. Baseline notes below describe the original planning state.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
