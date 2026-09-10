@@ -105,9 +105,17 @@ def test_changed_or_revoked_skill_blocks_new_and_queued_runs(service):
     assert app.client.post('/v1/skills/documentation-answer/admit',
                            json={'content_hash': changed.content_hash}).status_code == 200
 
-    peer.enqueue(Reply())
-    run = submit(app, request_id='selected', skills=['documentation-answer'])
-    assert app.client.delete('/v1/skills/documentation-answer/admission').status_code == 200
+    gate = threading.Event()
+    peer.enqueue(Reply(gate=gate))
+    blocker = submit(app, 'hold worker', request_id='blocker')
+    peer.take_request()
+    try:
+        run = submit(app, request_id='selected', skills=['documentation-answer'])
+        assert app.client.get(f"/v1/runs/{run['id']}").json()['status'] == 'queued'
+        assert app.client.delete('/v1/skills/documentation-answer/admission').status_code == 200
+    finally:
+        gate.set()
+    assert events(app, blocker['id'])[-1]['data']['status'] == 'succeeded'
     seen = events(app, run['id'])
     assert seen[-1]['data']['status'] == 'failed'
     assert app.client.get(f"/v1/runs/{run['id']}").json()['error']['code'] == 'skill_not_admitted'
