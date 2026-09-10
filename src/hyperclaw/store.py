@@ -99,6 +99,32 @@ MIGRATIONS += ((False, (
 )),)
 
 
+MIGRATIONS += ((False, (
+    """CREATE TABLE memory_records (
+        id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL,
+        session_id TEXT REFERENCES sessions(id), text TEXT NOT NULL,
+        source_run_id TEXT REFERENCES runs(id), observed_at TEXT NOT NULL,
+        valid_until TEXT, supersedes TEXT UNIQUE REFERENCES memory_records(id),
+        version INTEGER NOT NULL CHECK(version > 0),
+        status TEXT NOT NULL CHECK(status IN ('active','superseded','forgotten')))""",
+    'CREATE INDEX memory_scope_status ON memory_records(workspace_id,session_id,status,valid_until)',
+    'CREATE INDEX memory_source_run ON memory_records(source_run_id)',
+    "CREATE VIRTUAL TABLE memory_fts USING fts5(text, content='memory_records', content_rowid='rowid')",
+    """CREATE TRIGGER memory_records_ai AFTER INSERT ON memory_records
+        WHEN new.status='active' BEGIN
+        INSERT INTO memory_fts(rowid,text) VALUES (new.rowid,new.text); END""",
+    """CREATE TRIGGER memory_records_ad AFTER DELETE ON memory_records
+        WHEN old.status='active' BEGIN
+        INSERT INTO memory_fts(memory_fts,rowid,text) VALUES ('delete',old.rowid,old.text); END""",
+    """CREATE TRIGGER memory_records_au_delete AFTER UPDATE ON memory_records
+        WHEN old.status='active' BEGIN
+        INSERT INTO memory_fts(memory_fts,rowid,text) VALUES ('delete',old.rowid,old.text); END""",
+    """CREATE TRIGGER memory_records_au_insert AFTER UPDATE ON memory_records
+        WHEN new.status='active' BEGIN
+        INSERT INTO memory_fts(rowid,text) VALUES (new.rowid,new.text); END""",
+)),)
+
+
 def now():
     return datetime.now(timezone.utc).isoformat()
 

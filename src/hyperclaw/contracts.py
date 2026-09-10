@@ -67,6 +67,8 @@ ScheduleIdentifier = Annotated[
 Generation = Annotated[int, Field(ge=0, strict=True)]
 ScheduleStatus = Literal['active', 'paused', 'completed']
 SchedulePauseReason = Literal['operator', 'stale_generation', 'uncertain_effect']
+MemoryStatus = Literal['active', 'superseded', 'forgotten']
+MemoryToolScope = Literal['session', 'workspace']
 
 
 def canonical(value) -> str:
@@ -135,6 +137,113 @@ def schedule_instant(value: datetime) -> datetime:
     if not minimum <= normalized <= maximum:
         raise ValueError('Schedule timestamp is outside the supported range')
     return normalized
+
+
+def memory_instant(value: datetime) -> datetime:
+    if not isinstance(value, datetime) or value.tzinfo is None:
+        raise ValueError('Memory timestamp must include a UTC offset')
+    try:
+        if value.utcoffset() is None:
+            raise ValueError('Memory timestamp must include a UTC offset')
+        normalized = value.astimezone(timezone.utc)
+    except (OverflowError, ValueError):
+        raise ValueError('Memory timestamp is outside the supported range') from None
+    minimum = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    maximum = datetime(9998, 12, 31, 23, 59, 59, 999999, tzinfo=timezone.utc)
+    if not minimum <= normalized <= maximum:
+        raise ValueError('Memory timestamp is outside the supported range')
+    return normalized
+
+
+def memory_text(value: str) -> str:
+    if not isinstance(value, str) or not value.strip() or '\0' in value:
+        raise ValueError('Memory text must be nonblank and contain no NUL')
+    if len(value.encode('utf-8')) > 2048:
+        raise ValueError('Memory text exceeds 2,048 UTF-8 bytes')
+    return value
+
+
+def memory_query(value: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError('Memory query must be nonblank')
+    if len(value.encode('utf-8')) > 1024:
+        raise ValueError('Memory query exceeds 1,024 UTF-8 bytes')
+    return value
+
+
+class MemoryScope(Value):
+    workspace_id: Identifier
+    session_id: Identifier | None = None
+
+
+class MemoryRecord(Value):
+    id: Identifier
+    scope: MemoryScope
+    text: str
+    source_run_id: Identifier | None = None
+    observed_at: datetime
+    valid_until: datetime | None = None
+    supersedes: Identifier | None = None
+    version: int = Field(ge=1, strict=True)
+    status: MemoryStatus
+
+    @field_validator('text')
+    @classmethod
+    def valid_text(cls, value):
+        return memory_text(value)
+
+    @field_validator('observed_at', 'valid_until')
+    @classmethod
+    def normalized_timestamp(cls, value):
+        return memory_instant(value) if value is not None else None
+
+
+def _memory_argument_time(value):
+    if value is None:
+        return None
+    if type(value) is not str:
+        raise ValueError('Memory valid_until must be an ISO timestamp string')
+    try:
+        parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except ValueError:
+        raise ValueError('Memory valid_until must be an ISO timestamp string') from None
+    return memory_instant(parsed)
+
+
+class MemoryRememberArguments(Value):
+    scope: MemoryToolScope = 'session'
+    text: str
+    valid_until: datetime | None = None
+
+    @field_validator('text')
+    @classmethod
+    def valid_text(cls, value):
+        return memory_text(value)
+
+    @field_validator('valid_until', mode='before')
+    @classmethod
+    def valid_expiry(cls, value):
+        return _memory_argument_time(value)
+
+
+class MemorySearchArguments(Value):
+    scope: MemoryToolScope = 'session'
+    query: str
+    limit: int = Field(default=5, ge=1, le=5, strict=True)
+
+    @field_validator('query')
+    @classmethod
+    def valid_query(cls, value):
+        return memory_query(value)
+
+
+class MemoryCorrectArguments(MemoryRememberArguments):
+    record_id: Identifier
+
+
+class MemoryForgetArguments(Value):
+    scope: MemoryToolScope = 'session'
+    record_id: Identifier
 
 
 class ScheduleRequest(Value):
