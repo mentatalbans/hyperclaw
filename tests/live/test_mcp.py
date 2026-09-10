@@ -35,7 +35,7 @@ def test_qwen_answers_documentation_question_with_unseen_source_marker(tmp_path,
         preview = app.client.get('/v1/mcp').json()
         app.client.post('/v1/mcp/admit', json={'expected_sha256': preview['sha256']}).raise_for_status()
         before = app.client.get('/v1/grants').json()
-        run = submit(app, 'Use the admitted public README.md to answer: what is the default runtime root and how does the runtime preserve tool outcomes across restart? Cite the source path and line numbers. Also find and quote the documentation verification marker from that file.',
+        run = submit(app, 'Use the admitted public README.md to answer: what is the default runtime root and how does the runtime preserve tool outcomes across restart? Cite the source path and line numbers. Also find and quote the documentation verification marker from that file. Use search limits no greater than 5 and read at most 80 lines per call.',
                      tools=['mcp_docs_search', 'mcp_docs_read'], skills=['documentation-answer'])
         observed = events(app, run['id'])
         saved = app.client.get(f"/v1/runs/{run['id']}").json()
