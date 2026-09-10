@@ -203,6 +203,7 @@ def chat(ctx: typer.Context, text: str, session: str | None = None, detach: bool
          image: list[Path] = typer.Option([], '--image'),
          context_bytes: int = typer.Option(65_536, min=65_536, max=8 * 1024 * 1024),
          tool: list[ToolName] = typer.Option([], '--tool'),
+         skill: list[str] = typer.Option([], '--skill'),
          no_tools: bool = typer.Option(False, '--no-tools')):
     if no_tools and tool:
         raise InvalidRequest('tool_selection', 'Choose explicit --tool values or --no-tools, not both.')
@@ -217,6 +218,8 @@ def chat(ctx: typer.Context, text: str, session: str | None = None, detach: bool
             'request_id': request_id or uuid4().hex, 'text': text, 'retry_of': retry_of,
             'context_bytes': context_bytes,
         }
+        if skill:
+            body['skills'] = skill
         if attachments:
             body['images'] = attachments
         if selected_tools is not None:
@@ -251,10 +254,45 @@ run_app = typer.Typer(no_args_is_help=True)
 session_app = typer.Typer(no_args_is_help=True)
 approval_app = typer.Typer(no_args_is_help=True)
 schedule_app = typer.Typer(no_args_is_help=True)
+skill_app = typer.Typer(no_args_is_help=True)
 app.add_typer(run_app, name='run')
 app.add_typer(session_app, name='session')
 app.add_typer(approval_app, name='approval')
 app.add_typer(schedule_app, name='schedule')
+app.add_typer(skill_app, name='skill')
+
+
+def skill_path(name):
+    return '/v1/skills/' + quote(name, safe='')
+
+
+@skill_app.command('list')
+def list_skills(ctx: typer.Context):
+    with daemon_client(ctx.obj) as client:
+        typer.echo(json.dumps(response_json(client.get('/v1/skills')), indent=2))
+
+
+@skill_app.command('inspect')
+def inspect_skill(ctx: typer.Context, name: str):
+    with daemon_client(ctx.obj) as client:
+        typer.echo(json.dumps(response_json(client.get(skill_path(name))), indent=2))
+
+
+@skill_app.command('admit')
+def admit_skill(ctx: typer.Context, name: str,
+                content_hash: str = typer.Option(..., '--content-hash')):
+    with daemon_client(ctx.obj) as client:
+        result = response_json(client.post(skill_path(name) + '/admit', json={
+            'content_hash': content_hash,
+        }))
+        typer.echo(json.dumps(result, indent=2))
+
+
+@skill_app.command('revoke')
+def revoke_skill(ctx: typer.Context, name: str):
+    with daemon_client(ctx.obj) as client:
+        result = response_json(client.delete(skill_path(name) + '/admission'))
+        typer.echo(json.dumps(result, indent=2))
 
 
 @run_app.command('inspect')

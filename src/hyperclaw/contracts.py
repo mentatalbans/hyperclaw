@@ -101,6 +101,7 @@ class RunRequest(Value):
     retry_of: Identifier | None = None
     tools: tuple[str, ...] = DEFAULT_TOOLS
     images: tuple['ImageAttachment', ...] = ()
+    skills: tuple[str, ...] = ()
     context_bytes: int = Field(default=CONTEXT_BYTES, ge=CONTEXT_BYTES, le=8 * 1024 * 1024, strict=True)
 
     @model_validator(mode='after')
@@ -112,6 +113,11 @@ class RunRequest(Value):
             raise ValueError('Unknown tool')
         if len(self.images) > 4 or len(message_bytes([self.current_message()])) > self.context_bytes:
             raise ValueError('Current request exceeds the selected input budget')
+        import re
+        if (len(self.skills) > 4 or len(set(self.skills)) != len(self.skills)
+                or any(len(name) > 64 or re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', name) is None
+                       for name in self.skills)):
+            raise ValueError('Invalid skill selection')
         return self
 
     def current_message(self):
@@ -346,6 +352,32 @@ class Run(Value):
     verification: Literal['not_requested', 'passed', 'failed'] = 'not_requested'
     elapsed_s: float = 0
     artifacts: tuple['Artifact', ...] = ()
+    skill_hashes: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator('skill_hashes')
+    @classmethod
+    def valid_skill_hashes(cls, value):
+        import re
+        if (len(value) > 4 or any(
+                len(name) > 64 or re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', name) is None
+                or re.fullmatch(r'[0-9a-f]{64}', digest) is None
+                for name, digest in value.items())):
+            raise ValueError('Invalid selected skill provenance')
+        return value
+
+
+class SkillResource(Value):
+    path: str
+    text: str
+    sha256: str = Field(pattern=r'^[0-9a-f]{64}$')
+
+
+class SkillDocument(Value):
+    name: str
+    description: str
+    body: str
+    content_hash: str = Field(pattern=r'^[0-9a-f]{64}$')
+    resources: tuple[SkillResource, ...] = ()
 
 
 class RunEvent(Value):
@@ -432,6 +464,24 @@ class Checkpoint(Value):
     elapsed_s: float = Field(default=0, ge=0)
     history_length: int = Field(default=0, ge=0)
     workspace_id: str = ''
+    skill_instructions: str = ''
+    skill_hashes: dict[str, str] = Field(default_factory=dict)
+    context_sha256: str = ''
+    context_size: int = Field(default=0, ge=0)
+
+    @model_validator(mode='after')
+    def bounded_skill_snapshot(self):
+        import re
+        if len(self.skill_instructions.encode('utf-8')) > 4 * 32_768 + 8_192:
+            raise ValueError('Skill instruction snapshot exceeds its bound')
+        if (len(self.skill_hashes) > 4 or any(
+                re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', name) is None
+                or re.fullmatch(r'[0-9a-f]{64}', digest) is None
+                for name, digest in self.skill_hashes.items())):
+            raise ValueError('Invalid checkpoint skill provenance')
+        if self.context_sha256 and re.fullmatch(r'[0-9a-f]{64}', self.context_sha256) is None:
+            raise ValueError('Invalid context hash')
+        return self
 
 
 class Invocation(Value):

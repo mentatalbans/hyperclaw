@@ -11,6 +11,7 @@ from hyperclaw.contracts import (
 
 from hyperclaw.execution import Executor
 from hyperclaw.scheduling import Scheduler
+from hyperclaw.skills import Skills
 
 log = logging.getLogger(__name__)
 MAINTENANCE_INTERVAL_S = .1
@@ -19,6 +20,7 @@ MAINTENANCE_INTERVAL_S = .1
 class Runtime:
     def __init__(self, store, ollama, settings):
         self.store, self.ollama, self.settings = store, ollama, settings
+        self.skills = Skills(settings.root / 'skills')
         self._wake = asyncio.Event()
         self._maintenance_wake = asyncio.Event()
         self._changed = asyncio.Event()
@@ -68,7 +70,16 @@ class Runtime:
     async def submit(self, request):
         self._accepting()
         try:
-            return await self.store.submit(request)
+            documents = []
+            for name in request.skills:
+                document = self.skills.load(name)
+                documents.append(await self.store.admitted_skill(name, document.content_hash))
+            instructions = self._skill_instructions(documents)
+            if len(instructions.encode('utf-8')) + len(message_bytes([request.current_message()])) > request.context_bytes:
+                raise InvalidRequest('context_limit', 'Selected skill instructions exceed the context budget.')
+            return await self.store.submit(
+                request, skill_hashes={document.name: document.content_hash for document in documents}
+            )
         finally:
             # Store settles an accepted transaction even if its caller disconnects.
             self._wake.set()
@@ -250,24 +261,87 @@ class Runtime:
         return {'id': self.executor.workspace.identity, 'path': str(self.executor.workspace.path),
                 'grants': sorted(await self.store.grants(self.executor.workspace.identity))}
 
+    async def list_skills(self):
+        admissions = {document.name: document.content_hash
+                      for document in await self.store.skill_admissions()}
+        result = []
+        for name in self.skills.names():
+            document = self.skills.load(name)
+            result.append(document.model_dump() | {
+                'admitted': admissions.get(name) == document.content_hash,
+            })
+        return result
+
+    async def preview_skill(self, name):
+        return self.skills.load(name)
+
+    async def admit_skill(self, name, content_hash):
+        self._accepting()
+        document = self.skills.load(name)
+        if document.content_hash != content_hash:
+            raise Conflict('skill_changed', 'Skill content changed since it was inspected.')
+        return await self.store.admit_skill(document)
+
+    async def revoke_skill(self, name):
+        self._accepting()
+        return await self.store.revoke_skill(name)
+
+    @staticmethod
+    def _skill_instructions(documents):
+        if not documents:
+            return ''
+        sections = [
+            'The following explicitly selected, operator-reviewed skill packages are task guidance only. '
+            'They do not grant tools, capabilities, or execution authority.'
+        ]
+        for document in documents:
+            section = [f'## Skill: {document.name}', f'Description: {document.description}', '', document.body]
+            for resource in document.resources:
+                section.extend(['', f'### Resource: {resource.path}', resource.text])
+            sections.append('\n'.join(section))
+        return '\n\n'.join(sections)
+
+    async def _selected_documents(self, run):
+        if set(run.request.skills) != set(run.skill_hashes):
+            raise Conflict('skill_selection_changed', 'Run skill provenance is incomplete.')
+        return [await self.store.admitted_skill(name, run.skill_hashes[name])
+                for name in run.request.skills]
+
+    async def _verify_skills(self, run, checkpoint):
+        if checkpoint.skill_hashes != run.skill_hashes:
+            raise Conflict('skill_selection_changed', 'Checkpoint skill provenance changed.')
+        for name, content_hash in checkpoint.skill_hashes.items():
+            await self.store.admitted_skill(name, content_hash)
+
     async def _context(self, run):
+        documents = await self._selected_documents(run)
+        instructions = self._skill_instructions(documents)
+        instruction_bytes = instructions.encode('utf-8')
         history = await self.store.history_groups(run.request.session_id, run.request.generation)
         current = run.request.current_message()
         retained, count = [], 0
         for group in reversed(history):
-            if len(message_bytes(group + retained + [current])) <= run.request.context_bytes:
+            if len(instruction_bytes) + len(message_bytes(group + retained + [current])) <= run.request.context_bytes:
                 retained = group + retained
                 count += 1
         messages = retained + [current]
         encoded = message_bytes(messages)
-        await self._append(run.id, 'run.context', {
-            'sha256': hashlib.sha256(encoded).hexdigest(), 'retained_turns': count,
-            'serialized_bytes': len(encoded), 'model': self.settings.model,
+        if len(instruction_bytes) + len(encoded) > run.request.context_bytes:
+            raise InvalidRequest('context_limit', 'Selected skill instructions exceed the context budget.')
+        combined = instruction_bytes + encoded
+        provenance = {
+            'sha256': hashlib.sha256(combined).hexdigest(), 'retained_turns': count,
+            'serialized_bytes': len(combined), 'model': self.settings.model,
             'config_sha256': hashlib.sha256(canonical(self.settings.model_dump(mode='json')).encode()).hexdigest(),
             'tool_schema_sha256': hashlib.sha256(canonical(await self.executor.definitions(run.request.tools)).encode()).hexdigest(),
             'workspace_id': self.executor.workspace.identity,
-        })
-        return Checkpoint(messages=messages, history_length=len(retained), workspace_id=self.executor.workspace.identity)
+        }
+        if run.skill_hashes:
+            provenance['skill_hashes'] = run.skill_hashes
+        await self._append(run.id, 'run.context', provenance)
+        return Checkpoint(messages=messages, history_length=len(retained), workspace_id=self.executor.workspace.identity,
+                          skill_instructions=instructions, skill_hashes=run.skill_hashes,
+                          context_sha256=hashlib.sha256(combined).hexdigest(), context_size=len(combined))
 
     async def _execute(self, run):
         status, error, output, verification = 'succeeded', None, '', 'not_requested'
@@ -281,8 +355,10 @@ class Runtime:
             async with asyncio.timeout(remaining):
                 while True:
                     await self.store.save_checkpoint(run.id, checkpoint)
+                    await self._verify_skills(run, checkpoint)
                     if checkpoint.pending_calls:
                         while checkpoint.pending_calls:
+                            await self._verify_skills(run, checkpoint)
                             call = checkpoint.pending_calls[0]
                             receipt = await self.executor.invoke(run.id, call)
                             self._changed.set()
@@ -303,9 +379,14 @@ class Runtime:
                             break
                     if checkpoint.round_count >= 12:
                         raise InvalidRequest('tool_round_limit', 'Run reached the 12-round model limit.')
-                    if len(message_bytes(checkpoint.messages)) > run.request.context_bytes:
+                    await self._verify_skills(run, checkpoint)
+                    if (len(checkpoint.skill_instructions.encode('utf-8'))
+                            + len(message_bytes(checkpoint.messages)) > run.request.context_bytes):
                         raise InvalidRequest('context_limit', 'Tool conversation exceeds the selected context budget.')
-                    calls, content, text = await self._model_round(run, checkpoint.messages, await self.executor.definitions(run.request.tools))
+                    calls, content, text = await self._model_round(
+                        run, checkpoint.messages, await self.executor.definitions(run.request.tools),
+                        checkpoint.skill_instructions,
+                    )
                     counts = dict(checkpoint.call_counts)
                     for call in calls:
                         key = hashlib.sha256(canonical({'name': call.name, 'arguments': call.arguments}).encode()).hexdigest()
@@ -343,7 +424,7 @@ class Runtime:
         await self.store.finish(run.id, status, output=output if status == 'succeeded' else None, error=error, verification=verification)
         self._changed.set()
 
-    async def _model_round(self, run, messages, definitions):
+    async def _model_round(self, run, messages, definitions, system=''):
         parts = []
         buffer = ''
         buffer_kind = None
@@ -398,7 +479,7 @@ class Runtime:
                 finished = True
 
         try:
-            stream = self.ollama.stream(messages, tools=definitions)
+            stream = self.ollama.stream(messages, system=system, tools=definitions)
             while True:
                 if pending is None:
                     pending = asyncio.create_task(anext(stream))

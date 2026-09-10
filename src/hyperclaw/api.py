@@ -37,6 +37,10 @@ class GrantRequest(Value):
     capability: Literal['write', 'execute']
 
 
+class SkillAdmission(Value):
+    content_hash: str = Field(pattern=r'^[0-9a-f]{64}$')
+
+
 def create_app(settings: Settings) -> FastAPI:
     instance = uuid4().hex
     url = f'http://127.0.0.1:{settings.port}'
@@ -133,6 +137,22 @@ def create_app(settings: Settings) -> FastAPI:
     @app.post('/v1/runs', status_code=202)
     async def submit(body: RunRequest):
         return await app.state.runtime.submit(body)
+
+    @app.get('/v1/skills')
+    async def skills():
+        return await app.state.runtime.list_skills()
+
+    @app.get('/v1/skills/{name}')
+    async def preview_skill(name: str):
+        return await app.state.runtime.preview_skill(name)
+
+    @app.post('/v1/skills/{name}/admit')
+    async def admit_skill(name: str, body: SkillAdmission):
+        return await app.state.runtime.admit_skill(name, body.content_hash)
+
+    @app.delete('/v1/skills/{name}/admission')
+    async def revoke_skill(name: str):
+        return await app.state.runtime.revoke_skill(name)
 
     @app.post('/v1/schedules')
     async def create_schedule(body: ScheduleRequest):

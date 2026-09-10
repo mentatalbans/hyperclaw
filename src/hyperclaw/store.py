@@ -8,18 +8,20 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import re
 import sqlite3
 from uuid import uuid4
 
 from pydantic import ValidationError
 
 from hyperclaw.config import ensure_root
+from hyperclaw.skills import skill_content_hash
 from hyperclaw.contracts import (
     Conflict, Failure, InvalidRequest, Message, NotFound, RootInUse, Run,
     RunEvent, RunRequest, RunStatus, Schedule, ScheduleOccurrence, ScheduleRequest,
     Session, StorageFailure, TERMINAL,
     UnsupportedSchema, canonical, Approval, Artifact, Checkpoint, Invocation, ToolCall, ToolReceipt,
-    schedule_instant,
+    schedule_instant, SkillDocument,
 )
 
 # Each migration is (destructive, statements), executed in a single transaction.
@@ -122,6 +124,17 @@ MIGRATIONS += ((False, (
     """CREATE TRIGGER memory_records_au_insert AFTER UPDATE ON memory_records
         WHEN new.status='active' BEGIN
         INSERT INTO memory_fts(rowid,text) VALUES (new.rowid,new.text); END""",
+)),)
+
+
+MIGRATIONS += ((False, (
+    "ALTER TABLE runs ADD COLUMN skill_hashes_json TEXT NOT NULL DEFAULT '{}'",
+    """CREATE TABLE skill_versions (
+        name TEXT NOT NULL, content_hash TEXT NOT NULL, document_json TEXT NOT NULL,
+        created_at TEXT NOT NULL, PRIMARY KEY(name,content_hash))""",
+    """CREATE TABLE skill_admissions (
+        name TEXT PRIMARY KEY, content_hash TEXT NOT NULL, admitted_at TEXT NOT NULL,
+        FOREIGN KEY(name,content_hash) REFERENCES skill_versions(name,content_hash))""",
 )),)
 
 
@@ -260,6 +273,7 @@ class Store:
         return Run(id=row['id'], request=RunRequest.model_validate_json(row['payload_json']),
                    status=row['status'], output=row['output'], verification=row['verification'],
                    elapsed_s=self._elapsed(row), artifacts=self._artifacts(run_id),
+                   skill_hashes=json.loads(row['skill_hashes_json']),
                    error=Failure.model_validate_json(row['error_json']) if row['error_json'] else None)
 
     def _schedule(self, schedule_id):
@@ -303,19 +317,39 @@ class Store:
             return self._session(session_id)
         return await self._call(lambda: self._transaction(reset))
 
-    def _submit(self, request: RunRequest, schedule=None):
+    def _submit(self, request: RunRequest, schedule=None, skill_hashes=None):
         session = self._session(request.session_id)
         if session.generation != request.generation:
             raise Conflict('stale_generation', 'Session generation changed.')
-        payload = canonical(request.model_dump())
+        payload_value = request.model_dump()
+        if not request.skills:
+            payload_value.pop('skills', None)
+        payload = canonical(payload_value)
+        selected = {} if skill_hashes is None else dict(skill_hashes)
+        if set(selected) != set(request.skills) or any(
+                not isinstance(value, str) or re.fullmatch(r'[0-9a-f]{64}', value) is None
+                for value in selected.values()):
+            raise Conflict('skill_selection_changed', 'Selected skills must bind exact admitted hashes.')
         previous = self._db.execute('SELECT id,payload_json FROM runs WHERE session_id=? AND generation=? AND request_id=?',
                                     (session.id, session.generation, request.request_id)).fetchone()
         if previous:
             if schedule is not None:
                 raise Conflict('schedule_request_conflict', 'Scheduled work cannot adopt an existing run.')
-            if canonical(RunRequest.model_validate_json(previous['payload_json']).model_dump()) != payload:
+            prior_value = RunRequest.model_validate_json(previous['payload_json']).model_dump()
+            if not prior_value['skills']:
+                prior_value.pop('skills')
+            prior_hashes = json.loads(self._db.execute(
+                'SELECT skill_hashes_json FROM runs WHERE id=?', (previous['id'],)).fetchone()[0])
+            if canonical(prior_value) != payload or prior_hashes != selected:
                 raise Conflict('request_conflict', 'Request ID was used with a different payload.')
             return self._run(previous['id'])
+        for skill_name, content_hash in selected.items():
+            admitted = self._db.execute(
+                'SELECT 1 FROM skill_admissions WHERE name=? AND content_hash=?',
+                (skill_name, content_hash),
+            ).fetchone()
+            if admitted is None:
+                raise Conflict('skill_not_admitted', 'Selected skill version is not admitted.')
         if request.retry_of:
             source = self._run(request.retry_of)
             if (source.request.session_id != session.id or source.request.generation != session.generation
@@ -324,8 +358,8 @@ class Store:
         if self._db.execute("SELECT 1 FROM runs WHERE session_id=? AND generation=? AND status IN ('queued','running','waiting_approval')", (session.id, session.generation)).fetchone():
             raise Conflict('session_busy', 'Session has an active run.')
         run_id = uuid4().hex
-        self._db.execute('INSERT INTO runs(id,session_id,generation,request_id,payload_json,status,output,error_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-                         (run_id, session.id, session.generation, request.request_id, payload, 'queued', None, None, now()))
+        self._db.execute('INSERT INTO runs(id,session_id,generation,request_id,payload_json,status,output,error_json,created_at,skill_hashes_json) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                         (run_id, session.id, session.generation, request.request_id, payload, 'queued', None, None, now(), canonical(selected)))
         self._db.execute("INSERT INTO messages(run_id,role,content) VALUES (?,'user',?)", (run_id, request.text))
         event_data = {} if schedule is None else {
             'schedule_id': schedule[0], 'nominal_due_at': schedule[1],
@@ -333,14 +367,75 @@ class Store:
         self._event(run_id, 'run.queued', event_data)
         return self._run(run_id)
 
-    async def submit(self, request: RunRequest):
+    async def submit(self, request: RunRequest, *, skill_hashes=None):
         try:
             request = RunRequest.model_validate(request.model_dump())
         except (ValidationError, ValueError, AttributeError):
             raise InvalidRequest() from None
         if request.request_id.startswith('schedule:'):
             raise InvalidRequest()
-        return await self._call(lambda: self._transaction(lambda: self._submit(request)))
+        return await self._call(lambda: self._transaction(lambda: self._submit(request, skill_hashes=skill_hashes)))
+
+    async def admit_skill(self, document: SkillDocument):
+        try:
+            document = SkillDocument.model_validate(document.model_dump())
+        except (ValidationError, ValueError, AttributeError):
+            raise InvalidRequest() from None
+        if (document.content_hash != skill_content_hash(
+                document.name, document.description, document.body, document.resources)
+                or any(resource.sha256 != hashlib.sha256(resource.text.encode('utf-8')).hexdigest()
+                       for resource in document.resources)):
+            raise InvalidRequest('invalid_skill', 'Skill hashes do not match their content.')
+        encoded = canonical(document.model_dump())
+        def admit():
+            prior = self._db.execute(
+                'SELECT document_json FROM skill_versions WHERE name=? AND content_hash=?',
+                (document.name, document.content_hash),
+            ).fetchone()
+            if prior is not None and prior['document_json'] != encoded:
+                raise Conflict('skill_version_changed', 'A skill hash cannot identify different content.')
+            self._db.execute(
+                'INSERT OR IGNORE INTO skill_versions VALUES (?,?,?,?)',
+                (document.name, document.content_hash, encoded, now()),
+            )
+            self._db.execute(
+                """INSERT INTO skill_admissions(name,content_hash,admitted_at) VALUES (?,?,?)
+                   ON CONFLICT(name) DO UPDATE SET content_hash=excluded.content_hash,
+                   admitted_at=excluded.admitted_at""",
+                (document.name, document.content_hash, now()),
+            )
+            return document
+        return await self._call(lambda: self._transaction(admit))
+
+    async def skill_admissions(self):
+        def read():
+            rows = self._db.execute(
+                """SELECT v.document_json FROM skill_admissions a JOIN skill_versions v
+                   ON v.name=a.name AND v.content_hash=a.content_hash ORDER BY a.name"""
+            ).fetchall()
+            return [SkillDocument.model_validate_json(row['document_json']) for row in rows]
+        return await self._call(read)
+
+    async def admitted_skill(self, name, content_hash):
+        def read():
+            row = self._db.execute(
+                """SELECT v.document_json FROM skill_admissions a JOIN skill_versions v
+                   ON v.name=a.name AND v.content_hash=a.content_hash
+                   WHERE a.name=? AND a.content_hash=?""",
+                (name, content_hash),
+            ).fetchone()
+            if row is None:
+                raise Conflict('skill_not_admitted', 'Selected skill version is not admitted.')
+            return SkillDocument.model_validate_json(row['document_json'])
+        return await self._call(read)
+
+    async def revoke_skill(self, name):
+        def revoke():
+            removed = self._db.execute('DELETE FROM skill_admissions WHERE name=?', (name,)).rowcount
+            if not removed:
+                raise Conflict('skill_not_admitted', 'Skill is not admitted.')
+            return {'name': name, 'admitted': False}
+        return await self._call(lambda: self._transaction(revoke))
 
     async def create_schedule(self, request: ScheduleRequest):
         try:
