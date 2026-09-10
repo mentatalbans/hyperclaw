@@ -61,6 +61,8 @@ RunStatus = Literal['queued', 'running', 'waiting_approval', 'succeeded', 'faile
 TERMINAL = frozenset({'succeeded', 'failed', 'cancelled', 'interrupted', 'uncertain'})
 Identifier = Annotated[str, Field(min_length=1, max_length=256)]
 Generation = Annotated[int, Field(ge=0, strict=True)]
+ScheduleStatus = Literal['active', 'paused', 'completed']
+SchedulePauseReason = Literal['operator', 'stale_generation', 'uncertain_effect']
 
 
 def canonical(value) -> str:
@@ -113,6 +115,70 @@ class RunRequest(Value):
         if not value.strip() or len(message_bytes([Message(role='user', content=value)])) > CONTEXT_BYTES:
             raise ValueError('Current request exceeds the input budget or is empty')
         return value
+
+
+def schedule_instant(value: datetime) -> datetime:
+    if not isinstance(value, datetime) or value.tzinfo is None:
+        raise ValueError('Schedule timestamp must include a UTC offset')
+    try:
+        if value.utcoffset() is None:
+            raise ValueError('Schedule timestamp must include a UTC offset')
+        normalized = value.astimezone(timezone.utc)
+    except (OverflowError, ValueError):
+        raise ValueError('Schedule timestamp is outside the supported range') from None
+    minimum = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    maximum = datetime(9998, 12, 31, 23, 59, 59, 999999, tzinfo=timezone.utc)
+    if not minimum <= normalized <= maximum:
+        raise ValueError('Schedule timestamp is outside the supported range')
+    return normalized
+
+
+class ScheduleRequest(Value):
+    id: Identifier
+    session_id: Identifier
+    generation: Generation
+    input: str
+    next_due_at: datetime
+    interval_seconds: int | None = Field(default=None, ge=1, le=31_536_000, strict=True)
+    tools: tuple[str, ...] = ('workspace_read', 'workspace_list', 'workspace_search', 'workspace_write', 'command')
+
+    @field_validator('next_due_at')
+    @classmethod
+    def normalized_due_at(cls, value):
+        return schedule_instant(value)
+
+    @model_validator(mode='after')
+    def valid_run_input(self):
+        RunRequest(session_id=self.session_id, generation=self.generation,
+                   request_id='schedule:validation', text=self.input, tools=self.tools)
+        return self
+
+
+class Schedule(ScheduleRequest):
+    status: ScheduleStatus
+    pause_reason: SchedulePauseReason | None = None
+
+    @model_validator(mode='after')
+    def valid_state(self):
+        if (self.status == 'paused') != (self.pause_reason is not None):
+            raise ValueError('Only paused schedules have a pause reason')
+        return self
+
+
+class ScheduleOccurrence(Value):
+    schedule_id: Identifier
+    nominal_due_at: datetime
+    run_id: Identifier
+
+    @field_validator('nominal_due_at')
+    @classmethod
+    def normalized_due_at(cls, value):
+        return schedule_instant(value)
+
+
+class ScheduleRetarget(Value):
+    expected_generation: Generation
+    generation: Generation
 
 
 class Failure(Value):

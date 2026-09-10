@@ -16,8 +16,10 @@ from pydantic import ValidationError
 from hyperclaw.config import ensure_root
 from hyperclaw.contracts import (
     Conflict, Failure, InvalidRequest, Message, NotFound, RootInUse, Run,
-    RunEvent, RunRequest, RunStatus, Session, StorageFailure, TERMINAL,
+    RunEvent, RunRequest, RunStatus, Schedule, ScheduleOccurrence, ScheduleRequest,
+    Session, StorageFailure, TERMINAL,
     UnsupportedSchema, canonical, Approval, Artifact, Checkpoint, Invocation, ToolCall, ToolReceipt,
+    schedule_instant,
 )
 
 # Each migration is (destructive, statements), executed in a single transaction.
@@ -81,8 +83,28 @@ MIGRATIONS += ((True, (
 )),)
 
 
+MIGRATIONS += ((False, (
+    """CREATE TABLE schedules (
+        id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id),
+        generation INTEGER NOT NULL CHECK(generation >= 0), input TEXT NOT NULL,
+        next_due_at TEXT NOT NULL, interval_seconds INTEGER,
+        tools_json TEXT NOT NULL, creation_json TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('active','paused','completed')),
+        pause_reason TEXT CHECK(pause_reason IN ('operator','stale_generation','uncertain_effect')),
+        CHECK((status='paused') = (pause_reason IS NOT NULL)))""",
+    """CREATE TABLE schedule_occurrences (
+        schedule_id TEXT NOT NULL REFERENCES schedules(id), nominal_due_at TEXT NOT NULL,
+        run_id TEXT NOT NULL UNIQUE REFERENCES runs(id), PRIMARY KEY(schedule_id,nominal_due_at))""",
+    'CREATE INDEX due_schedules ON schedules(status,next_due_at)',
+)),)
+
+
 def now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def instant(value):
+    return schedule_instant(value).isoformat(timespec='microseconds')
 
 
 class Store:
@@ -214,6 +236,15 @@ class Store:
                    elapsed_s=self._elapsed(row), artifacts=self._artifacts(run_id),
                    error=Failure.model_validate_json(row['error_json']) if row['error_json'] else None)
 
+    def _schedule(self, schedule_id):
+        row = self._db.execute('SELECT * FROM schedules WHERE id=?', (schedule_id,)).fetchone()
+        if row is None:
+            raise NotFound()
+        return Schedule(id=row['id'], session_id=row['session_id'], generation=row['generation'],
+                        input=row['input'], next_due_at=datetime.fromisoformat(row['next_due_at']),
+                        interval_seconds=row['interval_seconds'], tools=tuple(json.loads(row['tools_json'])),
+                        status=row['status'], pause_reason=row['pause_reason'])
+
     def _event(self, run_id, kind, data):
         seq = self._db.execute('SELECT coalesce(max(seq),0)+1 FROM events WHERE run_id=?', (run_id,)).fetchone()[0]
         event = RunEvent(run_id=run_id, seq=seq, kind=kind, at=datetime.now(timezone.utc), data=data)
@@ -241,39 +272,180 @@ class Store:
             if self._db.execute("SELECT 1 FROM runs WHERE session_id=? AND status IN ('queued','running','waiting_approval')", (session_id,)).fetchone():
                 raise Conflict('session_busy', 'Session has an active run.')
             self._db.execute('UPDATE sessions SET generation=generation+1 WHERE id=?', (session_id,))
+            self._db.execute("UPDATE schedules SET status='paused',pause_reason='stale_generation' "
+                             "WHERE session_id=? AND status='active'", (session_id,))
             return self._session(session_id)
         return await self._call(lambda: self._transaction(reset))
+
+    def _submit(self, request: RunRequest, schedule=None):
+        session = self._session(request.session_id)
+        if session.generation != request.generation:
+            raise Conflict('stale_generation', 'Session generation changed.')
+        payload = canonical(request.model_dump())
+        previous = self._db.execute('SELECT id,payload_json FROM runs WHERE session_id=? AND generation=? AND request_id=?',
+                                    (session.id, session.generation, request.request_id)).fetchone()
+        if previous:
+            if canonical(RunRequest.model_validate_json(previous['payload_json']).model_dump()) != payload:
+                raise Conflict('request_conflict', 'Request ID was used with a different payload.')
+            return self._run(previous['id'])
+        if request.retry_of:
+            source = self._run(request.retry_of)
+            if (source.request.session_id != session.id or source.request.generation != session.generation
+                    or source.status not in {'failed', 'cancelled', 'interrupted'}):
+                raise Conflict('invalid_retry', 'Retry source must be a failed, cancelled or interrupted run in this generation.')
+        if self._db.execute("SELECT 1 FROM runs WHERE session_id=? AND generation=? AND status IN ('queued','running','waiting_approval')", (session.id, session.generation)).fetchone():
+            raise Conflict('session_busy', 'Session has an active run.')
+        run_id = uuid4().hex
+        self._db.execute('INSERT INTO runs(id,session_id,generation,request_id,payload_json,status,output,error_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+                         (run_id, session.id, session.generation, request.request_id, payload, 'queued', None, None, now()))
+        self._db.execute("INSERT INTO messages(run_id,role,content) VALUES (?,'user',?)", (run_id, request.text))
+        event_data = {} if schedule is None else {
+            'schedule_id': schedule[0], 'nominal_due_at': schedule[1],
+        }
+        self._event(run_id, 'run.queued', event_data)
+        return self._run(run_id)
 
     async def submit(self, request: RunRequest):
         try:
             request = RunRequest.model_validate(request.model_dump())
         except (ValidationError, ValueError, AttributeError):
             raise InvalidRequest() from None
-        def accept():
+        if request.request_id.startswith('schedule:'):
+            raise InvalidRequest()
+        return await self._call(lambda: self._transaction(lambda: self._submit(request)))
+
+    async def create_schedule(self, request: ScheduleRequest):
+        try:
+            request = ScheduleRequest.model_validate(request.model_dump())
+        except (ValidationError, ValueError, AttributeError):
+            raise InvalidRequest() from None
+        payload = canonical(request.model_dump(mode='json'))
+        def create():
+            existing = self._db.execute('SELECT creation_json FROM schedules WHERE id=?',
+                                        (request.id,)).fetchone()
+            if existing:
+                if existing['creation_json'] != payload:
+                    raise Conflict('schedule_conflict', 'Schedule ID was used with a different creation payload.')
+                return self._schedule(request.id)
             session = self._session(request.session_id)
             if session.generation != request.generation:
                 raise Conflict('stale_generation', 'Session generation changed.')
-            payload = canonical(request.model_dump())
-            previous = self._db.execute('SELECT id,payload_json FROM runs WHERE session_id=? AND generation=? AND request_id=?',
-                                        (session.id, session.generation, request.request_id)).fetchone()
-            if previous:
-                if canonical(RunRequest.model_validate_json(previous['payload_json']).model_dump()) != payload:
-                    raise Conflict('request_conflict', 'Request ID was used with a different payload.')
-                return self._run(previous['id'])
-            if request.retry_of:
-                source = self._run(request.retry_of)
-                if (source.request.session_id != session.id or source.request.generation != session.generation
-                        or source.status not in {'failed', 'cancelled', 'interrupted'}):
-                    raise Conflict('invalid_retry', 'Retry source must be a failed, cancelled or interrupted run in this generation.')
-            if self._db.execute("SELECT 1 FROM runs WHERE session_id=? AND generation=? AND status IN ('queued','running','waiting_approval')", (session.id, session.generation)).fetchone():
-                raise Conflict('session_busy', 'Session has an active run.')
-            run_id = uuid4().hex
-            self._db.execute('INSERT INTO runs(id,session_id,generation,request_id,payload_json,status,output,error_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-                             (run_id, session.id, session.generation, request.request_id, payload, 'queued', None, None, now()))
-            self._db.execute("INSERT INTO messages(run_id,role,content) VALUES (?,'user',?)", (run_id, request.text))
-            self._event(run_id, 'run.queued', {})
-            return self._run(run_id)
-        return await self._call(lambda: self._transaction(accept))
+            self._db.execute('INSERT INTO schedules VALUES (?,?,?,?,?,?,?,?,?,?)', (
+                request.id, request.session_id, request.generation, request.input,
+                instant(request.next_due_at), request.interval_seconds,
+                canonical(list(request.tools)), payload, 'active', None,
+            ))
+            return self._schedule(request.id)
+        return await self._call(lambda: self._transaction(create))
+
+    async def get_schedule(self, schedule_id):
+        return await self._call(lambda: self._schedule(schedule_id))
+
+    async def schedules(self):
+        def read():
+            rows = self._db.execute('SELECT id FROM schedules ORDER BY rowid').fetchall()
+            return [self._schedule(row['id']) for row in rows]
+        return await self._call(read)
+
+    async def schedule_occurrences(self, schedule_id):
+        def read():
+            self._schedule(schedule_id)
+            rows = self._db.execute(
+                'SELECT * FROM schedule_occurrences WHERE schedule_id=? ORDER BY nominal_due_at',
+                (schedule_id,)).fetchall()
+            return [ScheduleOccurrence(schedule_id=row['schedule_id'],
+                        nominal_due_at=datetime.fromisoformat(row['nominal_due_at']), run_id=row['run_id'])
+                    for row in rows]
+        return await self._call(read)
+
+    async def pause_schedule(self, schedule_id):
+        def pause():
+            schedule = self._schedule(schedule_id)
+            if schedule.status == 'completed':
+                raise Conflict('schedule_completed', 'A completed schedule cannot be paused.')
+            if schedule.status == 'active':
+                self._db.execute("UPDATE schedules SET status='paused',pause_reason='operator' WHERE id=?",
+                                 (schedule_id,))
+            return self._schedule(schedule_id)
+        return await self._call(lambda: self._transaction(pause))
+
+    async def retarget_schedule(self, schedule_id, expected_generation, generation):
+        if (type(expected_generation) is not int or expected_generation < 0
+                or type(generation) is not int or generation < 0):
+            raise InvalidRequest()
+        def retarget():
+            schedule = self._schedule(schedule_id)
+            if schedule.status == 'completed':
+                raise Conflict('schedule_completed', 'A completed schedule cannot be retargeted.')
+            if schedule.pause_reason == 'uncertain_effect' or self._db.execute(
+                    "SELECT 1 FROM schedule_occurrences o JOIN runs r ON r.id=o.run_id "
+                    "WHERE o.schedule_id=? AND r.status='uncertain'", (schedule_id,)).fetchone():
+                raise Conflict('uncertain_effect', 'Uncertain scheduled work requires operator reconciliation.')
+            if schedule.generation != expected_generation:
+                raise Conflict('stale_generation', 'Schedule generation changed.')
+            session = self._session(schedule.session_id)
+            if session.generation != generation:
+                raise Conflict('stale_generation', 'Session generation changed.')
+            self._db.execute("UPDATE schedules SET generation=?,status='active',pause_reason=NULL WHERE id=?",
+                             (generation, schedule_id))
+            return self._schedule(schedule_id)
+        return await self._call(lambda: self._transaction(retarget))
+
+    async def tick_schedules(self, current: datetime):
+        try:
+            current = schedule_instant(current)
+        except (ValueError, TypeError, AttributeError):
+            raise InvalidRequest() from None
+        current_text = instant(current)
+        def tick():
+            created = []
+            rows = self._db.execute("SELECT id FROM schedules WHERE status='active' ORDER BY next_due_at,rowid").fetchall()
+            for row in rows:
+                schedule = self._schedule(row['id'])
+                if self._db.execute(
+                        "SELECT 1 FROM schedule_occurrences o JOIN runs r ON r.id=o.run_id "
+                        "WHERE o.schedule_id=? AND r.status='uncertain'", (schedule.id,)).fetchone():
+                    self._db.execute("UPDATE schedules SET status='paused',pause_reason='uncertain_effect' WHERE id=?",
+                                     (schedule.id,))
+                    continue
+                session = self._session(schedule.session_id)
+                if session.generation != schedule.generation:
+                    self._db.execute("UPDATE schedules SET status='paused',pause_reason='stale_generation' WHERE id=?",
+                                     (schedule.id,))
+                    continue
+                if instant(schedule.next_due_at) > current_text:
+                    continue
+                nominal = schedule.next_due_at
+                nominal_text = instant(nominal)
+                digest = hashlib.sha256(canonical([schedule.id, nominal_text]).encode()).hexdigest()
+                request = RunRequest(session_id=schedule.session_id, generation=schedule.generation,
+                                     request_id=f'schedule:{digest}', text=schedule.input,
+                                     tools=schedule.tools)
+                try:
+                    run = self._submit(request, (schedule.id, nominal_text))
+                except Conflict as exc:
+                    if exc.code == 'session_busy':
+                        continue
+                    raise
+                self._db.execute('INSERT INTO schedule_occurrences VALUES (?,?,?)',
+                                 (schedule.id, nominal_text, run.id))
+                created.append(run.id)
+                if schedule.interval_seconds is None:
+                    self._db.execute("UPDATE schedules SET status='completed' WHERE id=?", (schedule.id,))
+                    continue
+                interval = timedelta(seconds=schedule.interval_seconds)
+                steps = (current - nominal) // interval + 1
+                try:
+                    following = nominal + steps * interval
+                except OverflowError:
+                    following = None
+                if following is None or following.year > 9998:
+                    self._db.execute("UPDATE schedules SET status='completed' WHERE id=?", (schedule.id,))
+                else:
+                    self._db.execute('UPDATE schedules SET next_due_at=? WHERE id=?',
+                                     (instant(following), schedule.id))
+            return created
+        return await self._call(lambda: self._transaction(tick))
 
     async def get_run(self, run_id):
         return await self._call(lambda: self._run(run_id))
@@ -335,6 +507,10 @@ class Store:
         self._stop_clock(run_id)
         self._db.execute('UPDATE runs SET status=?,output=?,error_json=?,verification=? WHERE id=?',
                          (status, output, canonical(error.model_dump()) if error else None, verification, run_id))
+        if status == 'uncertain':
+            self._db.execute("UPDATE schedules SET status='paused',pause_reason='uncertain_effect' "
+                             "WHERE status!='completed' AND id IN "
+                             "(SELECT schedule_id FROM schedule_occurrences WHERE run_id=?)", (run_id,))
         self._db.execute("UPDATE approvals SET status='cancelled' WHERE status='pending' AND invocation_id IN (SELECT id FROM invocations WHERE run_id=?)", (run_id,))
         if status == 'succeeded':
             self._db.execute("INSERT INTO messages(run_id,role,content) VALUES (?,'assistant',?)", (run_id, output))
