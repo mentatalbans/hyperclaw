@@ -1,5 +1,6 @@
 """One durable chat worker; observers never own model execution."""
 import asyncio
+from datetime import datetime, timezone
 import hashlib
 import logging
 
@@ -9,17 +10,21 @@ from hyperclaw.contracts import (
 )
 
 from hyperclaw.execution import Executor
+from hyperclaw.scheduling import Scheduler
 
 log = logging.getLogger(__name__)
+MAINTENANCE_INTERVAL_S = .1
 
 
 class Runtime:
     def __init__(self, store, ollama, settings):
         self.store, self.ollama, self.settings = store, ollama, settings
         self._wake = asyncio.Event()
+        self._maintenance_wake = asyncio.Event()
         self._changed = asyncio.Event()
         self._control = asyncio.Lock()
         self._worker = None
+        self._maintenance = None
         self._active = None
         self._active_task = None
         self._completion = None
@@ -40,6 +45,7 @@ class Runtime:
             await self.store.recover()
             self._started = True
             self._worker = asyncio.create_task(self._work(), name='hyperclaw-worker')
+            self._maintenance = asyncio.create_task(self._maintain(), name='hyperclaw-maintenance')
         except BaseException:
             await self.close()
             raise
@@ -67,6 +73,32 @@ class Runtime:
             # Store settles an accepted transaction even if its caller disconnects.
             self._wake.set()
             self._changed.set()
+
+    async def create_schedule(self, request):
+        self._accepting()
+        try:
+            return await self.store.create_schedule(request)
+        finally:
+            self._maintenance_wake.set()
+
+    async def schedules(self):
+        return await self.store.schedules()
+
+    async def get_schedule(self, schedule_id):
+        return await self.store.get_schedule(schedule_id)
+
+    async def schedule_occurrences(self, schedule_id):
+        return await self.store.schedule_occurrences(schedule_id)
+
+    async def pause_schedule(self, schedule_id):
+        return await self.store.pause_schedule(schedule_id)
+
+    async def retarget_schedule(self, schedule_id, expected_generation, generation):
+        self._accepting()
+        try:
+            return await self.store.retarget_schedule(schedule_id, expected_generation, generation)
+        finally:
+            self._maintenance_wake.set()
 
     async def get_run(self, run_id):
         return await self.store.get_run(run_id)
@@ -113,9 +145,11 @@ class Runtime:
                 self._cancel_status = 'interrupted'
                 self._active_task.cancel()
             self._wake.set()
+            self._maintenance_wake.set()
         try:
-            if self._worker:
-                await self._worker
+            tasks = [task for task in (self._worker, self._maintenance) if task is not None]
+            if tasks:
+                await asyncio.gather(*tasks)
         finally:
             try:
                 await self.ollama.aclose()
@@ -127,10 +161,10 @@ class Runtime:
 
     async def _work(self):
         try:
-            while not self._closing:
+            while not self._closing and self.healthy:
                 self._wake.clear()
                 async with self._control:
-                    if self._closing:
+                    if self._closing or not self.healthy:
                         return
                     run = await self.store.next_run()
                     if run:
@@ -142,8 +176,7 @@ class Runtime:
                     try:
                         await asyncio.wait_for(self._wake.wait(), 1)
                     except TimeoutError:
-                        if await self.store.expire_approvals():
-                            self._changed.set()
+                        pass
                     continue
                 self._changed.set()
                 try:
@@ -162,8 +195,32 @@ class Runtime:
         except Exception:
             # Storage failures are not model failures, and cannot establish success.
             self.healthy = False
+            self._maintenance_wake.set()
             self._changed.set()
             log.error('Runtime worker stopped; storage or internal execution is unavailable.')
+
+    async def _maintain(self):
+        scheduler = Scheduler(self.store)
+        try:
+            while not self._closing and self.healthy:
+                self._maintenance_wake.clear()
+                expired = await self.store.expire_approvals()
+                if self._closing or not self.healthy:
+                    return
+                run_ids = await scheduler.tick(datetime.now(timezone.utc))
+                if expired or run_ids:
+                    self._changed.set()
+                if run_ids:
+                    self._wake.set()
+                try:
+                    await asyncio.wait_for(self._maintenance_wake.wait(), MAINTENANCE_INTERVAL_S)
+                except TimeoutError:
+                    pass
+        except Exception:
+            self.healthy = False
+            self._wake.set()
+            self._changed.set()
+            log.error('Runtime maintenance stopped; schedule and approval maintenance is unavailable.')
 
     async def _append(self, run_id, kind, data):
         await self.store.append(run_id, kind, data)

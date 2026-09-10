@@ -259,7 +259,9 @@ async def test_storage_failure_rejects_new_work_with_503(tmp_path):
                 while runtime.healthy:
                     await asyncio.sleep(0.01)
             assert (await client.post('/v1/sessions')).status_code == 503
-            assert (await client.get('/healthz')).json() == {'status': 'ok'}
+            health = await client.get('/healthz')
+            assert health.status_code == 503
+            assert health.json() == {'status': 'unavailable'}
 
 
 def test_tool_approval_controls_and_observed_artifact_through_http(service):

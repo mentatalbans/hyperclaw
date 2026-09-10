@@ -60,6 +60,10 @@ CONTEXT_BYTES = 64 * 1024
 RunStatus = Literal['queued', 'running', 'waiting_approval', 'succeeded', 'failed', 'cancelled', 'interrupted', 'uncertain']
 TERMINAL = frozenset({'succeeded', 'failed', 'cancelled', 'interrupted', 'uncertain'})
 Identifier = Annotated[str, Field(min_length=1, max_length=256)]
+ScheduleIdentifier = Annotated[
+    str,
+    Field(min_length=1, max_length=256, pattern=r'^[A-Za-z0-9._~-]+$'),
+]
 Generation = Annotated[int, Field(ge=0, strict=True)]
 ScheduleStatus = Literal['active', 'paused', 'completed']
 SchedulePauseReason = Literal['operator', 'stale_generation', 'uncertain_effect']
@@ -134,13 +138,20 @@ def schedule_instant(value: datetime) -> datetime:
 
 
 class ScheduleRequest(Value):
-    id: Identifier
+    id: ScheduleIdentifier
     session_id: Identifier
     generation: Generation
     input: str
     next_due_at: datetime
     interval_seconds: int | None = Field(default=None, ge=1, le=31_536_000, strict=True)
     tools: tuple[str, ...] = ('workspace_read', 'workspace_list', 'workspace_search', 'workspace_write', 'command')
+
+    @field_validator('id')
+    @classmethod
+    def addressable_id(cls, value):
+        if value in {'.', '..'}:
+            raise ValueError('Schedule ID must be an addressable path segment')
+        return value
 
     @field_validator('next_due_at')
     @classmethod

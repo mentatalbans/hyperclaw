@@ -22,6 +22,33 @@ async def pause():
     await asyncio.Event().wait()
 
 
+original_transaction = Store._transaction
+
+
+def transaction(self, fn):
+    if stage != 'before_schedule_commit':
+        value = original_transaction(self, fn)
+        if (stage == 'after_schedule_commit'
+                and self._db.execute('SELECT count(*) FROM schedule_occurrences').fetchone()[0]):
+            signal()
+            threading.Event().wait()
+        return value
+    self._db.execute('BEGIN IMMEDIATE')
+    try:
+        value = fn()
+        if self._db.execute('SELECT count(*) FROM schedule_occurrences').fetchone()[0]:
+            signal()
+            threading.Event().wait()
+        self._db.execute('COMMIT')
+        return value
+    except BaseException:
+        self._db.execute('ROLLBACK')
+        raise
+
+
+Store._transaction = transaction
+
+
 original_prepare = Store.prepare_invocation
 async def prepare(self, *args, **kwargs):
     if stage == 'before_invocation':

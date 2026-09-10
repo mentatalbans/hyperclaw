@@ -147,6 +147,10 @@ def run_path(run_id):
     return '/v1/runs/' + quote(run_id, safe='')
 
 
+def schedule_path(schedule_id):
+    return '/v1/schedules/' + quote(schedule_id, safe='')
+
+
 def image_attachment(path: Path) -> dict:
     try:
         with path.open('rb') as source:
@@ -242,9 +246,11 @@ def chat(ctx: typer.Context, text: str, session: str | None = None, detach: bool
 run_app = typer.Typer(no_args_is_help=True)
 session_app = typer.Typer(no_args_is_help=True)
 approval_app = typer.Typer(no_args_is_help=True)
+schedule_app = typer.Typer(no_args_is_help=True)
 app.add_typer(run_app, name='run')
 app.add_typer(session_app, name='session')
 app.add_typer(approval_app, name='approval')
+app.add_typer(schedule_app, name='schedule')
 
 
 @run_app.command('inspect')
@@ -273,6 +279,75 @@ def run_events(ctx: typer.Context, run_id: str, after: int = typer.Option(0, min
 def run_receipts(ctx: typer.Context, run_id: str):
     with daemon_client(ctx.obj) as client:
         typer.echo(json.dumps(response_json(client.get(run_path(run_id) + '/receipts')), indent=2))
+
+
+@schedule_app.command('create')
+def create_schedule(ctx: typer.Context,
+                    schedule_id: str = typer.Argument(..., metavar='ID'),
+                    input: str = typer.Argument(..., metavar='INPUT'),
+                    session: str = typer.Option(..., '--session'),
+                    due: str = typer.Option(..., '--due'),
+                    interval_seconds: int | None = typer.Option(
+                        None, '--interval-seconds', min=1, max=31_536_000),
+                    tool: list[ToolName] = typer.Option([], '--tool'),
+                    no_tools: bool = typer.Option(False, '--no-tools')):
+    if no_tools and tool:
+        raise InvalidRequest('tool_selection', 'Choose explicit --tool values or --no-tools, not both.')
+    selected_tools = [] if no_tools else [name.value for name in tool] if tool else None
+    with daemon_client(ctx.obj) as client:
+        conversation = response_json(client.get('/v1/sessions/' + quote(session, safe='')))
+        body = {
+            'id': schedule_id,
+            'session_id': conversation['id'],
+            'generation': conversation['generation'],
+            'input': input,
+            'next_due_at': due,
+            'interval_seconds': interval_seconds,
+        }
+        if selected_tools is not None:
+            body['tools'] = selected_tools
+        typer.echo(json.dumps(response_json(client.post('/v1/schedules', json=body)), indent=2))
+
+
+@schedule_app.command('list')
+def list_schedules(ctx: typer.Context):
+    with daemon_client(ctx.obj) as client:
+        typer.echo(json.dumps(response_json(client.get('/v1/schedules')), indent=2))
+
+
+@schedule_app.command('inspect')
+def inspect_schedule(ctx: typer.Context, schedule_id: str):
+    with daemon_client(ctx.obj) as client:
+        typer.echo(json.dumps(response_json(client.get(schedule_path(schedule_id))), indent=2))
+
+
+@schedule_app.command('pause')
+def pause_schedule(ctx: typer.Context, schedule_id: str):
+    with daemon_client(ctx.obj) as client:
+        result = response_json(client.post(schedule_path(schedule_id) + '/pause'))
+        typer.echo(json.dumps(result, indent=2))
+
+
+@schedule_app.command('retarget')
+def retarget_schedule(ctx: typer.Context, schedule_id: str,
+                      expected_generation: int = typer.Option(
+                          ..., '--expected-generation', min=0)):
+    with daemon_client(ctx.obj) as client:
+        schedule = response_json(client.get(schedule_path(schedule_id)))
+        session = response_json(client.get(
+            '/v1/sessions/' + quote(schedule['session_id'], safe='')))
+        result = response_json(client.post(schedule_path(schedule_id) + '/retarget', json={
+            'expected_generation': expected_generation,
+            'generation': session['generation'],
+        }))
+        typer.echo(json.dumps(result, indent=2))
+
+
+@schedule_app.command('occurrences')
+def schedule_occurrences(ctx: typer.Context, schedule_id: str):
+    with daemon_client(ctx.obj) as client:
+        result = response_json(client.get(schedule_path(schedule_id) + '/occurrences'))
+        typer.echo(json.dumps(result, indent=2))
 
 
 @approval_app.command('list')

@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from hyperclaw.config import Settings, initialize_root, read_token
 from hyperclaw.contracts import (
     Conflict, Generation, InvalidRequest, NotFound, RootInUse, RunRequest,
-    RuntimeErrorBase, StorageFailure, Value,
+    RuntimeErrorBase, ScheduleRequest, ScheduleRetarget, StorageFailure, Value,
 )
 from hyperclaw.ollama import Ollama
 from hyperclaw.runtime import Runtime
@@ -114,6 +114,8 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.get('/healthz')
     async def health():
+        if not app.state.runtime.healthy:
+            return JSONResponse({'status': 'unavailable'}, status_code=503)
         return {'status': 'ok'}
 
     @app.post('/v1/sessions')
@@ -131,6 +133,34 @@ def create_app(settings: Settings) -> FastAPI:
     @app.post('/v1/runs', status_code=202)
     async def submit(body: RunRequest):
         return await app.state.runtime.submit(body)
+
+    @app.post('/v1/schedules')
+    async def create_schedule(body: ScheduleRequest):
+        return await app.state.runtime.create_schedule(body)
+
+    @app.get('/v1/schedules')
+    async def schedules():
+        return await app.state.runtime.schedules()
+
+    @app.get('/v1/schedules/{schedule_id}')
+    async def get_schedule(schedule_id: str):
+        return await app.state.runtime.get_schedule(schedule_id)
+
+    @app.post('/v1/schedules/{schedule_id}/pause')
+    async def pause_schedule(schedule_id: str):
+        return await app.state.runtime.pause_schedule(schedule_id)
+
+    @app.post('/v1/schedules/{schedule_id}/retarget')
+    async def retarget_schedule(schedule_id: str, body: ScheduleRetarget):
+        return await app.state.runtime.retarget_schedule(
+            schedule_id,
+            body.expected_generation,
+            body.generation,
+        )
+
+    @app.get('/v1/schedules/{schedule_id}/occurrences')
+    async def schedule_occurrences(schedule_id: str):
+        return await app.state.runtime.schedule_occurrences(schedule_id)
 
     @app.get('/v1/runs/{run_id}')
     async def get_run(run_id: str):
