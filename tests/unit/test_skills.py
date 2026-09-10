@@ -257,3 +257,15 @@ async def test_admission_is_immutable_exact_and_survives_reopen(tmp_path):
                                skill_hashes={'documentation-answer': changed.content_hash})
     finally:
         await store.close()
+
+
+def test_checkpoint_skill_snapshot_uses_the_shared_utf8_rendered_bound():
+    from hyperclaw.contracts import Checkpoint
+    from hyperclaw.skill_format import INSTRUCTION_LIMIT, validate_skill_instructions
+    exact = 'é' * (INSTRUCTION_LIMIT // 2) + 'x' * (INSTRUCTION_LIMIT % 2)
+    assert len(exact.encode()) == INSTRUCTION_LIMIT
+    assert validate_skill_instructions(exact) == exact
+    assert Checkpoint(messages=[], skill_instructions=exact).skill_instructions == exact
+    for validate in (validate_skill_instructions, lambda value: Checkpoint(messages=[], skill_instructions=value)):
+        with pytest.raises(ValueError, match='bound'):
+            validate(exact + 'x')

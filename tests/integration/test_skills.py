@@ -236,3 +236,105 @@ def test_combined_selected_instructions_must_fit_context_budget(service):
     assert response.status_code == 422
     assert response.json()['error']['code'] == 'context_limit'
     assert peer.requests.empty()
+
+
+@pytest.mark.parametrize('target', ['SKILL.md', 'rules.txt'])
+def test_fifo_replacement_is_rejected_without_blocking_runtime_controls(tmp_path, target):
+    """Replace after stat in a child daemon; parent HTTP deadlines bound RED too."""
+    launcher = tmp_path / 'race_daemon.py'
+    armed = tmp_path / 'armed'
+    launcher.write_text(f'''
+import os
+from pathlib import Path
+original_open = os.open
+armed = Path({str(armed)!r})
+def race_open(entry, flags, *args, **kwargs):
+    if entry == {target!r} and kwargs.get('dir_fd') is not None and armed.exists():
+        armed.unlink()
+        os.unlink(entry, dir_fd=kwargs['dir_fd'])
+        os.mkfifo(entry, dir_fd=kwargs['dir_fd'])
+    return original_open(entry, flags, *args, **kwargs)
+os.open = race_open
+from hyperclaw.cli import main
+main()
+''')
+    peer = ProviderStub()
+    app = Process(tmp_path / 'runtime', peer.url, launcher=launcher)
+    gate = threading.Event()
+    try:
+        app.start()
+        write_skill(app.root)
+        peer.enqueue(Reply(gate=gate), Reply())
+        running = submit(app, 'hold the model')
+        peer.take_request()
+        armed.touch()
+        response = app.client.get('/v1/skills/documentation-answer', timeout=1)
+        assert not armed.exists(), 'The stat-to-open race was not exercised'
+        assert response.status_code == 422, response.text
+        assert response.json()['error']['code'] == 'invalid_skill'
+        assert app.client.get('/healthz', timeout=1).status_code == 200
+        assert app.client.post(f"/v1/runs/{running['id']}/cancel", timeout=1).json()['status'] == 'cancelled'
+        gate.set()
+        further = submit(app, request_id='after-race', tools=[])
+        assert events(app, further['id'])[-1]['data']['status'] == 'succeeded'
+    finally:
+        gate.set()
+        # Abrupt owned-child cleanup is bounded even against the blocking bug.
+        app.kill()
+        peer.close()
+
+
+def test_four_maximum_packages_with_long_resource_paths_keep_worker_healthy(service):
+    from hyperclaw.contracts import Message, message_bytes
+    from hyperclaw.runtime import Runtime
+    app, peer = service
+    names = ['one', 'two', 'three', 'four']
+    documents = []
+    for name in names:
+        directory = app.root / 'skills' / name
+        directory.mkdir(parents=True)
+        paths = [f'{i:02d}-' + 'a' * 197 + '.txt' for i in range(16)]
+        document = f'---\nname: {name}\ndescription: Long paths.\n---\n'
+        document += '\n'.join(f'[resource]({path})' for path in paths) + '\n'
+        document += 'x' * (16_384 - len(document.encode()))
+        (directory / 'SKILL.md').write_text(document)
+        for path in paths:
+            (directory / path).write_text('é' * 512)
+        assert sum(len(p.read_bytes()) for p in directory.iterdir()) == 32_768
+        loaded = Skills(app.root / 'skills').load(name)
+        documents.append(loaded)
+        app.client.post(f'/v1/skills/{name}/admit', json={'content_hash': loaded.content_hash}).raise_for_status()
+    instructions = Runtime._skill_instructions(documents)
+    instruction_bytes = len(instructions.encode())
+    assert instruction_bytes > 139_264, 'Must reproduce the former checkpoint overflow'
+    required = instruction_bytes + len(message_bytes([Message(role='user', content='hello')]))
+    session = app.client.post('/v1/sessions').json()
+    payload = {'session_id': session['id'], 'generation': 0, 'request_id': 'large',
+               'text': 'hello', 'skills': names, 'tools': [], 'context_bytes': required - 1}
+    assert len(instructions) < required - 1, 'Rejection must count UTF-8 bytes, not characters'
+    rejected = app.client.post('/v1/runs', json=payload)
+    assert rejected.status_code == 422 and rejected.json()['error']['code'] == 'context_limit'
+    assert peer.requests.empty()
+    # Same request ID must still be available: rejection happened before acceptance.
+    peer.enqueue(Reply(), Reply())
+    payload['context_bytes'] = 262_144
+    accepted = app.client.post('/v1/runs', json=payload)
+    assert accepted.status_code == 202, accepted.text
+    run = accepted.json()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        assert app.client.get('/healthz').status_code == 200, app.diagnostics()
+        result = app.client.get(f"/v1/runs/{run['id']}").json()
+        if result['status'] == 'succeeded':
+            break
+        time.sleep(.01)
+    assert result['status'] == 'succeeded', app.diagnostics()
+    request = peer.take_request()
+    assert request['system'] == instructions
+    context = next(e['data'] for e in events(app, run['id']) if e['kind'] == 'run.context')
+    assert context['serialized_bytes'] == required
+    assert context['skill_hashes'] == {d.name: d.content_hash for d in documents}
+    further = submit(app, request_id='after-large', tools=[])
+    assert events(app, further['id'])[-1]['data']['status'] == 'succeeded'
+    assert 'system' not in peer.take_request()
+    assert app.client.get('/healthz').status_code == 200

@@ -8,16 +8,16 @@ import stat
 from urllib.parse import urlsplit
 
 from hyperclaw.contracts import InvalidRequest, NotFound, SkillDocument, SkillResource, canonical
+from hyperclaw.skill_format import (
+    COMBINED_LIMIT, DESCRIPTION_LIMIT, DOCUMENT_LIMIT, NAME_LIMIT, RESOURCE_LIMIT,
+    RESOURCE_LIMIT_COUNT,
+)
 
 
 NAME = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
 LINK = re.compile(r'!?\[[^\]\n]*\]\(([^)\n]+)\)')
-DOCUMENT_LIMIT = 16_384
-RESOURCE_LIMIT = 16_384
-COMBINED_LIMIT = 32_768
 ENTRY_LIMIT = 512
 DEPTH_LIMIT = 16
-RESOURCE_LIMIT_COUNT = 16
 
 
 def _invalid(message='Skill package is invalid.'):
@@ -25,11 +25,11 @@ def _invalid(message='Skill package is invalid.'):
 
 
 def _valid_name(name):
-    return isinstance(name, str) and len(name) <= 64 and NAME.fullmatch(name) is not None
+    return isinstance(name, str) and len(name) <= NAME_LIMIT and NAME.fullmatch(name) is not None
 
 
 def _read_regular(parent_fd, entry, expected, limit):
-    fd = os.open(entry, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent_fd)
+    fd = os.open(entry, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent_fd)
     try:
         observed = os.fstat(fd)
         if ((observed.st_dev, observed.st_ino) != (expected.st_dev, expected.st_ino)
@@ -218,7 +218,7 @@ class Skills:
         loaded_name, description, body = _metadata(document_text)
         if loaded_name != name or not _valid_name(loaded_name):
             raise _invalid('SKILL.md name does not match its package directory.')
-        if len(description.encode('utf-8')) > 1_024:
+        if len(description.encode('utf-8')) > DESCRIPTION_LIMIT:
             raise _invalid('Skill description exceeds 1,024 UTF-8 bytes.')
         resources = []
         combined = len(document_raw)

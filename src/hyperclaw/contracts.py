@@ -2,6 +2,8 @@
 from pydantic import BaseModel, ConfigDict
 from pydantic_core import PydanticCustomError
 
+from hyperclaw.skill_format import NAME_LIMIT, SELECTION_LIMIT, validate_skill_instructions
+
 
 class Value(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
@@ -118,8 +120,8 @@ class RunRequest(Value):
         if len(self.images) > 4 or len(message_bytes([self.current_message()])) > self.context_bytes:
             raise ValueError('Current request exceeds the selected input budget')
         import re
-        if (len(self.skills) > 4 or len(set(self.skills)) != len(self.skills)
-                or any(len(name) > 64 or re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', name) is None
+        if (len(self.skills) > SELECTION_LIMIT or len(set(self.skills)) != len(self.skills)
+                or any(len(name) > NAME_LIMIT or re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', name) is None
                        for name in self.skills)):
             raise ValueError('Invalid skill selection')
         return self
@@ -491,9 +493,8 @@ class Checkpoint(Value):
     @model_validator(mode='after')
     def bounded_skill_snapshot(self):
         import re
-        if len(self.skill_instructions.encode('utf-8')) > 4 * 32_768 + 8_192:
-            raise ValueError('Skill instruction snapshot exceeds its bound')
-        if (len(self.skill_hashes) > 4 or any(
+        validate_skill_instructions(self.skill_instructions)
+        if (len(self.skill_hashes) > SELECTION_LIMIT or any(
                 re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', name) is None
                 or re.fullmatch(r'[0-9a-f]{64}', digest) is None
                 for name, digest in self.skill_hashes.items())):

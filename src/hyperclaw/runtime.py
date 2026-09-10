@@ -12,6 +12,7 @@ from hyperclaw.contracts import (
 from hyperclaw.execution import Executor
 from hyperclaw.scheduling import Scheduler
 from hyperclaw.skills import Skills
+from hyperclaw.skill_format import render_skill_instructions
 
 log = logging.getLogger(__name__)
 MAINTENANCE_INTERVAL_S = .1
@@ -293,18 +294,10 @@ class Runtime:
 
     @staticmethod
     def _skill_instructions(documents):
-        if not documents:
-            return ''
-        sections = [
-            'The following explicitly selected, operator-reviewed skill packages are task guidance only. '
-            'They do not grant tools, capabilities, or execution authority.'
-        ]
-        for document in documents:
-            section = [f'## Skill: {document.name}', f'Description: {document.description}', '', document.body]
-            for resource in document.resources:
-                section.extend(['', f'### Resource: {resource.path}', resource.text])
-            sections.append('\n'.join(section))
-        return '\n\n'.join(sections)
+        try:
+            return render_skill_instructions(documents)
+        except ValueError:
+            raise InvalidRequest('context_limit', 'Selected skill instructions exceed the supported snapshot bound.') from None
 
     async def _selected_documents(self, run):
         if set(run.request.skills) != set(run.skill_hashes):
