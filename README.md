@@ -1,6 +1,6 @@
 # HyperClaw runtime v2
 
-A local assistant with durable chat, image input, scoped file tools, and owned Docker commands in one Python package. M1 through M3 are implemented. [Testing](docs/testing.md) records verification and later milestones. The original platform remains in git at `dcad202`.
+A local assistant with durable chat, image input, scoped file tools, explicit memory, and owned Docker commands in one Python package. M1 through M4 are implemented. [Testing](docs/testing.md) records verification and later milestones. The original platform remains in git at `dcad202`.
 
 Python 3.11+ on macOS/Linux. Install with `uv sync --locked --extra dev`.
 
@@ -14,7 +14,7 @@ make test
 
 The default root is `~/.hyperclaw-v2`, selected by `--root`, then `HYPERCLAW_ROOT`. Settings are CLI overrides over `root/config.toml` over shipped defaults. Default model: `qwen3.8:27b-mlx` at `http://127.0.0.1:11434`. There is no automatic model download or cloud fallback. Ordinary setup and doctor do not contact a model; `--probe` checks the installed catalog.
 
-Initialization refuses nonempty unmarked roots and v1 data. M1 runtime-v2 databases migrate transactionally with a backup; already accepted M1 requests retain an empty tool allowlist. M2 databases receive additive schedule tables at schema version 3. Personal data and existing running installations are not automatically adopted.
+Initialization refuses nonempty unmarked roots and v1 data. M1 runtime-v2 databases migrate transactionally with a backup; already accepted M1 requests retain an empty tool allowlist. M2 databases receive additive schedule tables at schema version 3; M3 databases receive additive memory/FTS tables at schema version 4. Existing accepted run and schedule tool lists stay unchanged. Personal data and existing running installations are not automatically adopted.
 
 Start a disposable daemon, then submit from another terminal:
 
@@ -39,9 +39,9 @@ Ctrl-C while observing detaches. Explicit `run cancel` stops work and waits for 
 
 The default workspace is `root/workspace`. To select a project, explicitly set an absolute `workspace_path` in `root/config.toml` before launching the daemon. The current directory is never implicitly mounted. One daemon uses one workspace; grants bind its path and filesystem identity. The runtime root and operator home cannot be selected as the workspace.
 
-Available tools are `workspace_read`, `workspace_list`, `workspace_search`, `workspace_write`, and `command`. Use repeated `--tool NAME` to restrict a run, or `--no-tools` for chat only. File tools reject symlinks, parent traversal, absolute paths, hardlinks and nonregular files. Reads and writes are limited to 64 KiB; writes require existing parent directories. Search is literal and bounded.
+New runs offer `workspace_read`, `workspace_list`, `workspace_search`, `workspace_write`, `command`, `memory_remember`, `memory_search`, `memory_correct`, and `memory_forget`. Use repeated `--tool NAME` to restrict a run, or `--no-tools` for chat only. File tools reject symlinks, parent traversal, absolute paths, hardlinks and nonregular files. Reads and writes are limited to 64 KiB; writes require existing parent directories. Search is literal and bounded.
 
-Reads are admitted by default. Writes and commands have separate authority. Grant workspace writes once before submitting a file task:
+File reads are admitted by default. File writes and commands have separate authority. Grant workspace writes once before submitting a file task:
 
 ```sh
 hyperclaw --root /tmp/hyperclaw-demo workspace
@@ -50,7 +50,7 @@ hyperclaw --root /tmp/hyperclaw-demo chat "Write hello into answer.txt." --tool 
 hyperclaw --root /tmp/hyperclaw-demo run receipts RUN_ID
 ```
 
-Without a grant, an effect pauses for an exact invocation approval. Chat displays the call and detaches. Review the durable arguments and hashes, then approve or deny:
+A file write or command without its grant pauses for an exact invocation approval. Chat displays the call and detaches. Review the durable arguments and hashes, then approve or deny:
 
 ```sh
 hyperclaw --root /tmp/hyperclaw-demo approval list
@@ -82,6 +82,22 @@ hyperclaw --root /tmp/hyperclaw-demo chat "Describe this image." --image sample.
 
 The default serialized conversation budget is 64 KiB; attachments can explicitly raise it to at most 8 MiB. The loop allows at most 12 model rounds and three identical tool calls, with 64 KiB tool output and tool deadlines up to 60 seconds. Default model/run deadlines are 120/600 seconds. Run time excludes queue and approval waits; after abrupt death, a running interval is conservatively charged until recovery because the crash instant is unknown.
 
+## Explicit memory
+
+Memory is stored only when an admitted memory tool runs. Ordinary conversation does not automatically create facts. Use the same session to store and retrieve a fact:
+
+```sh
+hyperclaw --root /tmp/hyperclaw-demo chat "Use memory_remember to store: the archive drawer label is juniper-482." --tool memory_remember
+hyperclaw --root /tmp/hyperclaw-demo chat "Use memory_search to find the archive drawer label." --session SESSION_ID --tool memory_search
+hyperclaw --root /tmp/hyperclaw-demo run receipts RUN_ID
+```
+
+Use the session ID reported by the first command. Writes default to that session; tool argument `scope=workspace` explicitly shares a fact with other sessions in the selected workspace. A session search sees its private facts plus shared workspace facts. A workspace search sees shared facts only. Session reset retains explicit memory while clearing conversation context.
+
+`memory_correct` takes a record ID and replacement text, creates a new version and removes the old version from retrieval. `memory_forget` removes the selected active version from retrieval. Both require the record's exact scope; changing a shared record requires explicit workspace scope. Remember/correct accept optional `valid_until` with a timezone offset. Expired records are excluded at the expiry instant. Receipts retain IDs, scope, source run, observation/expiry times and version links. Forget preserves historical versions and receipts; it is not archive erasure.
+
+Memory text is limited to 2,048 UTF-8 bytes and search queries to 1,024 bytes. Retrieval uses SQLite FTS5/BM25 over literal query words and returns at most five eligible records. Scope, active status and expiry filter candidates before ranking and the result limit; BM25 corpus statistics are global. This lexical baseline can miss paraphrases without shared words. There are no embeddings, automatic promotions or learned authority. Facts are unverified text: storing an instruction does not grant file-write or command permission. Memory effects, index updates and their receipts commit in one transaction.
+
 ## Schedules
 
 Schedules submit ordinary runs to the same worker and use the same tool policy, approvals and receipts. Use a session ID reported by `chat` or created through the authenticated session API:
@@ -101,4 +117,4 @@ While a session is occupied, its earliest pending due time stays pending. After 
 
 Session reset pauses its schedules. `retarget` requires the schedule's expected generation and fetches the session's current generation before resuming. Pausing does not cancel queued runs; cancel those explicitly. An uncertain scheduled outcome pauses future occurrences as `uncertain_effect` and cannot be resumed through retarget. Completed schedules cannot be retargeted. Occurrences already accepted remain consumed after cancellation, failure or interruption.
 
-Explicit memory remains M4, MCP/skills M5, and web/Telegram M6. No legacy client parity or service switch is implied by these milestones.
+MCP/skills remain M5, and web/Telegram M6. No legacy client parity or service switch is implied by these milestones.

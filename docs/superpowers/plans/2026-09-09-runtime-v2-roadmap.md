@@ -1,6 +1,6 @@
 # HyperClaw Runtime v2 Roadmap Implementation Plan
 
-M1 and M2 completed 2026-09-09: [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md), [M2 acceptance](../../reports/2026-09-09-runtime-v2-m2.md). M3 completed 2026-09-09: [M3 acceptance](../../reports/2026-09-09-runtime-v2-m3.md). M4–M6 are not started. Baseline notes below describe the original planning state.
+M1 and M2 completed 2026-09-09: [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md), [M2 acceptance](../../reports/2026-09-09-runtime-v2-m2.md). M3 completed 2026-09-09: [M3 acceptance](../../reports/2026-09-09-runtime-v2-m3.md). M4 implementation is complete and final acceptance is underway: [M4 evidence](../../reports/2026-09-10-runtime-v2-m4.md). M5–M6 are not started. Baseline notes below describe the original planning state.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -146,6 +146,8 @@ Reserve a due occurrence and enqueue its run in one transaction, keyed by (sched
 
 **Deliverable:** explicit remember/search/correct/forget with provenance and a measured lexical baseline.
 
+**Plan:** [M4 implementation and evaluation](2026-09-10-runtime-v2-m4.md).
+
 **Consumes:** the same Store and session/workspace identity. **Produces:** `Memory.remember(scope: MemoryScope, text: str, source_run_id: str | None) -> MemoryRecord`; `search(scope, query: str, limit: int = 5) -> list[MemoryRecord]`; `correct(record_id: str, text: str, scope: MemoryScope) -> MemoryRecord`; `forget(record_id: str, scope: MemoryScope) -> None`. MemoryScope has workspace_id and optional session_id; records explicitly mark session versus workspace visibility.
 
 **Files:** src/hyperclaw/memory.py; extend store.py/contracts.py/runtime.py/execution/policy.py; tests/unit/test_memory.py; tests/evaluations/memory_cases.json; tests/evaluations/test_memory.py; port the fresh-store live memory-tool scenario.
@@ -154,11 +156,11 @@ Build 40 synthetic cases: 10 exact recall, 10 paraphrases, 10 corrections/expiry
 
 **Gate:**
 
-- [ ] Other-session records cannot crowd permitted records out of the top five.
-- [ ] Correct/forget survives restart and updates retrieval atomically.
-- [ ] Retrieved facts carry their source/version and do not grant tool authority.
-- [ ] The model receives an opaque stored marker through an actual memory tool after a fresh store opens.
-- [ ] No keyword-driven automatic facts or self-rated learning activation remain.
+- [x] Other-session records cannot crowd permitted records out of the top five.
+- [x] Correct/forget survives restart and updates retrieval atomically.
+- [x] Retrieved facts carry their source/version and do not grant tool authority.
+- [x] The model receives an opaque stored marker through an actual memory tool after a fresh store opens.
+- [x] No keyword-driven automatic facts or self-rated learning activation remain.
 
 ### M5 — Reuse one MCP integration and reviewed skills
 
