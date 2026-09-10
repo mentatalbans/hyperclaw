@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import csv
 from dataclasses import dataclass
+from decimal import Decimal
 import io
 import json
 import os
@@ -21,6 +22,31 @@ INVOCATION_LABEL = "io.hyperclaw.invocation"
 _STOPPED_STATES = frozenset({"created", "exited", "dead"})
 _LABEL_VALUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _CLI_CAPTURE_LIMIT = 2 * 1024 * 1024
+
+
+def docs_profile():
+    """Fresh canonical admitted profile; creation and inspection consume it too.
+
+    Image identity and snapshot source are separately bound by the manifest.
+    Environment values come only from that immutable image, never the host.
+    """
+    return {
+        'pull': 'never',
+        'mount': {'Type': 'bind', 'Destination': '/docs', 'RW': False},
+        'host': {
+            'NetworkMode': 'none', 'ReadonlyRootfs': True, 'Privileged': False,
+            'CapAdd': [], 'CapDrop': ['ALL'], 'SecurityOpt': ['no-new-privileges=true'],
+            'Memory': 268435456, 'MemorySwap': 268435456, 'NanoCpus': 1000000000,
+            'PidsLimit': 64, 'Init': True,
+            'Tmpfs': {'/tmp': 'rw,noexec,nosuid,nodev,size=16m'},
+            'LogConfig': {'Type': 'local', 'Config': {'max-size': '1m', 'max-file': '1', 'compress': 'false'}},
+        },
+        'config': {'User': '65532:65532', 'WorkingDir': '/docs',
+                   'Entrypoint': ['/usr/local/bin/python'], 'Cmd': ['/opt/server.py'], 'OpenStdin': True},
+        'environment': {'source': 'image_only', 'allowed_names': [
+            'PATH', 'LANG', 'GPG_KEY', 'PYTHON_VERSION', 'PYTHON_SHA256',
+            'PYTHONUNBUFFERED', 'PYTHONDONTWRITEBYTECODE']},
+    }
 
 
 class DockerUnavailable(RuntimeErrorBase):
@@ -126,21 +152,37 @@ class DockerBackend:
         snapshot = Path(snapshot)
         if snapshot.is_symlink() or not snapshot.is_dir():
             raise InvalidRequest('invalid_mcp_snapshot', 'MCP snapshot is unavailable.')
-        fields = ['type=bind', f'source={snapshot.resolve()}', 'target=/docs', 'readonly']
+        profile = docs_profile()
+        host, config, mount = profile['host'], profile['config'], profile['mount']
+        # No host forwarding or overrides: Docker inherits only the pinned image.
+        if profile['environment']['source'] != 'image_only':
+            raise InvalidRequest('mcp_profile_changed', 'Unsupported documentation environment rule.')
+        fields = [f"type={mount['Type']}", f'source={snapshot.resolve()}', f"target={mount['Destination']}"]
+        if not mount['RW']:
+            fields.append('readonly')
         buffer = io.StringIO(newline='')
         csv.writer(buffer, lineterminator='').writerow(fields)
-        result = await self._run([
-            'create', '--pull', 'never', '--interactive', '--label', f'{INSTALLATION_LABEL}={self.installation_id}',
+        command = [
+            'create', '--pull', profile['pull'], f"--interactive={str(config['OpenStdin']).lower()}",
+            '--label', f'{INSTALLATION_LABEL}={self.installation_id}',
             '--label', f'{INVOCATION_LABEL}={invocation_id}', '--label', 'io.hyperclaw.profile=mcp-docs',
-            '--network', 'none', '--read-only', '--cap-drop', 'ALL',
-            '--security-opt', 'no-new-privileges=true', '--user', '65532:65532',
-            '--workdir', '/docs', '--pids-limit', '64', '--memory', '256m',
-            '--memory-swap', '256m', '--cpus', '1',
-            '--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=16m',
-            '--log-driver', 'local', '--log-opt', 'max-size=1m', '--log-opt', 'max-file=1',
-            '--log-opt', 'compress=false', '--init', '--mount', buffer.getvalue(),
-            '--entrypoint', '/usr/local/bin/python', image, '/opt/server.py',
-        ])
+            '--network', host['NetworkMode'], f"--read-only={str(host['ReadonlyRootfs']).lower()}",
+            f"--privileged={str(host['Privileged']).lower()}",
+            '--user', config['User'], '--workdir', config['WorkingDir'],
+            '--pids-limit', str(host['PidsLimit']), '--memory', str(host['Memory']),
+            '--memory-swap', str(host['MemorySwap']), '--cpus', str(Decimal(host['NanoCpus']) / 1000000000),
+            '--log-driver', host['LogConfig']['Type'], f"--init={str(host['Init']).lower()}",
+            '--mount', buffer.getvalue(),
+        ]
+        for option, key in (('--cap-add', 'CapAdd'), ('--cap-drop', 'CapDrop'), ('--security-opt', 'SecurityOpt')):
+            for value in host[key]:
+                command.extend([option, value])
+        for path, options in host['Tmpfs'].items():
+            command.extend(['--tmpfs', f'{path}:{options}'])
+        for key, value in host['LogConfig']['Config'].items():
+            command.extend(['--log-opt', f'{key}={value}'])
+        command.extend(['--entrypoint', config['Entrypoint'][0], image, *config['Entrypoint'][1:], *config['Cmd']])
+        result = await self._run(command)
         cid = result.stdout.decode('ascii').strip()
         if re.fullmatch('[a-f0-9]{12,64}', cid) is None:
             raise DockerUnavailable()
@@ -151,25 +193,28 @@ class DockerBackend:
         raw = await self._inspect_raw(container_id)
         host, config = raw['HostConfig'], raw['Config']
         mounts = raw['Mounts']
-        if (len(mounts) != 1 or mounts[0]['Type'] != 'bind' or mounts[0]['RW']
-                or mounts[0]['Destination'] != '/docs' or Path(mounts[0]['Source']).resolve() != Path(snapshot).resolve()
-                or host['NetworkMode'] != 'none' or not host['ReadonlyRootfs']
-                or host['Privileged'] or host.get('CapAdd') or host['CapDrop'] != ['ALL']
-                or 'no-new-privileges=true' not in host['SecurityOpt']
-                or host['Memory'] != 268435456 or host['MemorySwap'] != 268435456
-                or host['NanoCpus'] != 1000000000 or host['PidsLimit'] != 64
-                or config['User'] != '65532:65532' or config['WorkingDir'] != '/docs'
-                or config['Image'] != image or config['Entrypoint'] != ['/usr/local/bin/python']
-                or config['Cmd'] != ['/opt/server.py'] or not config['OpenStdin']
-                or host['Tmpfs'] != {'/tmp': 'rw,noexec,nosuid,nodev,size=16m'}
-                or host['LogConfig'] != {'Type': 'local', 'Config': {'max-size': '1m', 'max-file': '1', 'compress': 'false'}}):
+        profile = docs_profile()
+        expected_host, expected_config = profile['host'], profile['config']
+        # Docker uses null for an empty capability list; normalize only that
+        # representation, leaving every other admitted field an exact match.
+        actual_host = {key: host.get(key) for key in expected_host}
+        actual_host['CapAdd'] = actual_host['CapAdd'] or []
+        if (len(mounts) != 1
+                or any(mounts[0].get(key) != value for key, value in profile['mount'].items())
+                or Path(mounts[0]['Source']).resolve() != Path(snapshot).resolve()
+                or actual_host != expected_host
+                or any(config.get(key) != value for key, value in expected_config.items())
+                or config.get('Image') != image):
             raise InvalidRequest('mcp_profile_changed', 'The actual Docker documentation profile does not match admission.')
-        allowed_env = {'PATH', 'LANG', 'GPG_KEY', 'PYTHON_VERSION', 'PYTHON_SHA256', 'PYTHONUNBUFFERED', 'PYTHONDONTWRITEBYTECODE'}
-        if any(item.split('=', 1)[0] not in allowed_env for item in config.get('Env') or []):
+        environment = profile['environment']
+        if (environment['source'] != 'image_only'
+                or any(item.split('=', 1)[0] not in environment['allowed_names'] for item in config.get('Env') or [])):
             raise InvalidRequest('mcp_profile_changed', 'The documentation image has unreviewed environment variables.')
         return {'mounts': mounts, 'user': config['User'], 'network': host['NetworkMode'],
                 'readonly_root': host['ReadonlyRootfs'], 'memory': host['Memory'],
-                'pids': host['PidsLimit'], 'nano_cpus': host['NanoCpus'], 'environment': config['Env']}
+                'pids': host['PidsLimit'], 'nano_cpus': host['NanoCpus'], 'environment': config['Env'],
+                'init': host['Init'], 'host': actual_host,
+                'config': {key: config[key] for key in expected_config}}
 
     async def attach_start(self, container_id):
         before = await self.inspect(container_id)

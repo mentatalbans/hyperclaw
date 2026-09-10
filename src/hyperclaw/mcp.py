@@ -153,7 +153,9 @@ def file_manifest(files):
 
 
 def docs_policy():
-    return {'version': 1, 'mount': '/docs', 'readonly': True, 'network': False,
+    # Keep admission inspection available without importing the optional SDK.
+    from hyperclaw.execution.docker import docs_profile
+    return {'version': 1, 'docker': docs_profile(),
             'wire_limit': WIRE_LIMIT, 'result_limit': RESULT_LIMIT}
 
 

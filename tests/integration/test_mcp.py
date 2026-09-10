@@ -122,6 +122,8 @@ async def test_docker_docs_profile_and_actual_receipt(tmp_path, request):
         assert 'opaque-doc-marker' in receipt.output
         assert receipt.evidence['terminated'] is True
         assert receipt.evidence['content_hash'] == manifest['content_hash']
+        assert receipt.evidence['profile']['init'] is True
+        assert receipt.evidence['profile']['host'] == manifest['policy']['docker']['host']
         evidence_path = ROOT/'test-results/m5-task2/docker-receipt.json'
         evidence_path.parent.mkdir(parents=True, exist_ok=True)
         evidence_path.write_text(json.dumps({'manifest': manifest, 'receipt': receipt.model_dump(mode='json')}, indent=2))
@@ -394,6 +396,7 @@ async def test_real_docker_adverse_attachment_is_bounded_and_owned(tmp_path, req
             assert host['NetworkMode'] == 'none' and host['ReadonlyRootfs'] and not host['Privileged']
             assert host['CapDrop'] == ['ALL'] and not host.get('CapAdd')
             assert 'no-new-privileges=true' in host['SecurityOpt']
+            assert host['Init'] is True
             assert host['Memory'] == host['MemorySwap'] == 268435456
             assert host['PidsLimit'] == 64 and host['NanoCpus'] == 1000000000
             assert host['Tmpfs'] == {'/tmp': 'rw,noexec,nosuid,nodev,size=16m'}

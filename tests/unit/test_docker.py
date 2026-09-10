@@ -229,3 +229,57 @@ elif sys.argv[1] == 'stop':
     with pytest.raises(DockerUnavailable):
         await backend.start(container_id)
     assert started.exists() and stopped.exists()
+
+
+@pytest.mark.asyncio
+async def test_docs_verification_rejects_missing_init(tmp_path, monkeypatch):
+    from hyperclaw.execution.docker import DockerBackend
+    from hyperclaw.contracts import InvalidRequest
+    image = 'sha256:' + 'a'*64
+    raw = {
+        'HostConfig': {'NetworkMode': 'none', 'ReadonlyRootfs': True, 'Privileged': False,
+            'CapAdd': None, 'CapDrop': ['ALL'], 'SecurityOpt': ['no-new-privileges=true'],
+            'Memory': 268435456, 'MemorySwap': 268435456, 'NanoCpus': 1000000000,
+            'PidsLimit': 64, 'Init': False, 'Tmpfs': {'/tmp': 'rw,noexec,nosuid,nodev,size=16m'},
+            'LogConfig': {'Type': 'local', 'Config': {'max-size': '1m', 'max-file': '1', 'compress': 'false'}}},
+        'Config': {'Image': image, 'User': '65532:65532', 'WorkingDir': '/docs',
+            'Entrypoint': ['/usr/local/bin/python'], 'Cmd': ['/opt/server.py'], 'OpenStdin': True, 'Env': ['PATH=/usr/local/bin']},
+        'Mounts': [{'Type': 'bind', 'RW': False, 'Destination': '/docs', 'Source': str(tmp_path)}],
+    }
+    class Backend(DockerBackend):
+        async def inspect(self, cid): return {}
+        async def _inspect_raw(self, cid): return raw
+    backend = Backend('test-installation', tmp_path)
+    with pytest.raises(InvalidRequest, match='profile'):
+        await backend.verify_docs('c'*64, tmp_path, image)
+    raw['HostConfig']['Init'] = True
+    assert (await backend.verify_docs('c'*64, tmp_path, image))['init'] is True
+
+    # Changing the canonical resource limit also changes inspection authority.
+    from hyperclaw.execution import docker
+    profile = docker.docs_profile()
+    profile['host']['PidsLimit'] = 32
+    monkeypatch.setattr(docker, 'docs_profile', lambda: profile)
+    with pytest.raises(InvalidRequest, match='profile'):
+        await backend.verify_docs('c'*64, tmp_path, image)
+    raw['HostConfig']['PidsLimit'] = 32
+    assert (await backend.verify_docs('c'*64, tmp_path, image))['pids'] == 32
+    # Every constrained inspect field is checked, including list/map contents.
+    import copy
+    accepted = copy.deepcopy(raw)
+    for section, key, bad in [
+        ('HostConfig', 'NetworkMode', 'bridge'), ('HostConfig', 'ReadonlyRootfs', False),
+        ('HostConfig', 'Privileged', True), ('HostConfig', 'CapAdd', ['SYS_ADMIN']),
+        ('HostConfig', 'CapDrop', []), ('HostConfig', 'SecurityOpt', []),
+        ('HostConfig', 'Memory', 536870912), ('HostConfig', 'MemorySwap', -1),
+        ('HostConfig', 'NanoCpus', 2000000000), ('HostConfig', 'Tmpfs', {}),
+        ('HostConfig', 'LogConfig', {'Type': 'none'}),
+        ('Config', 'User', '0:0'), ('Config', 'WorkingDir', '/'),
+        ('Config', 'Entrypoint', ['/bin/sh']), ('Config', 'Cmd', ['unreviewed.py']),
+        ('Config', 'OpenStdin', False), ('Config', 'Image', 'other'),
+        ('Config', 'Env', ['SECRET=unreviewed']),
+    ]:
+        raw = copy.deepcopy(accepted)
+        raw[section][key] = bad
+        with pytest.raises(InvalidRequest, match='profile|environment'):
+            await backend.verify_docs('c'*64, tmp_path, image)

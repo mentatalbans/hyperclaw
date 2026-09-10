@@ -112,7 +112,7 @@ async def test_bounded_transport_rejects_bad_frames(payload):
 
 
 def test_missing_sdk_is_clear_and_disabled_catalog_is_empty(tmp_path, monkeypatch):
-    from hyperclaw.mcp import McpTools, require_sdk
+    from hyperclaw.mcp import McpTools, docs_policy, require_sdk
     import builtins
     original = builtins.__import__
     def blocked(name, *args, **kwargs):
@@ -120,6 +120,7 @@ def test_missing_sdk_is_clear_and_disabled_catalog_is_empty(tmp_path, monkeypatc
         return original(name, *args, **kwargs)
     monkeypatch.setattr(builtins, '__import__', blocked)
     assert McpTools(None, Settings(root=tmp_path), None).list_tools() == []
+    assert docs_policy()['docker']['host']['Init'] is True
     with pytest.raises(InvalidRequest, match='optional'):
         require_sdk()
 
@@ -287,3 +288,36 @@ async def test_docs_container_creation_never_implicitly_pulls(tmp_path):
     assert await backend.create_docs('invocation', tmp_path, IMAGE) == 'c'*64
     command = commands[0]
     assert command[command.index('--pull') + 1] == 'never'
+
+
+@pytest.mark.asyncio
+async def test_exact_profile_change_invalidates_admission_and_pending_policy(tmp_path, monkeypatch):
+    from hyperclaw.execution import docker
+    from hyperclaw.execution.policy import Policy
+    from hyperclaw.contracts import ToolCall
+    from hyperclaw.mcp import McpTools
+    source = tmp_path/'public'; source.mkdir(); (source/'guide.md').write_text('text')
+    settings = Settings(root=tmp_path/'runtime', mcp_docs_path=str(source), mcp_docs_image=IMAGE)
+    async with opened(settings.root) as store:
+        tools = McpTools(store, settings, None)
+        first = await tools.admit((await tools.inspect_admission())['sha256'])
+        profile = docker.docs_profile()
+        assert first['policy']['docker'] == profile
+        profile['host']['PidsLimit'] = 32
+        monkeypatch.setattr(docker, 'docs_profile', lambda: profile)
+        changed = await tools.inspect_admission()
+        assert changed['sha256'] != first['sha256']
+        with pytest.raises(Conflict): await tools.current()
+        with pytest.raises(Conflict): await tools.admit(first['sha256'])
+        # Hold admission ID fixed to isolate the profile fingerprint's effect
+        # on an unrelated pending write approval, independently of readmission.
+        changed['admission_id'] = first['admission_id']
+        call = ToolCall(id='pending', name='workspace_write', arguments={'path': 'x.txt', 'content': 'x'})
+        assert Policy('workspace', [], first).check(call, [call.name]).sha256 != Policy('workspace', [], changed).check(call, [call.name]).sha256
+        commands = []
+        class Backend(docker.DockerBackend):
+            async def _run(self, args, timeout_s=15):
+                commands.append(args)
+                return docker._CommandResult(b'c'*64, b'', False)
+        await Backend('test-installation', tmp_path).create_docs('invocation', tmp_path, IMAGE)
+        assert commands[0][commands[0].index('--pids-limit') + 1] == '32'
