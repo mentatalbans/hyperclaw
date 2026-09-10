@@ -1,8 +1,8 @@
 # HyperClaw runtime v2
 
-A local assistant with durable chat, image input, scoped file tools, explicit memory, reviewed skills, admitted documentation tools, and owned Docker commands in one Python package. M1 through M5 are implemented. [Testing](docs/testing.md) records verification and later milestones. The original platform remains in git at `dcad202`.
+A local assistant with durable chat, image input, scoped file tools, explicit memory, reviewed skills, admitted documentation tools, and owned Docker commands in one Python package. M6 adds a local web client and optional Telegram adapter. [Testing](docs/testing.md) records verification and operating limits. The original platform remains in git at `dcad202`.
 
-Python 3.11+ on macOS/Linux. For development and the full test suite, install with `uv sync --locked --extra dev --extra mcp`. The runtime's MCP extra is optional.
+Python 3.11+ on macOS/Linux. For offline development tests, install with `uv sync --locked --extra dev --extra mcp`. The runtime's MCP extra is optional. Browser tests additionally require the `browser` extra and an explicitly installed browser; follow the [testing guide](docs/testing.md).
 
 ```sh
 uv run --locked hyperclaw --help

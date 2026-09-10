@@ -2,11 +2,24 @@
 
 All notable changes to HyperClaw will be documented in this file.
 
-> **Versioning note:** entries up to and including [0.2.0] (git tag `v0.2.0`)
+> **Historical versioning note:** entries up to and including [0.2.0] (git tag `v0.2.0`)
 > follow the repository's original 0.x scheme, while packages published to
 > PyPI used 1.0.x numbering. From [1.1.0] onward the repository and package
 > versions are unified in a single 1.x lineage; `v0.2.0` maps into it as the
-> release immediately preceding 1.1.0.
+> release immediately preceding 1.1.0. Runtime v2 is the separate development line below.
+
+## [Unreleased] — Runtime v2 (`2.0.0.dev0`)
+
+Runtime v2 replaces the previous architecture with one Python package, a local daemon and a SQLite Store. It uses explicit local Ollama configuration and a separate `~/.hyperclaw-v2` root. Legacy roots are not automatically imported; the 1.x entries below remain historical release notes.
+
+- Durable sessions, idempotent run submission, authenticated HTTP/CLI controls and replayable events.
+- Scoped workspace tools, exact invocation approvals, verified receipts, owned Docker execution and restart recovery that preserves uncertain effects.
+- Detached work, durable schedules and scoped lexical memory with versioned corrections.
+- Explicitly admitted local skills and a restricted documentation MCP peer.
+- A packaged local web client for chat, history, recovery, approvals and receipts.
+- An optional Telegram polling adapter with chat/sender authorization, durable intake and visible delivery uncertainty.
+
+See the [runtime guide](README.md), [testing guide](docs/testing.md) and [M6 acceptance report](docs/reports/2026-09-10-runtime-v2-m6.md) for supported behavior, verification and remaining limits. This development milestone does not publish a release or switch an existing installation.
 
 ## [1.2.0] - 2026-09-01
 
