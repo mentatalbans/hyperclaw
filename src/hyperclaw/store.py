@@ -285,6 +285,8 @@ class Store:
         previous = self._db.execute('SELECT id,payload_json FROM runs WHERE session_id=? AND generation=? AND request_id=?',
                                     (session.id, session.generation, request.request_id)).fetchone()
         if previous:
+            if schedule is not None:
+                raise Conflict('schedule_request_conflict', 'Scheduled work cannot adopt an existing run.')
             if canonical(RunRequest.model_validate_json(previous['payload_json']).model_dump()) != payload:
                 raise Conflict('request_conflict', 'Request ID was used with a different payload.')
             return self._run(previous['id'])
@@ -418,8 +420,13 @@ class Store:
                 nominal = schedule.next_due_at
                 nominal_text = instant(nominal)
                 digest = hashlib.sha256(canonical([schedule.id, nominal_text]).encode()).hexdigest()
+                request_id = f'schedule:{digest}'
+                while self._db.execute(
+                        'SELECT 1 FROM runs WHERE session_id=? AND generation=? AND request_id=?',
+                        (schedule.session_id, schedule.generation, request_id)).fetchone():
+                    request_id = f'schedule:{uuid4().hex}'
                 request = RunRequest(session_id=schedule.session_id, generation=schedule.generation,
-                                     request_id=f'schedule:{digest}', text=schedule.input,
+                                     request_id=request_id, text=schedule.input,
                                      tools=schedule.tools)
                 try:
                     run = self._submit(request, (schedule.id, nominal_text))

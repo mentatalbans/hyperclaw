@@ -8,7 +8,7 @@ import pytest
 
 from hyperclaw import contracts
 from hyperclaw.config import ensure_root
-from hyperclaw.contracts import Checkpoint, Conflict, InvalidRequest, Message, RunRequest, StorageFailure, ToolCall
+from hyperclaw.contracts import Checkpoint, Conflict, InvalidRequest, Message, RunRequest, StorageFailure, ToolCall, canonical
 from hyperclaw.store import MIGRATIONS, Store
 
 
@@ -391,3 +391,41 @@ async def test_v2_additive_migration_and_reopen_preserve_schedule_and_occurrence
         assert (await reopened.get_run(run_id)).request.text == 'after migration'
     finally:
         await reopened.close()
+
+
+async def test_v2_reserved_request_id_collision_does_not_become_schedule_provenance(tmp_path):
+    ensure_root(tmp_path)
+    legacy_request = RunRequest(session_id='existing', generation=0,
+        request_id='schedule:6bcb8be5f9958ca020a8112e99da41cdf7ae66744ddb8f14089d38e14a4ba873',
+        text='after migration', tools=())
+    with sqlite3.connect(tmp_path / 'runtime.sqlite3') as db:
+        for migration_number, (_, statements) in enumerate(MIGRATIONS[:2], start=1):
+            for statement in statements:
+                db.execute(statement)
+            db.execute('UPDATE schema_version SET version=?', (migration_number,))
+        db.execute("INSERT INTO sessions VALUES ('existing',0)")
+        db.execute("""INSERT INTO runs(
+            id,session_id,generation,request_id,payload_json,status,created_at
+            ) VALUES ('legacy-run','existing',0,?,?,'cancelled','2026-01-01T00:00:00+00:00')""",
+            (legacy_request.request_id, canonical(legacy_request.model_dump())))
+        db.execute("INSERT INTO messages(run_id,role,content) VALUES ('legacy-run','user','after migration')")
+        db.execute("INSERT INTO events VALUES ('legacy-run',1,'run.queued','2026-01-01T00:00:00+00:00','{}')")
+
+    store = await Store.open(tmp_path)
+    try:
+        request = contracts.ScheduleRequest(id='migrated', session_id='existing', generation=0,
+            input='after migration', next_due_at=at(), interval_seconds=None, tools=())
+        await store.create_schedule(request)
+
+        run_id = (await scheduler(store).tick(at()))[0]
+
+        assert run_id != 'legacy-run'
+        assert [item.run_id for item in await store.schedule_occurrences('migrated')] == [run_id]
+        assert (await store.get_run('legacy-run')).status == 'cancelled'
+        assert (await store.events('legacy-run'))[0].data == {}
+        assert (await store.events(run_id))[0].data == {
+            'schedule_id': 'migrated',
+            'nominal_due_at': '2026-01-01T00:00:00.000000+00:00',
+        }
+    finally:
+        await store.close()
