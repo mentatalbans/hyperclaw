@@ -145,6 +145,29 @@ MIGRATIONS += ((False, (
 )),)
 
 
+MIGRATIONS += ((False, (
+    """CREATE TABLE telegram_sessions (
+        bot_id INTEGER NOT NULL, chat_id INTEGER NOT NULL, topic_id INTEGER NOT NULL,
+        sender_id INTEGER NOT NULL, session_id TEXT NOT NULL REFERENCES sessions(id),
+        PRIMARY KEY(bot_id,chat_id,topic_id,sender_id))""",
+    "CREATE TABLE telegram_cursors (bot_id INTEGER PRIMARY KEY, next_offset INTEGER NOT NULL)",
+    """CREATE TABLE telegram_updates (
+        bot_id INTEGER NOT NULL, update_id INTEGER NOT NULL, fingerprint TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('reserved','prepared','accepted','rejected','ignored')),
+        conflict INTEGER NOT NULL DEFAULT 0, error TEXT,
+        session_id TEXT REFERENCES sessions(id), generation INTEGER, request_id TEXT,
+        normalized_json TEXT, request_json TEXT, run_id TEXT REFERENCES runs(id),
+        created_at TEXT NOT NULL, PRIMARY KEY(bot_id,update_id))""",
+    """CREATE TABLE telegram_deliveries (
+        bot_id INTEGER NOT NULL, update_id INTEGER NOT NULL, phase TEXT NOT NULL CHECK(phase IN ('approval','terminal')),
+        status TEXT NOT NULL CHECK(status IN ('sending','sent','failed','uncertain')),
+        message_id INTEGER, error TEXT, created_at TEXT NOT NULL,
+        PRIMARY KEY(bot_id,update_id,phase),
+        FOREIGN KEY(bot_id,update_id) REFERENCES telegram_updates(bot_id,update_id))""",
+    "CREATE INDEX telegram_intake ON telegram_updates(bot_id,status,update_id)",
+)),)
+
+
 def now():
     return datetime.now(timezone.utc).isoformat()
 
@@ -975,3 +998,125 @@ class Store:
     async def complete_invocation(self, receipt: ToolReceipt):
         return await self._call(lambda: self._transaction(
             lambda: self._complete_invocation(receipt)))
+
+
+    async def telegram_reserve(self, bot_id, update, authorized):
+        """Journal intake and advance its cursor in the same settled transaction."""
+        def reserve():
+            old = self._db.execute('SELECT * FROM telegram_updates WHERE bot_id=? AND update_id=?',
+                                   (bot_id, update.update_id)).fetchone()
+            if old:
+                if old['fingerprint'] != update.fingerprint:
+                    self._db.execute('UPDATE telegram_updates SET conflict=1 WHERE bot_id=? AND update_id=?',
+                                     (bot_id, update.update_id))
+                    return None
+                return dict(old)
+            session_id = generation = normalized = request_id = None
+            status = update.kind if update.kind in {'rejected', 'ignored'} else 'rejected'
+            if authorized and update.kind in {'text', 'photo'}:
+                key = (bot_id, update.chat_id, update.topic_id, update.sender_id)
+                mapping = self._db.execute('SELECT session_id FROM telegram_sessions WHERE bot_id=? AND chat_id=? AND topic_id=? AND sender_id=?', key).fetchone()
+                if mapping:
+                    session_id = mapping[0]
+                else:
+                    session_id = uuid4().hex
+                    self._db.execute('INSERT INTO sessions VALUES (?,0)', (session_id,))
+                    self._db.execute('INSERT INTO telegram_sessions VALUES (?,?,?,?,?)', (*key, session_id))
+                generation = self._session(session_id).generation
+                request_id = f'telegram:{bot_id}:{update.update_id}'
+                normalized, status = update.model_dump_json(), 'reserved'
+            self._db.execute('INSERT INTO telegram_updates(bot_id,update_id,fingerprint,status,session_id,generation,request_id,normalized_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+                (bot_id, update.update_id, update.fingerprint, status, session_id, generation, request_id, normalized, now()))
+            self._db.execute('INSERT INTO telegram_cursors VALUES (?,?) ON CONFLICT(bot_id) DO UPDATE SET next_offset=MAX(next_offset,excluded.next_offset)',
+                             (bot_id, update.update_id + 1))
+            return dict(self._db.execute('SELECT * FROM telegram_updates WHERE bot_id=? AND update_id=?', (bot_id, update.update_id)).fetchone())
+        result = await self._call(lambda: self._transaction(reserve))
+        if result is None:
+            raise Conflict('telegram_update_conflict', 'Telegram update payload changed.')
+        return result
+
+    async def telegram_update(self, bot_id, update_id):
+        def read():
+            row = self._db.execute('SELECT * FROM telegram_updates WHERE bot_id=? AND update_id=?', (bot_id, update_id)).fetchone()
+            return dict(row) if row else None
+        return await self._call(read)
+
+    async def telegram_offset(self, bot_id):
+        def read():
+            row = self._db.execute('SELECT next_offset FROM telegram_cursors WHERE bot_id=?', (bot_id,)).fetchone()
+            return row[0] if row else 0
+        return await self._call(read)
+
+    async def telegram_pending(self, bot_id):
+        return await self._call(lambda: [dict(row) for row in self._db.execute(
+            "SELECT * FROM telegram_updates WHERE bot_id=? AND status IN ('reserved','prepared') ORDER BY update_id LIMIT 25", (bot_id,)).fetchall()])
+
+    async def telegram_prepare(self, bot_id, update_id, request):
+        def prepare():
+            row = self._db.execute('SELECT * FROM telegram_updates WHERE bot_id=? AND update_id=?', (bot_id, update_id)).fetchone()
+            if (row is None or row['status'] not in {'reserved', 'prepared'}
+                    or (row['session_id'], row['generation'], row['request_id']) != (request.session_id, request.generation, request.request_id)):
+                raise Conflict('telegram_intake_state', 'Telegram intake changed.')
+            payload = request.model_dump_json()
+            if row['request_json'] is not None and row['request_json'] != payload:
+                raise Conflict('telegram_request_conflict', 'Telegram normalized request changed.')
+            self._db.execute("UPDATE telegram_updates SET status='prepared',request_json=? WHERE bot_id=? AND update_id=?", (payload, bot_id, update_id))
+        await self._call(lambda: self._transaction(prepare))
+
+    async def telegram_reconcile(self, bot_id, update_id):
+        """Bind only the exact accepted request, even when its session was reset."""
+        def reconcile():
+            row = self._db.execute('SELECT * FROM telegram_updates WHERE bot_id=? AND update_id=?', (bot_id, update_id)).fetchone()
+            if row is None or row['request_json'] is None:
+                return None
+            run = self._db.execute('SELECT id FROM runs WHERE session_id=? AND generation=? AND request_id=?',
+                                  (row['session_id'], row['generation'], row['request_id'])).fetchone()
+            if run:
+                if self._run(run[0]).request != RunRequest.model_validate_json(row['request_json']):
+                    raise Conflict('telegram_request_conflict', 'Telegram request key belongs to a different payload.')
+                self._db.execute("UPDATE telegram_updates SET run_id=?,status='accepted',error=NULL WHERE bot_id=? AND update_id=?", (run[0], bot_id, update_id))
+                return run[0]
+            return None
+        return await self._call(lambda: self._transaction(reconcile))
+
+    async def telegram_reject(self, bot_id, update_id, error):
+        await self._call(lambda: self._transaction(lambda: self._db.execute(
+            "UPDATE telegram_updates SET status='rejected',error=? WHERE bot_id=? AND update_id=? AND status IN ('reserved','prepared')", (error, bot_id, update_id))))
+
+    async def telegram_delivery_candidates(self, bot_id):
+        return await self._call(lambda: [dict(row) for row in self._db.execute("""
+            SELECT u.*, CASE WHEN r.status='waiting_approval' THEN 'approval' ELSE 'terminal' END AS phase
+            FROM telegram_updates u JOIN runs r ON r.id=u.run_id
+            WHERE u.bot_id=? AND u.status='accepted'
+            AND r.status IN ('waiting_approval','succeeded','failed','cancelled','interrupted','uncertain')
+            AND NOT EXISTS (SELECT 1 FROM telegram_deliveries d WHERE d.bot_id=u.bot_id AND d.update_id=u.update_id
+                AND d.phase=CASE WHEN r.status='waiting_approval' THEN 'approval' ELSE 'terminal' END)
+            ORDER BY u.update_id LIMIT 25""", (bot_id,)).fetchall()])
+
+    async def telegram_begin_delivery(self, bot_id, update_id, phase):
+        def begin():
+            cursor = self._db.execute("INSERT OR IGNORE INTO telegram_deliveries(bot_id,update_id,phase,status,created_at) VALUES (?,?,?,'sending',?)", (bot_id, update_id, phase, now()))
+            return cursor.rowcount == 1
+        return await self._call(lambda: self._transaction(begin))
+
+    async def telegram_finish_delivery(self, bot_id, update_id, phase, status, *, message_id=None, error=None):
+        if (status not in {'sent', 'failed', 'uncertain'} or
+                (status == 'sent' and (type(message_id) is not int or not 0 < message_id < 2**52))):
+            raise InvalidRequest()
+        await self._call(lambda: self._transaction(lambda: self._db.execute(
+            "UPDATE telegram_deliveries SET status=?,message_id=?,error=? WHERE bot_id=? AND update_id=? AND phase=? AND status='sending'",
+            (status, message_id, error, bot_id, update_id, phase))))
+
+    async def telegram_recover_deliveries(self, bot_id):
+        await self._call(lambda: self._transaction(lambda: self._db.execute(
+            "UPDATE telegram_deliveries SET status='uncertain',error='telegram_restart' WHERE bot_id=? AND status='sending'", (bot_id,))))
+
+    async def telegram_status(self, bot_id=None):
+        def read():
+            clause, values = (' WHERE bot_id=?', (bot_id,)) if bot_id is not None else ('', ())
+            updates = [dict(row) for row in self._db.execute(
+                'SELECT bot_id,update_id,status,conflict,error,session_id,generation,run_id,created_at FROM telegram_updates' + clause + ' ORDER BY rowid DESC LIMIT 50', values).fetchall()]
+            deliveries = [dict(row) for row in self._db.execute(
+                'SELECT * FROM telegram_deliveries' + clause + ' ORDER BY rowid DESC LIMIT 50', values).fetchall()]
+            return {'updates': updates, 'deliveries': deliveries}
+        return await self._call(read)

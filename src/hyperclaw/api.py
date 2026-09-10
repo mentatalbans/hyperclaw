@@ -21,6 +21,7 @@ from hyperclaw.contracts import (
 from hyperclaw.ollama import Ollama
 from hyperclaw.runtime import Runtime
 from hyperclaw.store import Store
+from hyperclaw.telegram import TelegramAdapter
 
 
 class ResetRequest(Value):
@@ -61,7 +62,7 @@ def create_app(settings: Settings) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app):
-        store = model = runtime = None
+        store = model = runtime = telegram = None
         published = False
         try:
             initialize_root(settings)
@@ -72,6 +73,9 @@ def create_app(settings: Settings) -> FastAPI:
             await runtime.start()
             app.state.runtime = runtime
             app.state.token = token
+            telegram = TelegramAdapter(runtime, settings)
+            await telegram.start()
+            app.state.telegram = telegram
             temporary = settings.root / f'daemon-{instance}.tmp'
             try:
                 temporary.write_text(json.dumps({'url': url, 'instance_id': instance, 'pid': os.getpid()}) + '\n')
@@ -92,6 +96,8 @@ def create_app(settings: Settings) -> FastAPI:
                         metadata_path.unlink()
                 except (OSError, ValueError):
                     pass
+            if telegram is not None:
+                await telegram.close()
             if runtime is not None:
                 await runtime.close()
             else:
@@ -184,6 +190,10 @@ def create_app(settings: Settings) -> FastAPI:
     @app.post('/v1/runs', status_code=202)
     async def submit(body: RunRequest):
         return await app.state.runtime.submit(body)
+
+    @app.get('/v1/telegram')
+    async def telegram_status():
+        return await app.state.telegram.status()
 
     @app.get('/v1/mcp')
     async def inspect_mcp():

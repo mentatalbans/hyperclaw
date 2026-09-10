@@ -23,11 +23,28 @@ class Settings(Value):
     mcp_docs_path: str = ''
     mcp_docs_image: str = ''
     mcp_protocol: Literal['2026-07-28', '2025-11-25'] = '2026-07-28'
+    telegram_enabled: bool = False
+    telegram_allowed_pairs: list[str] = Field(default_factory=list)
     thinking: bool = False
     max_output_tokens: int = Field(default=4096, gt=0)
     request_timeout_s: float = Field(default=120, gt=0)
     run_timeout_s: float = Field(default=600, gt=0)
     port: int = Field(default=8011, ge=0, le=65535)
+
+    @model_validator(mode='after')
+    def valid_telegram(self):
+        pairs = self.telegram_allowed_pairs
+        if self.telegram_enabled and not pairs:
+            raise ValueError('Enabled Telegram requires allowed chat/sender pairs')
+        if len(pairs) > 1000 or len(set(pairs)) != len(pairs):
+            raise ValueError('Telegram pairs must be unique and bounded')
+        for pair in pairs:
+            if re.fullmatch(r'-?[1-9][0-9]{0,15}:[1-9][0-9]{0,15}', pair) is None:
+                raise ValueError('Telegram pairs must be canonical CHAT_ID:SENDER_ID')
+            chat, sender = map(int, pair.split(':'))
+            if abs(chat) >= 2**52 or sender >= 2**52:
+                raise ValueError('Telegram IDs must fit 52 bits')
+        return self
 
     @model_validator(mode='after')
     def valid_mcp(self):

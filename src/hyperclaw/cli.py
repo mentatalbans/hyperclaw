@@ -474,3 +474,13 @@ def reset_session(ctx: typer.Context, session_id: str):
         path = '/v1/sessions/' + quote(session_id, safe='')
         session = response_json(client.get(path))
         typer.echo(json.dumps(response_json(client.post(path + '/reset', json={'generation': session['generation']})), indent=2))
+
+
+telegram_app = typer.Typer(no_args_is_help=True)
+app.add_typer(telegram_app, name='telegram')
+
+
+@telegram_app.command('status')
+def telegram_status(ctx: typer.Context):
+    with daemon_client(ctx.obj) as client:
+        typer.echo(json.dumps(response_json(client.get('/v1/telegram')), indent=2))

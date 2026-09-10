@@ -306,7 +306,7 @@ async def test_v3_additive_migration_preserves_history_schedule_tools_and_fts_re
         record = await memory.remember(scope, 'Persistent archive marker is quartz.')
         assert (await store.get_run('historical')).request.tools == ('workspace_read',)
         assert (await store.get_schedule('historical-schedule')).tools == ('workspace_read',)
-        assert await store._call(lambda: store._db.execute('SELECT version FROM schema_version').fetchone()[0]) == 6
+        assert await store._call(lambda: store._db.execute('SELECT version FROM schema_version').fetchone()[0]) == 7
     finally:
         await store.close()
 
@@ -339,7 +339,7 @@ async def test_failed_schema4_migration_rolls_back_version_tables_and_index_cont
     reopened = await Store.open(tmp_path)
     try:
         assert await reopened._call(lambda: reopened._db.execute(
-            'SELECT version FROM schema_version').fetchone()[0]) == 6
+            'SELECT version FROM schema_version').fetchone()[0]) == 7
     finally:
         await reopened.close()
 

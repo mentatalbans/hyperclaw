@@ -14,7 +14,7 @@ make test
 
 The default root is `~/.hyperclaw-v2`, selected by `--root`, then `HYPERCLAW_ROOT`. Settings are CLI overrides over `root/config.toml` over shipped defaults. Default model: `qwen3.8:27b-mlx` at `http://127.0.0.1:11434`. There is no automatic model download or cloud fallback. Ordinary setup and doctor do not contact a model; `--probe` checks the installed catalog.
 
-Initialization refuses nonempty unmarked roots and v1 data. M1 runtime-v2 databases migrate transactionally with a backup; already accepted M1 requests retain an empty tool allowlist. M2 databases receive additive schedule tables at schema version 3; M3 databases receive additive memory/FTS tables at schema version 4. M4 databases receive additive skill admission at schema version 5 and MCP admission at schema version 6. Existing accepted run and schedule tool lists stay unchanged. Personal data and existing running installations are not automatically adopted.
+Initialization refuses nonempty unmarked roots and v1 data. M1 runtime-v2 databases migrate transactionally with a backup; already accepted M1 requests retain an empty tool allowlist. M2 databases receive additive schedule tables at schema version 3; M3 databases receive additive memory/FTS tables at schema version 4. M4 databases receive additive skill admission at schema version 5 and MCP admission at schema version 6. M6 adds Telegram session mappings, intake cursors/journals and delivery records at schema version 7. Existing accepted run and schedule tool lists stay unchanged. Personal data and existing running installations are not automatically adopted.
 
 Start a disposable daemon, then submit from another terminal:
 
@@ -161,4 +161,30 @@ Start the daemon as usual, then open the loopback URL printed by `hyperclaw serv
 
 The web client can create and select sessions, submit text with an explicit tool allowlist and admitted skills, inspect current and older-generation runs, reconnect event observation, cancel, reset the conversation generation, review receipts, and decide exact pending approvals. A submission whose HTTP outcome is ambiguous remains available as “Retry same request”; this deliberately reuses its original request ID. The browser never resubmits automatically during connection or stream recovery.
 
-The web surface is local and operator-authenticated. Only the empty shell and its two fixed assets are public; every `/v1` state request still requires the bearer token. Telegram remains an M6 follow-up and is not shipped by this change. No service installation or switch is implied.
+The web surface is local and operator-authenticated. Only the empty shell and its two fixed assets are public; every `/v1` state request still requires the bearer token. No service installation or switch is implied.
+
+
+## Optional Telegram adapter
+
+Telegram is disabled by default. It runs inside the daemon and uses the same Runtime, local model, Store and operator policy. Initialize a new root first, then have the operator create `root/telegram-token` containing the BotFather token and one optional final newline. Use a private editor or secret provisioning mechanism: the file must be owned by the daemon user, mode `0600`, a regular file with one hard link, and never a symlink. Do not place the token in TOML, a command argument or an environment variable. Initialization deliberately does not create this credential.
+
+Set these nonsecret fields in `root/config.toml` before starting your chosen daemon:
+
+```toml
+telegram_enabled = true
+telegram_allowed_pairs = ["123456789:123456789", "-1001234567890:987654321"]
+```
+
+Every private chat and group requires an explicit `CHAT_ID:SENDER_ID` pair. IDs use canonical decimal notation: a nonzero signed chat ID and positive sender ID, each less than 2^52 in magnitude, without whitespace, leading zeroes or a leading `+`; duplicates are rejected. Bot identity is checked with `getMe`. An existing webhook prevents startup and is never deleted or replaced. Production connects only to the official HTTPS Telegram API, with environment proxies and redirects disabled.
+
+Supported input is ordinary text or one photo (Telegram's size variants count as one) with an optional caption. Downloads are authorized before metadata lookup and again before fetching, limited to 4 MiB, and checked using the runtime's image attachment validation. Photos use an explicit 8 MiB context budget; text uses 64 KiB. Edits, forwards, service messages, bots, anonymous/channel senders and other attachment types are rejected. Routing separates bot identity, chat, topic and sender into distinct sessions. An occupied session rejects another update explicitly; reset races retain the original generation instead of routing into a newer conversation.
+
+Runs use the default nine tools, with no automatic skill/MCP admission or new grants. Waiting approvals send a run reference for review through the local web UI or CLI; Telegram has no approval or grant administration. A pending approval does not block intake from other sessions. Replies in shared groups can be read by other group members: the allowlist controls who can submit work, not group confidentiality.
+
+```sh
+hyperclaw --root /path/to/root telegram status
+```
+
+The same bounded, sanitized status is available at authenticated `GET /v1/telegram`. It includes the most recent 50 intake and 50 delivery records. Update IDs and normalized requests commit before submission; reopening reconciles the exact accepted run without replaying it. Poll offsets advance only with durable intake, including rejected updates without their message text. Each update has independent approval and terminal delivery phases. Replies are plain text, at most 3,500 UTF-16 units including the run ID and any truncation note, and target the originating message/topic.
+
+A send records `sending` before HTTP and `sent` only with a valid Telegram message receipt. Explicit API rejection is `failed`; a lost/invalid response or restart during sending becomes `uncertain`. Neither is retried automatically, since Telegram may already have delivered the message. Review these records and the local run before manually following up. Authorization is checked again before delivery, including after a configuration change and restart. Disabling Telegram leaves its journal inspectable without reading the bot credential or contacting Telegram. Stop/start only the daemon you intend to operate; configuration changes do not adopt or restart another installation.

@@ -376,7 +376,7 @@ async def test_v2_additive_migration_and_reopen_preserve_schedule_and_occurrence
         input='after migration', next_due_at=at(), interval_seconds=None, tools=())
     try:
         assert await store._call(lambda: store._db.execute(
-            'SELECT version FROM schema_version').fetchone()[0]) == 6
+            'SELECT version FROM schema_version').fetchone()[0]) == 7
         assert await store._call(lambda: store._db.execute('PRAGMA foreign_key_check').fetchall()) == []
         assert list(tmp_path.glob('backup-v2-*.sqlite3')) == []
         await store.create_schedule(request)
