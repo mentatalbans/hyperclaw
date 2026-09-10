@@ -16,8 +16,11 @@ from tests.support.provider import MODEL
 
 
 class Process:
-    def __init__(self, root: Path, provider_url: str, model=MODEL, timeout=5, thinking=False):
+    def __init__(self, root: Path, provider_url: str, model=MODEL, timeout=5, thinking=False,
+                 launcher=None, environment=None):
         self.root = root
+        self.launcher = launcher
+        self.environment = dict(environment or {})
         self.timeout = timeout
         self.process = None
         self.client = None
@@ -33,9 +36,10 @@ class Process:
         env = {key: os.environ[key] for key in (
             'PATH', 'LANG', 'LC_ALL', 'SYSTEMROOT', 'COVERAGE_PROCESS_CONFIG', 'COVERAGE_FILE',
         ) if key in os.environ}
+        env.update(self.environment)
         env['PYTHONUNBUFFERED'] = '1'
         self._cwd = tempfile.TemporaryDirectory(prefix='hyperclaw-process-cwd-')
-        self.process = subprocess.Popen([sys.executable, '-m', 'hyperclaw', '--root', str(self.root), 'serve', '--port', '0'],
+        self.process = subprocess.Popen([sys.executable, *([str(self.launcher)] if self.launcher else ['-m', 'hyperclaw']), '--root', str(self.root), 'serve', '--port', '0'],
             cwd=self._cwd.name, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         output = self.process.stdout
         def read():

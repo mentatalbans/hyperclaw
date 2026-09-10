@@ -351,9 +351,18 @@ class Store:
             rows = self._db.execute("SELECT id FROM runs WHERE status='running' ORDER BY rowid").fetchall()
             recovered = []
             for row in rows:
-                unknown = self._db.execute("SELECT 1 FROM invocations WHERE run_id=? AND status='uncertain'", (row['id'],)).fetchone()
+                invocation_rows = self._db.execute(
+                    'SELECT status,receipt_json FROM invocations WHERE run_id=? ORDER BY rowid', (row['id'],)
+                ).fetchall()
+                unknown = any(invocation['status'] == 'uncertain' for invocation in invocation_rows)
                 status = 'uncertain' if unknown else 'interrupted'
-                recovered.append(self._finish(row['id'], status, None, Failure(code=status, message='Owner stopped before the response completed.')))
+                verifications = {
+                    ToolReceipt.model_validate_json(invocation['receipt_json']).evidence.get('verification')
+                    for invocation in invocation_rows if invocation['receipt_json']
+                }
+                verification = 'failed' if 'failed' in verifications else 'passed' if 'passed' in verifications else 'not_requested'
+                recovered.append(self._finish(row['id'], status, None,
+                    Failure(code=status, message='Owner stopped before the response completed.'), verification))
             return recovered
         return await self._call(lambda: self._transaction(recover))
 

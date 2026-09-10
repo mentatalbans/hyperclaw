@@ -107,6 +107,51 @@ async def test_backend_loss_records_uncertain_and_never_reexecutes(tmp_path):
         await store.close()
 
 
+async def test_reconcile_preserves_approved_queued_invocation(tmp_path):
+    store, executor, run, call = await setup(tmp_path)
+    try:
+        with pytest.raises(ApprovalRequired):
+            await executor.invoke(run.id, call)
+        approval = (await store.approvals())[0]
+        resumed = await executor.decide_approval(
+            approval.id, True, approval.arguments_sha256, approval.policy_sha256
+        )
+        assert resumed.status == 'queued'
+
+        assert await executor.reconcile() == []
+        invocation = (await store.invocations(run.id))[0]
+        assert invocation.status == 'prepared'
+        assert invocation.approved
+        assert invocation.receipt is None
+
+        await store.next_run()
+        receipt = await executor.invoke(run.id, call)
+        assert receipt.status == 'succeeded'
+        assert (tmp_path / 'workspace/answer.txt').read_text() == 'hello'
+    finally:
+        await executor.close()
+        await store.close()
+
+
+async def test_reconcile_settles_prepared_invocation_for_terminal_parent(tmp_path):
+    store, executor, run, call = await setup(tmp_path)
+    try:
+        decision = (await executor.policy()).check(call, run.request.tools)
+        invocation = await store.prepare_invocation(
+            run.id, call, decision.sha256, executor.workspace.identity, decision.capability
+        )
+        await store.finish(run.id, 'interrupted')
+
+        receipts = await executor.reconcile()
+        assert len(receipts) == 1
+        assert receipts[0].invocation_id == invocation.id
+        assert receipts[0].status == 'interrupted'
+        assert (await store.get_run(run.id)).status == 'interrupted'
+    finally:
+        await executor.close()
+        await store.close()
+
+
 async def test_host_file_cancellation_settles_effect_and_receipt(tmp_path, monkeypatch):
     import threading
     store, executor, run, call = await setup(tmp_path)

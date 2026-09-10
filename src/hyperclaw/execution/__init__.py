@@ -207,8 +207,18 @@ class Executor:
         by_invocation = {i.id: i for i in invocations}
         by_container = {c['invocation_id']: c for c in owned or []}
         for inv in invocations:
-            if inv.status in {'prepared', 'waiting_approval'} and inv.id not in by_container:
-                continue  # Intent/approval never dispatched. Runtime recovery settles active runs.
+            if inv.status == 'waiting_approval' and inv.id not in by_container:
+                continue
+            if inv.status == 'prepared' and inv.id not in by_container:
+                parent = await self.store.get_run(inv.run_id)
+                if parent.status != 'running' and parent.status not in TERMINAL:
+                    continue  # Queued approvals and pending decisions still own this intent.
+                receipts.append(await self.store.complete_invocation(ToolReceipt(
+                    invocation_id=inv.id,
+                    status='cancelled' if cancellation else 'interrupted',
+                    evidence={'reason': 'Dispatch did not start before the owner stopped.'},
+                )))
+                continue
             container = by_container.get(inv.id)
             if inv.call.name == 'command':
                 cid = container['id'] if container else inv.container_id
