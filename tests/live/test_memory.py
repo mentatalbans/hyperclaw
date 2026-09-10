@@ -33,8 +33,8 @@ def test_live_memory_search_recovers_opaque_fact_after_store_reopen(live_app, re
 
     record = asyncio.run(seed())
     app.start()
-    prompt = ('Use memory_search to find the synthetic archive calibration marker. '
-              'Answer with the exact stored marker. Do not guess.')
+    prompt = ('Use memory_search with scope session and limit 5 to find this session\'s '
+              'synthetic archive calibration marker. Answer with the exact stored marker. Do not guess.')
     assert marker not in prompt
     run = submit(app, prompt, session, tools=['memory_search'])
     received = events(app, run['id'])

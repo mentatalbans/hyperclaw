@@ -215,7 +215,13 @@ def _memory_argument_time(value):
 
 
 class MemoryRememberArguments(Value):
-    scope: MemoryToolScope = 'session'
+    scope: MemoryToolScope = Field(
+        default='session',
+        description=(
+            'Use session by default. Use workspace only to explicitly share the record '
+            'with every session in this workspace.'
+        ),
+    )
     text: str
     valid_until: datetime | None = None
 
@@ -231,9 +237,18 @@ class MemoryRememberArguments(Value):
 
 
 class MemorySearchArguments(Value):
-    scope: MemoryToolScope = 'session'
+    scope: MemoryToolScope = Field(
+        default='session',
+        description=(
+            "Use session by default to search this session's records plus explicitly shared "
+            'workspace records. Use workspace to search only explicitly shared workspace records.'
+        ),
+    )
     query: str
-    limit: int = Field(default=5, ge=1, le=5, strict=True)
+    limit: int = Field(
+        default=5, ge=1, le=5, strict=True,
+        description='Maximum number of records to return; use an integer from 1 through 5.',
+    )
 
     @field_validator('query')
     @classmethod
@@ -242,11 +257,23 @@ class MemorySearchArguments(Value):
 
 
 class MemoryCorrectArguments(MemoryRememberArguments):
+    scope: MemoryToolScope = Field(
+        default='session',
+        description=(
+            'Use session by default. Use workspace only when correcting a record that was '
+            'already explicitly shared with the workspace.'
+        ),
+    )
     record_id: Identifier
 
 
 class MemoryForgetArguments(Value):
-    scope: MemoryToolScope = 'session'
+    scope: MemoryToolScope = Field(
+        default='session',
+        description=(
+            'Use session by default. Use workspace only for an explicitly shared workspace record.'
+        ),
+    )
     record_id: Identifier
 
 

@@ -65,3 +65,30 @@ def test_memory_policy_rejects_model_selected_identity_and_authority(field):
         Policy('workspace-a', {'write', 'execute'}).check(call, ['memory_remember'])
 
     assert caught.value.code == 'invalid_tool_arguments'
+
+
+def test_memory_search_schema_advertises_scope_visibility_and_strict_limit():
+    definition = Policy('workspace-a', set()).definitions(['memory_search'])[0]
+    properties = definition['input_schema']['properties']
+
+    assert properties['limit']['type'] == 'integer'
+    assert properties['limit']['default'] == 5
+    assert properties['limit']['minimum'] == 1
+    assert properties['limit']['maximum'] == 5
+    assert '1 through 5' in properties['limit'].get('description', '')
+    assert 'session' in properties['scope'].get('description', '')
+    assert 'explicitly shared workspace records' in properties['scope'].get('description', '')
+    assert 'defaults to session visibility' in definition['description']
+
+
+@pytest.mark.parametrize(('name', 'scope_guidance'), [
+    ('memory_remember', 'explicitly share the record'),
+    ('memory_correct', 'already explicitly shared'),
+    ('memory_forget', 'explicitly shared workspace record'),
+])
+def test_memory_mutation_schemas_explain_exact_scope(name, scope_guidance):
+    definition = Policy('workspace-a', set()).definitions([name])[0]
+    description = definition['input_schema']['properties']['scope'].get('description', '')
+
+    assert 'session' in description
+    assert scope_guidance in description

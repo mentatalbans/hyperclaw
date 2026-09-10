@@ -63,10 +63,10 @@ CATALOG = {
     'workspace_search': (Search, 'read', 'read', 'Search workspace text files for a literal string.'),
     'workspace_write': (Write, 'write', 'write', 'Write a UTF-8 file; optionally check an expected SHA-256.'),
     'command': (Command, 'execute', 'command', 'Run argv in an isolated, network-disabled container at /workspace. Execution authority and writable mount authority are separate. Supply file checks to publish verified artifacts.'),
-    'memory_remember': (MemoryRememberArguments, 'memory', 'memory', 'Remember an explicit fact in this session by default, or share it with the workspace.'),
-    'memory_search': (MemorySearchArguments, 'memory', 'memory', 'Search explicit memory visible to this session or the workspace.'),
-    'memory_correct': (MemoryCorrectArguments, 'memory', 'memory', 'Replace an accessible active memory record with a corrected version.'),
-    'memory_forget': (MemoryForgetArguments, 'memory', 'memory', 'Forget an accessible active memory record.'),
+    'memory_remember': (MemoryRememberArguments, 'memory', 'memory', 'Remember an explicit fact for this session by default. Select workspace only to explicitly share it with every session in this workspace.'),
+    'memory_search': (MemorySearchArguments, 'memory', 'memory', "Search explicit memory. This tool defaults to session visibility, including this session's records and explicitly shared workspace records. Select workspace only to search shared workspace records. Return 1 through 5 results."),
+    'memory_correct': (MemoryCorrectArguments, 'memory', 'memory', 'Correct an accessible active memory record. Keep the default session scope unless the record was explicitly shared with the workspace.'),
+    'memory_forget': (MemoryForgetArguments, 'memory', 'memory', 'Forget an accessible active memory record. Keep the default session scope unless the record was explicitly shared with the workspace.'),
 }
 OUTPUT_LIMIT = 65536
 DEADLINE_S = 60
