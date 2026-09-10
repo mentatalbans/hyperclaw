@@ -30,15 +30,20 @@ jobs:
       - name: Install locked dependencies
         run: |
           python -m pip install uv==0.8.3
-          uv sync --locked --extra dev --python "${{ matrix.python }}"
+          uv sync --locked --extra dev --extra mcp --python "${{ matrix.python }}"
       - name: Run isolated offline battery
         run: make test PYTHON=.venv/bin/python COVERAGE=1
       - name: Pull pinned Docker tool image
         if: matrix.python == '3.13'
         run: docker pull python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e
+      - name: Build pinned MCP documentation image explicitly
+        if: matrix.python == '3.13'
+        run: |
+          docker build -f examples/mcp-docs/Dockerfile -t hyperclaw-mcp-docs .
+          echo "MCP_DOCS_IMAGE=$(docker image inspect -f '{{.Id}}' hyperclaw-mcp-docs)" >> "$GITHUB_ENV"
       - name: Run selected Linux Docker gate
         if: matrix.python == '3.13'
-        run: make test-docker PYTHON=.venv/bin/python
+        run: make test-docker PYTHON=.venv/bin/python MCP_DOCS_IMAGE="$MCP_DOCS_IMAGE"
       - name: Build and smoke-install the wheel outside the checkout
         run: |
           uv build

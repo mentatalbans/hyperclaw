@@ -29,6 +29,8 @@ class Executor:
         self.store, self.settings, self.workspace, self.backend = store, settings, workspace, backend
         from hyperclaw.memory import Memory
         self.memory = Memory(store)
+        from hyperclaw.mcp import McpTools
+        self.mcp = McpTools(store, settings, backend)
 
     @classmethod
     async def open(cls, store, settings):
@@ -51,23 +53,29 @@ class Executor:
             workspace.close()
             raise
 
-    async def policy(self):
-        return Policy(self.workspace.identity, await self.store.grants(self.workspace.identity))
+    async def policy(self, offered=()):
+        from hyperclaw.contracts import MCP_TOOLS
+        manifest = await self.mcp.current() if set(offered) & set(MCP_TOOLS) else None
+        return Policy(self.workspace.identity, await self.store.grants(self.workspace.identity), manifest)
 
     async def definitions(self, offered):
-        return (await self.policy()).definitions(offered)
+        definitions = {item['name']: item for item in (await self.policy(offered)).definitions(offered)}
+        for item in self.mcp.list_tools():
+            if item.name in offered:
+                definitions[item.name] = item.model_dump(include={'name', 'description', 'input_schema'})
+        return [definitions[name] for name in offered if name in definitions]
 
     async def decide_approval(self, approval_id, approved, arguments_sha256, policy_sha256):
         approval = await self.store.get_approval(approval_id)
         run = await self.store.get_run(approval.run_id)
-        decision = (await self.policy()).check(approval.call, run.request.tools)
+        decision = (await self.policy(run.request.tools)).check(approval.call, run.request.tools)
         if approved and (decision.sha256 != approval.policy_sha256 or self.workspace.identity != approval.workspace_id):
             raise Conflict('approval_changed', 'The effective policy or workspace changed; this invocation cannot reuse approval.')
         return await self.store.decide_approval(approval_id, approved, arguments_sha256, policy_sha256)
 
     async def invoke(self, run_id, call):
         run = await self.store.get_run(run_id)
-        decision = (await self.policy()).check(call, run.request.tools)
+        decision = (await self.policy(run.request.tools)).check(call, run.request.tools)
         inv = await self.store.prepare_invocation(run_id, call, decision.sha256, self.workspace.identity, decision.capability)
         if inv.receipt:
             return inv.receipt
@@ -80,13 +88,15 @@ class Executor:
             await self.store.require_approval(inv.id)
             raise ApprovalRequired()
         # Recheck after the persistence/approval boundary, immediately before dispatch.
-        current = (await self.policy()).check(call, run.request.tools)
+        current = (await self.policy(run.request.tools)).check(call, run.request.tools)
         if current.sha256 != inv.policy_sha256:
             raise Conflict('policy_changed', 'The effective policy changed before dispatch.')
         remaining = self.settings.run_timeout_s - await self.store.elapsed(run_id)
         if remaining <= 0:
             return await self.store.complete_invocation(ToolReceipt(invocation_id=inv.id, status='failed',
                 evidence={'reason': 'Run execution budget exhausted.'}))
+        if decision.effect == 'mcp':
+            return await self.mcp.invoke(call, invocation_id=inv.id)
         if decision.effect == 'memory':
             return await settle(asyncio.create_task(self.memory.invoke(inv.id)))
         if decision.effect != 'command':
@@ -201,7 +211,7 @@ class Executor:
     async def _reconcile(self, run_id, cancellation):
         from hyperclaw.execution.docker import DockerUnavailable
         invocations = await self.store.invocations(run_id)
-        commands = [i for i in invocations if i.call.name == 'command']
+        commands = [i for i in invocations if i.call.name == 'command' or i.call.name.startswith('mcp_docs_')]
         receipts = []
         # Enumerate even empty state: a process may have died after create before ID commit.
         try:
@@ -224,7 +234,7 @@ class Executor:
                 )))
                 continue
             container = by_container.get(inv.id)
-            if inv.call.name == 'command':
+            if inv.call.name == 'command' or inv.call.name.startswith('mcp_docs_'):
                 cid = container['id'] if container else inv.container_id
                 if cid and owned is not None and container:
                     try:
@@ -232,8 +242,12 @@ class Executor:
                             await self.store.bind_container(inv.id, cid)
                             inv = await self.store.get_invocation(inv.id)
                         result = await self.backend.terminate(cid)
-                        receipt = self._container_receipt(inv, result, cancelled=cancellation)
-                        receipt = await self._verify_command_receipt(inv, receipt)
+                        if inv.call.name.startswith('mcp_docs_'):
+                            receipt = ToolReceipt(invocation_id=inv.id, status=('cancelled' if cancellation else 'interrupted') if result.terminated else 'uncertain',
+                                evidence={'container_id': cid, 'terminated': result.terminated, 'reason': 'MCP result was not durably recorded; protocol logs are not receipts.'})
+                        else:
+                            receipt = self._container_receipt(inv, result, cancelled=cancellation)
+                            receipt = await self._verify_command_receipt(inv, receipt)
                         if not cancellation and container['state'] not in {'exited', 'dead'}:
                             receipt = receipt.model_copy(update={'status': 'interrupted' if result.terminated else 'uncertain'})
                         if not inv.receipt:

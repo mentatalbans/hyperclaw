@@ -207,7 +207,7 @@ async def test_schema_version_pragmas_and_newer_schema_refusal(tmp_path):
     assert await store._call(lambda: [store._db.execute('PRAGMA ' + p).fetchone()[0] for p in ['foreign_keys', 'journal_mode', 'synchronous', 'busy_timeout']]) == [1, 'delete', 2, 5000]
     await store.close()
     with sqlite3.connect(tmp_path / 'runtime.sqlite3') as db:
-        assert db.execute('SELECT version FROM schema_version').fetchone()[0] == 5
+        assert db.execute('SELECT version FROM schema_version').fetchone()[0] == 6
         db.execute('UPDATE schema_version SET version=99')
     with pytest.raises(UnsupportedSchema):
         await Store.open(tmp_path)
@@ -228,8 +228,8 @@ async def test_failed_future_destructive_migration_rolls_back_and_has_backup(tmp
         await Store.open(tmp_path)
     with sqlite3.connect(tmp_path / 'runtime.sqlite3') as db:
         assert db.execute('SELECT id FROM sessions').fetchone()[0] == session.id
-        assert db.execute('SELECT version FROM schema_version').fetchone()[0] == 5
-    with sqlite3.connect(next(tmp_path.glob('backup-v5-*.sqlite3'))) as db:
+        assert db.execute('SELECT version FROM schema_version').fetchone()[0] == 6
+    with sqlite3.connect(next(tmp_path.glob('backup-v6-*.sqlite3'))) as db:
         assert db.execute('SELECT id FROM sessions').fetchone()[0] == session.id
 
 

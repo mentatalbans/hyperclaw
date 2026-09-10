@@ -37,6 +37,10 @@ class GrantRequest(Value):
     capability: Literal['write', 'execute']
 
 
+class McpAdmission(Value):
+    expected_sha256: str = Field(pattern=r'^[0-9a-f]{64}$')
+
+
 class SkillAdmission(Value):
     content_hash: str = Field(pattern=r'^[0-9a-f]{64}$')
 
@@ -114,6 +118,9 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def invalid_input(request, exc):
+        if any(error['type'] == 'mcp_schedule_unsupported' for error in exc.errors()):
+            return JSONResponse({'error': {'code': 'mcp_schedule_unsupported',
+                'message': 'MCP tools require a directly submitted run; scheduled admission binding is unavailable.'}}, status_code=422)
         return JSONResponse({'error': {'code': 'invalid_request', 'message': 'Invalid request fields.'}}, status_code=422)
 
     @app.get('/healthz')
@@ -137,6 +144,18 @@ def create_app(settings: Settings) -> FastAPI:
     @app.post('/v1/runs', status_code=202)
     async def submit(body: RunRequest):
         return await app.state.runtime.submit(body)
+
+    @app.get('/v1/mcp')
+    async def inspect_mcp():
+        return await app.state.runtime.executor.mcp.inspect_admission()
+
+    @app.post('/v1/mcp/admit')
+    async def admit_mcp(body: McpAdmission):
+        return await app.state.runtime.executor.mcp.admit(body.expected_sha256)
+
+    @app.delete('/v1/mcp/admission')
+    async def revoke_mcp():
+        return await app.state.runtime.executor.mcp.revoke()
 
     @app.get('/v1/skills')
     async def skills():

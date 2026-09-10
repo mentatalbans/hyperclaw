@@ -263,3 +263,24 @@ def test_sigkill_around_schedule_enqueue_commit_recovers_exactly_once(tmp_path, 
     finally:
         app.stop()
         peer.close()
+
+
+def test_http_and_cli_reject_scheduled_mcp_but_preserve_other_schedules(service):
+    app, peer = service
+    session = app.client.post('/v1/sessions').json()
+    body = schedule_body(session, 'unsupported', tools=('mcp_docs_read',))
+    response = app.client.post('/v1/schedules', json=body)
+    assert response.status_code == 422
+    assert response.json()['error']['code'] == 'mcp_schedule_unsupported'
+    assert 'directly submitted run' in response.json()['error']['message']
+    invalid_cli = cli(app, 'schedule', 'create', 'unsupported-cli', 'read docs',
+                      '--session', session['id'], '--due', body['next_due_at'], '--tool', 'mcp_docs_search')
+    assert invalid_cli.returncode != 0
+    assert app.client.get('/v1/schedules').json() == []
+    valid_cli = cli(app, 'schedule', 'create', 'supported', 'read workspace',
+                    '--session', session['id'], '--due', body['next_due_at'], '--tool', 'workspace_read')
+    assert valid_cli.returncode == 0, valid_cli.stderr
+    assert app.client.get('/v1/schedules').json()[0]['tools'] == ['workspace_read']
+    assert 'mcp_docs_' not in cli(app, 'schedule', 'create', '--help').stdout
+    assert app.client.get('/healthz').status_code == 200
+    assert peer.requests.empty()

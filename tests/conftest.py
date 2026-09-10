@@ -4,6 +4,7 @@ import pytest
 
 def pytest_addoption(parser):
     group = parser.getgroup("hyperclaw battery")
+    group.addoption("--mcp-docs-image", default="", help="Explicit immutable documentation peer image; never builds or pulls")
     group.addoption("--run-docker", action="store_true", help="Run tests against the local Docker daemon")
     group.addoption("--run-ollama", action="store_true", help="Run tests against a live Ollama server")
     group.addoption("--ollama-url", default="http://127.0.0.1:11434", help="Live Ollama endpoint")

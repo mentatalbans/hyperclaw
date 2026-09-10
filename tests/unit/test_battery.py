@@ -99,12 +99,18 @@ def test_docker():
 @pytest.mark.ollama
 def test_ollama():
     assert True
+@pytest.mark.ollama
+@pytest.mark.docker
+def test_combined(request):
+    assert request.config.getoption('--mcp-docs-image') == 'sha256:' + 'a' * 64
 ''')
     summaries = {}
-    for mode in ('quick', 'docker', 'live', 'all'):
+    for mode in ('quick', 'docker', 'live', 'combined', 'all'):
         reports = tmp_path / f'reports-{mode}'
         result = subprocess.run([
-            sys.executable, str(ROOT / 'scripts/test_battery.py'), mode, str(suite / 'test_contract.py'),
+            sys.executable, str(ROOT / 'scripts/test_battery.py'), 'live' if mode == 'combined' else mode, str(suite / 'test_contract.py'),
+            *(['--with-docker'] if mode == 'combined' else []),
+            '--mcp-docs-image', 'sha256:' + 'a' * 64,
             '--report-dir', str(reports),
         ], cwd=ROOT, text=True, capture_output=True, timeout=30)
         assert result.returncode == 0, result.stdout + result.stderr
@@ -114,7 +120,10 @@ def test_ollama():
     assert summaries['quick']['tests']['total'] == 1
     assert summaries['docker']['tests']['total'] == 1
     assert summaries['live']['tests']['total'] == 1
-    assert summaries['all']['tests']['total'] == 3
+    assert summaries['all']['tests']['total'] == 4
+    assert summaries['combined']['tests']['total'] == 2
+    assert '--run-docker' in summaries['combined']['command']
+    assert summaries['combined']['command'][-2:] == ['-m', 'ollama']
     assert summaries['quick']['command'][-2:] == ['-m', 'not ollama and not docker']
     assert '--run-docker' in summaries['docker']['command']
     assert summaries['docker']['command'][-2:] == ['-m', 'docker']

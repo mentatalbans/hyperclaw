@@ -77,8 +77,13 @@ class Runtime:
             instructions = self._skill_instructions(documents)
             if len(instructions.encode('utf-8')) + len(message_bytes([request.current_message()])) > request.context_bytes:
                 raise InvalidRequest('context_limit', 'Selected skill instructions exceed the context budget.')
+            from hyperclaw.contracts import MCP_TOOLS
+            manifest = await self.executor.mcp.current() if set(request.tools) & set(MCP_TOOLS) else None
+            if manifest:
+                from hyperclaw.mcp import require_sdk
+                require_sdk()
             return await self.store.submit(
-                request, skill_hashes={document.name: document.content_hash for document in documents}
+                request, mcp=manifest, skill_hashes={document.name: document.content_hash for document in documents}
             )
         finally:
             # Store settles an accepted transaction even if its caller disconnects.
@@ -313,6 +318,12 @@ class Runtime:
         return documents
 
     async def _verify_skills(self, run, checkpoint):
+        if checkpoint.mcp != run.mcp:
+            raise Conflict('mcp_changed', 'Checkpoint MCP provenance changed.')
+        if run.mcp:
+            current = await self.executor.mcp.current()
+            if current['sha256'] != run.mcp['sha256'] or current['admission_id'] != run.mcp['admission_id']:
+                raise Conflict('mcp_changed', 'MCP admission changed after submission.')
         if checkpoint.skill_hashes != run.skill_hashes:
             raise Conflict('skill_selection_changed', 'Checkpoint skill provenance changed.')
         for name, content_hash in checkpoint.skill_hashes.items():
@@ -341,11 +352,13 @@ class Runtime:
             'tool_schema_sha256': hashlib.sha256(canonical(await self.executor.definitions(run.request.tools)).encode()).hexdigest(),
             'workspace_id': self.executor.workspace.identity,
         }
+        if run.mcp:
+            provenance['mcp'] = run.mcp
         if run.skill_hashes:
             provenance['skill_hashes'] = run.skill_hashes
         await self._append(run.id, 'run.context', provenance)
         return Checkpoint(messages=messages, history_length=len(retained), workspace_id=self.executor.workspace.identity,
-                          skill_instructions=instructions, skill_hashes=run.skill_hashes,
+                          skill_instructions=instructions, skill_hashes=run.skill_hashes, mcp=run.mcp,
                           context_sha256=hashlib.sha256(combined).hexdigest(), context_size=len(combined))
 
     async def _execute(self, run):

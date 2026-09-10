@@ -138,6 +138,13 @@ MIGRATIONS += ((False, (
 )),)
 
 
+MIGRATIONS += ((False, (
+    "CREATE TABLE mcp_versions (sha256 TEXT PRIMARY KEY, manifest_json TEXT NOT NULL, created_at TEXT NOT NULL)",
+    "CREATE TABLE mcp_admission (server TEXT PRIMARY KEY CHECK(server='docs'), sha256 TEXT NOT NULL REFERENCES mcp_versions(sha256), admission_id TEXT NOT NULL)",
+    "ALTER TABLE runs ADD COLUMN mcp_json TEXT NOT NULL DEFAULT '{}'",
+)),)
+
+
 def now():
     return datetime.now(timezone.utc).isoformat()
 
@@ -273,7 +280,7 @@ class Store:
         return Run(id=row['id'], request=RunRequest.model_validate_json(row['payload_json']),
                    status=row['status'], output=row['output'], verification=row['verification'],
                    elapsed_s=self._elapsed(row), artifacts=self._artifacts(run_id),
-                   skill_hashes=json.loads(row['skill_hashes_json']),
+                   skill_hashes=json.loads(row['skill_hashes_json']), mcp=json.loads(row['mcp_json']),
                    error=Failure.model_validate_json(row['error_json']) if row['error_json'] else None)
 
     def _schedule(self, schedule_id):
@@ -317,7 +324,7 @@ class Store:
             return self._session(session_id)
         return await self._call(lambda: self._transaction(reset))
 
-    def _submit(self, request: RunRequest, schedule=None, skill_hashes=None):
+    def _submit(self, request: RunRequest, schedule=None, skill_hashes=None, mcp=None):
         session = self._session(request.session_id)
         if session.generation != request.generation:
             raise Conflict('stale_generation', 'Session generation changed.')
@@ -325,6 +332,14 @@ class Store:
         if not request.skills:
             payload_value.pop('skills', None)
         payload = canonical(payload_value)
+        from hyperclaw.contracts import MCP_TOOLS
+        bound_mcp = {} if mcp is None else {'sha256': mcp['sha256'], 'content_hash': mcp['content_hash'], 'admission_id': mcp['admission_id']}
+        if bool(set(request.tools) & set(MCP_TOOLS)) != bool(bound_mcp):
+            raise Conflict('mcp_not_admitted', 'Selected MCP tools require current admission.')
+        if bound_mcp:
+            row = self._db.execute('SELECT sha256,admission_id FROM mcp_admission').fetchone()
+            if not row or row[0] != bound_mcp['sha256'] or row[1] != bound_mcp['admission_id']:
+                raise Conflict('mcp_changed', 'MCP admission changed.')
         selected = {} if skill_hashes is None else dict(skill_hashes)
         if set(selected) != set(request.skills) or any(
                 not isinstance(value, str) or re.fullmatch(r'[0-9a-f]{64}', value) is None
@@ -340,7 +355,8 @@ class Store:
                 prior_value.pop('skills')
             prior_hashes = json.loads(self._db.execute(
                 'SELECT skill_hashes_json FROM runs WHERE id=?', (previous['id'],)).fetchone()[0])
-            if canonical(prior_value) != payload or prior_hashes != selected:
+            if (canonical(prior_value) != payload or prior_hashes != selected
+                    or self._run(previous['id']).mcp != bound_mcp):
                 raise Conflict('request_conflict', 'Request ID was used with a different payload.')
             return self._run(previous['id'])
         for skill_name, content_hash in selected.items():
@@ -358,8 +374,8 @@ class Store:
         if self._db.execute("SELECT 1 FROM runs WHERE session_id=? AND generation=? AND status IN ('queued','running','waiting_approval')", (session.id, session.generation)).fetchone():
             raise Conflict('session_busy', 'Session has an active run.')
         run_id = uuid4().hex
-        self._db.execute('INSERT INTO runs(id,session_id,generation,request_id,payload_json,status,output,error_json,created_at,skill_hashes_json) VALUES (?,?,?,?,?,?,?,?,?,?)',
-                         (run_id, session.id, session.generation, request.request_id, payload, 'queued', None, None, now(), canonical(selected)))
+        self._db.execute('INSERT INTO runs(id,session_id,generation,request_id,payload_json,status,output,error_json,created_at,skill_hashes_json,mcp_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                         (run_id, session.id, session.generation, request.request_id, payload, 'queued', None, None, now(), canonical(selected), canonical(bound_mcp)))
         self._db.execute("INSERT INTO messages(run_id,role,content) VALUES (?,'user',?)", (run_id, request.text))
         event_data = {} if schedule is None else {
             'schedule_id': schedule[0], 'nominal_due_at': schedule[1],
@@ -367,14 +383,41 @@ class Store:
         self._event(run_id, 'run.queued', event_data)
         return self._run(run_id)
 
-    async def submit(self, request: RunRequest, *, skill_hashes=None):
+    async def submit(self, request: RunRequest, *, skill_hashes=None, mcp=None):
         try:
             request = RunRequest.model_validate(request.model_dump())
         except (ValidationError, ValueError, AttributeError):
             raise InvalidRequest() from None
         if request.request_id.startswith('schedule:'):
             raise InvalidRequest()
-        return await self._call(lambda: self._transaction(lambda: self._submit(request, skill_hashes=skill_hashes)))
+        return await self._call(lambda: self._transaction(lambda: self._submit(request, skill_hashes=skill_hashes, mcp=mcp)))
+
+    async def admit_mcp(self, manifest):
+        from hyperclaw.mcp import validate_manifest
+        manifest = validate_manifest(manifest)
+        payload = canonical(manifest)
+        def admit():
+            prior = self._db.execute('SELECT manifest_json FROM mcp_versions WHERE sha256=?', (manifest['sha256'],)).fetchone()
+            if prior and prior[0] != payload:
+                raise Conflict('mcp_changed', 'MCP fingerprint cannot identify different evidence.')
+            self._db.execute('INSERT OR IGNORE INTO mcp_versions VALUES (?,?,?)', (manifest['sha256'], payload, now()))
+            prior_admission = self._db.execute('SELECT sha256,admission_id FROM mcp_admission').fetchone()
+            admission_id = prior_admission[1] if prior_admission and prior_admission[0] == manifest['sha256'] else uuid4().hex
+            self._db.execute("INSERT INTO mcp_admission VALUES ('docs',?,?) ON CONFLICT(server) DO UPDATE SET sha256=excluded.sha256,admission_id=excluded.admission_id", (manifest['sha256'], admission_id))
+            return dict(json.loads(payload), admission_id=admission_id)
+        return await self._call(lambda: self._transaction(admit))
+
+    async def mcp_admission(self):
+        def read():
+            row = self._db.execute('SELECT manifest_json,admission_id FROM mcp_versions JOIN mcp_admission USING(sha256)').fetchone()
+            return dict(json.loads(row[0]), admission_id=row[1]) if row else None
+        return await self._call(read)
+
+    async def revoke_mcp(self):
+        def revoke():
+            self._db.execute('DELETE FROM mcp_admission')
+            return {'revoked': True}
+        return await self._call(lambda: self._transaction(revoke))
 
     async def admit_skill(self, document: SkillDocument):
         try:

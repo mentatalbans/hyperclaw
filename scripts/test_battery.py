@@ -34,13 +34,21 @@ def main() -> int:
     parser.add_argument("--coverage", action="store_true", help="Record coverage for src/hyperclaw")
     parser.add_argument("--ollama-url", default="http://127.0.0.1:11434")
     parser.add_argument("--ollama-model", default="qwen3.8:27b-mlx")
+    parser.add_argument("--mcp-docs-image", default="")
+    parser.add_argument("--with-docker", action="store_true", help="Explicitly include combined model and Docker cases in live mode")
     arguments = parser.parse_args()
+    if arguments.with_docker and arguments.mode != "live":
+        parser.error("--with-docker is supported only by live mode")
     started = datetime.now(timezone.utc)
     report = arguments.report_dir.resolve() / f"{arguments.mode}-{started:%Y%m%dT%H%M%S%fZ}"
     report.mkdir(parents=True)
-    paths = arguments.paths or (["tests/live"] if arguments.mode in {"docker", "live"} else ["tests"])
+    paths = arguments.paths or (["tests/live"] if arguments.mode == "live" else ["tests"])
     command = [sys.executable, "-m", "pytest", *paths, "-q", "-ra", "--durations=15",
                f"--junitxml={report / 'junit.xml'}"]
+    if arguments.mcp_docs_image:
+        command += ["--mcp-docs-image", arguments.mcp_docs_image]
+    if arguments.with_docker:
+        command += ["--run-docker"]
     if arguments.mode == "quick":
         command += ["-m", "not ollama and not docker"]
     if arguments.mode == "docker":

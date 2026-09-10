@@ -4,10 +4,12 @@ import json
 import os
 from pathlib import Path
 import secrets
+import re
+from typing import Literal
 import tomllib
 from urllib.parse import urlsplit, urlunsplit
 
-from pydantic import ConfigDict, Field, ValidationError, field_validator
+from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from hyperclaw.contracts import InvalidRequest, Value
 
@@ -18,11 +20,24 @@ class Settings(Value):
     ollama_url: str = 'http://127.0.0.1:11434'
     model: str = 'qwen3.8:27b-mlx'
     workspace_path: str = ''
+    mcp_docs_path: str = ''
+    mcp_docs_image: str = ''
+    mcp_protocol: Literal['2026-07-28', '2025-11-25'] = '2026-07-28'
     thinking: bool = False
     max_output_tokens: int = Field(default=4096, gt=0)
     request_timeout_s: float = Field(default=120, gt=0)
     run_timeout_s: float = Field(default=600, gt=0)
     port: int = Field(default=8011, ge=0, le=65535)
+
+    @model_validator(mode='after')
+    def valid_mcp(self):
+        if bool(self.mcp_docs_path) != bool(self.mcp_docs_image):
+            raise ValueError('MCP requires both documentation path and immutable image')
+        if self.mcp_docs_path and (not Path(self.mcp_docs_path).is_absolute() or '\0' in self.mcp_docs_path):
+            raise ValueError('MCP documentation path must be absolute')
+        if self.mcp_docs_image and re.fullmatch(r'(?:sha256:|[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:)[0-9a-f]{64}', self.mcp_docs_image) is None:
+            raise ValueError('MCP image must be a resolved sha256 ID or repository digest')
+        return self
 
     @field_validator('model')
     @classmethod

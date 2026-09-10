@@ -376,7 +376,7 @@ async def test_v2_additive_migration_and_reopen_preserve_schedule_and_occurrence
         input='after migration', next_due_at=at(), interval_seconds=None, tools=())
     try:
         assert await store._call(lambda: store._db.execute(
-            'SELECT version FROM schema_version').fetchone()[0]) == 5
+            'SELECT version FROM schema_version').fetchone()[0]) == 6
         assert await store._call(lambda: store._db.execute('PRAGMA foreign_key_check').fetchall()) == []
         assert list(tmp_path.glob('backup-v2-*.sqlite3')) == []
         await store.create_schedule(request)
@@ -429,3 +429,10 @@ async def test_v2_reserved_request_id_collision_does_not_become_schedule_provena
         }
     finally:
         await store.close()
+
+
+@pytest.mark.parametrize('tool', ['mcp_docs_read', 'mcp_docs_search'])
+def test_schedules_reject_tools_without_scheduled_admission_binding(tool):
+    with pytest.raises(ValidationError, match='directly submitted run'):
+        contracts.ScheduleRequest(id='docs', session_id='session', generation=0,
+                                  input='read docs', next_due_at=at(), tools=[tool])

@@ -23,10 +23,10 @@ shutil.copytree(source, destination, ignore=shutil.ignore_patterns(
 ))
 PY
 cd "$VERIFY_SOURCE_DIR"
-uv sync --locked --extra dev --python 3.13
+uv sync --locked --extra dev --extra mcp --python 3.13
 if [ "${VERIFY_QUICK:-1}" = 1 ]; then
     TMPDIR=$native_tmp "$UV_PROJECT_ENVIRONMENT/bin/python" scripts/test_battery.py quick --report-dir "$VERIFY_REPORT_DIR"
 fi
 if [ "${VERIFY_DOCKER:-1}" = 1 ]; then
-    TMPDIR=$shared_tmp "$UV_PROJECT_ENVIRONMENT/bin/python" scripts/test_battery.py docker --report-dir "$VERIFY_REPORT_DIR"
+    TMPDIR=$shared_tmp "$UV_PROJECT_ENVIRONMENT/bin/python" scripts/test_battery.py docker --mcp-docs-image "${MCP_DOCS_IMAGE:?supply the explicitly built immutable MCP documentation image}" --report-dir "$VERIFY_REPORT_DIR"
 fi

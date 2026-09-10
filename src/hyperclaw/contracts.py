@@ -1,5 +1,6 @@
 """Public immutable values and sanitized errors shared by the runtime adapters."""
 from pydantic import BaseModel, ConfigDict
+from pydantic_core import PydanticCustomError
 
 
 class Value(BaseModel):
@@ -74,6 +75,9 @@ DEFAULT_TOOLS = (
     'memory_remember', 'memory_search', 'memory_correct', 'memory_forget',
 )
 
+MCP_TOOLS = ('mcp_docs_search', 'mcp_docs_read')
+ALLOWED_TOOLS = DEFAULT_TOOLS + MCP_TOOLS
+
 
 def canonical(value) -> str:
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False)
@@ -106,9 +110,9 @@ class RunRequest(Value):
 
     @model_validator(mode='after')
     def bounded_request(self):
-        if len(self.tools) > len(DEFAULT_TOOLS) or len(set(self.tools)) != len(self.tools):
+        if len(self.tools) > len(ALLOWED_TOOLS) or len(set(self.tools)) != len(self.tools):
             raise ValueError('Invalid tool allowlist')
-        allowed = set(DEFAULT_TOOLS)
+        allowed = set(ALLOWED_TOOLS)
         if set(self.tools) - allowed:
             raise ValueError('Unknown tool')
         if len(self.images) > 4 or len(message_bytes([self.current_message()])) > self.context_bytes:
@@ -306,6 +310,9 @@ class ScheduleRequest(Value):
 
     @model_validator(mode='after')
     def valid_run_input(self):
+        if set(self.tools) & set(MCP_TOOLS):
+            raise PydanticCustomError('mcp_schedule_unsupported',
+                'MCP tools require a directly submitted run; scheduled admission binding is unavailable.')
         RunRequest(session_id=self.session_id, generation=self.generation,
                    request_id='schedule:validation', text=self.input, tools=self.tools)
         return self
@@ -353,6 +360,7 @@ class Run(Value):
     elapsed_s: float = 0
     artifacts: tuple['Artifact', ...] = ()
     skill_hashes: dict[str, str] = Field(default_factory=dict)
+    mcp: dict[str, JsonValue] = Field(default_factory=dict)
 
     @field_validator('skill_hashes')
     @classmethod
@@ -424,6 +432,16 @@ class ImageAttachment(Value):
         return {'type': 'image', 'source': {'type': 'base64', 'media_type': self.media_type, 'data': self.data}}
 
 
+class ToolDefinition(Value):
+    name: str
+    description: str
+    input_schema: dict[str, JsonValue]
+    capability: str
+    effect: str
+    output_limit: int = 65536
+    deadline_s: int = 60
+
+
 class ToolCall(Value):
     id: Identifier
     name: Identifier
@@ -466,6 +484,7 @@ class Checkpoint(Value):
     workspace_id: str = ''
     skill_instructions: str = ''
     skill_hashes: dict[str, str] = Field(default_factory=dict)
+    mcp: dict[str, JsonValue] = Field(default_factory=dict)
     context_sha256: str = ''
     context_size: int = Field(default=0, ge=0)
 

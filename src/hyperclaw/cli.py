@@ -87,7 +87,7 @@ from urllib.parse import urlsplit, quote
 from uuid import uuid4
 
 from hyperclaw.config import read_token
-from hyperclaw.contracts import InvalidRequest
+from hyperclaw.contracts import DEFAULT_TOOLS, InvalidRequest
 
 
 MAX_IMAGE_BYTES = 6 * 1024 * 1024
@@ -99,10 +99,15 @@ class ToolName(str, Enum):
     workspace_search = 'workspace_search'
     workspace_write = 'workspace_write'
     command = 'command'
+    mcp_docs_search = 'mcp_docs_search'
+    mcp_docs_read = 'mcp_docs_read'
     memory_remember = 'memory_remember'
     memory_search = 'memory_search'
     memory_correct = 'memory_correct'
     memory_forget = 'memory_forget'
+
+
+ScheduleToolName = Enum('ScheduleToolName', {name: name for name in DEFAULT_TOOLS}, type=str)
 
 
 class Capability(str, Enum):
@@ -254,6 +259,28 @@ run_app = typer.Typer(no_args_is_help=True)
 session_app = typer.Typer(no_args_is_help=True)
 approval_app = typer.Typer(no_args_is_help=True)
 schedule_app = typer.Typer(no_args_is_help=True)
+mcp_app = typer.Typer(no_args_is_help=True)
+app.add_typer(mcp_app, name='mcp')
+
+
+@mcp_app.command('inspect')
+def inspect_mcp(ctx: typer.Context):
+    with daemon_client(ctx.obj) as client:
+        typer.echo(json.dumps(response_json(client.get('/v1/mcp')), indent=2))
+
+
+@mcp_app.command('admit')
+def admit_mcp(ctx: typer.Context, expected_sha256: str = typer.Option(..., '--expected-sha256')):
+    with daemon_client(ctx.obj) as client:
+        typer.echo(json.dumps(response_json(client.post('/v1/mcp/admit', json={'expected_sha256': expected_sha256})), indent=2))
+
+
+@mcp_app.command('revoke')
+def revoke_mcp(ctx: typer.Context):
+    with daemon_client(ctx.obj) as client:
+        typer.echo(json.dumps(response_json(client.delete('/v1/mcp/admission')), indent=2))
+
+
 skill_app = typer.Typer(no_args_is_help=True)
 app.add_typer(run_app, name='run')
 app.add_typer(session_app, name='session')
@@ -331,7 +358,7 @@ def create_schedule(ctx: typer.Context,
                     due: str = typer.Option(..., '--due'),
                     interval_seconds: int | None = typer.Option(
                         None, '--interval-seconds', min=1, max=31_536_000),
-                    tool: list[ToolName] = typer.Option([], '--tool'),
+                    tool: list[ScheduleToolName] = typer.Option([], '--tool'),
                     no_tools: bool = typer.Option(False, '--no-tools')):
     if no_tools and tool:
         raise InvalidRequest('tool_selection', 'Choose explicit --tool values or --no-tools, not both.')

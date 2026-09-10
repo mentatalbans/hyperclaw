@@ -118,6 +118,69 @@ class DockerBackend:
             raise DockerUnavailable()
         return container_id
 
+    async def create_docs(self, invocation_id, snapshot, image):
+        if not _LABEL_VALUE.fullmatch(invocation_id):
+            raise InvalidRequest('invalid_docker_invocation', 'Invalid MCP invocation ID.')
+        if re.fullmatch(r'(?:sha256:|[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:)[0-9a-f]{64}', image) is None:
+            raise InvalidRequest('invalid_mcp_image', 'MCP image must be immutable.')
+        snapshot = Path(snapshot)
+        if snapshot.is_symlink() or not snapshot.is_dir():
+            raise InvalidRequest('invalid_mcp_snapshot', 'MCP snapshot is unavailable.')
+        fields = ['type=bind', f'source={snapshot.resolve()}', 'target=/docs', 'readonly']
+        buffer = io.StringIO(newline='')
+        csv.writer(buffer, lineterminator='').writerow(fields)
+        result = await self._run([
+            'create', '--pull', 'never', '--interactive', '--label', f'{INSTALLATION_LABEL}={self.installation_id}',
+            '--label', f'{INVOCATION_LABEL}={invocation_id}', '--label', 'io.hyperclaw.profile=mcp-docs',
+            '--network', 'none', '--read-only', '--cap-drop', 'ALL',
+            '--security-opt', 'no-new-privileges=true', '--user', '65532:65532',
+            '--workdir', '/docs', '--pids-limit', '64', '--memory', '256m',
+            '--memory-swap', '256m', '--cpus', '1',
+            '--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=16m',
+            '--log-driver', 'local', '--log-opt', 'max-size=1m', '--log-opt', 'max-file=1',
+            '--log-opt', 'compress=false', '--init', '--mount', buffer.getvalue(),
+            '--entrypoint', '/usr/local/bin/python', image, '/opt/server.py',
+        ])
+        cid = result.stdout.decode('ascii').strip()
+        if re.fullmatch('[a-f0-9]{12,64}', cid) is None:
+            raise DockerUnavailable()
+        return cid
+
+    async def verify_docs(self, container_id, snapshot, image):
+        await self.inspect(container_id)
+        raw = await self._inspect_raw(container_id)
+        host, config = raw['HostConfig'], raw['Config']
+        mounts = raw['Mounts']
+        if (len(mounts) != 1 or mounts[0]['Type'] != 'bind' or mounts[0]['RW']
+                or mounts[0]['Destination'] != '/docs' or Path(mounts[0]['Source']).resolve() != Path(snapshot).resolve()
+                or host['NetworkMode'] != 'none' or not host['ReadonlyRootfs']
+                or host['Privileged'] or host.get('CapAdd') or host['CapDrop'] != ['ALL']
+                or 'no-new-privileges=true' not in host['SecurityOpt']
+                or host['Memory'] != 268435456 or host['MemorySwap'] != 268435456
+                or host['NanoCpus'] != 1000000000 or host['PidsLimit'] != 64
+                or config['User'] != '65532:65532' or config['WorkingDir'] != '/docs'
+                or config['Image'] != image or config['Entrypoint'] != ['/usr/local/bin/python']
+                or config['Cmd'] != ['/opt/server.py'] or not config['OpenStdin']
+                or host['Tmpfs'] != {'/tmp': 'rw,noexec,nosuid,nodev,size=16m'}
+                or host['LogConfig'] != {'Type': 'local', 'Config': {'max-size': '1m', 'max-file': '1', 'compress': 'false'}}):
+            raise InvalidRequest('mcp_profile_changed', 'The actual Docker documentation profile does not match admission.')
+        allowed_env = {'PATH', 'LANG', 'GPG_KEY', 'PYTHON_VERSION', 'PYTHON_SHA256', 'PYTHONUNBUFFERED', 'PYTHONDONTWRITEBYTECODE'}
+        if any(item.split('=', 1)[0] not in allowed_env for item in config.get('Env') or []):
+            raise InvalidRequest('mcp_profile_changed', 'The documentation image has unreviewed environment variables.')
+        return {'mounts': mounts, 'user': config['User'], 'network': host['NetworkMode'],
+                'readonly_root': host['ReadonlyRootfs'], 'memory': host['Memory'],
+                'pids': host['PidsLimit'], 'nano_cpus': host['NanoCpus'], 'environment': config['Env']}
+
+    async def attach_start(self, container_id):
+        before = await self.inspect(container_id)
+        if before['state'] != 'created':
+            raise DockerUnavailable('MCP peer is not in its initial created state.')
+        try:
+            return await asyncio.create_subprocess_exec('docker', 'start', '--attach', '--interactive', before['id'],
+                stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        except OSError:
+            raise DockerUnavailable() from None
+
     async def start(self, container_id: str) -> None:
         before = await self.inspect(container_id)
         if before["state"] != "created":

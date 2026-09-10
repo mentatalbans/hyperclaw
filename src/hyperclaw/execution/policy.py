@@ -68,6 +68,9 @@ CATALOG = {
     'memory_correct': (MemoryCorrectArguments, 'memory', 'memory', 'Correct an accessible active memory record. Keep the default session scope unless the record was explicitly shared with the workspace.'),
     'memory_forget': (MemoryForgetArguments, 'memory', 'memory', 'Forget an accessible active memory record. Keep the default session scope unless the record was explicitly shared with the workspace.'),
 }
+from hyperclaw.mcp import ARGUMENTS, DESCRIPTIONS
+CATALOG.update({'mcp_docs_' + name: (schema, 'mcp_docs', 'mcp', DESCRIPTIONS[name])
+                for name, schema in ARGUMENTS.items()})
 OUTPUT_LIMIT = 65536
 DEADLINE_S = 60
 
@@ -85,7 +88,8 @@ class Decision:
 
 
 class Policy:
-    def __init__(self, workspace_id, grants):
+    def __init__(self, workspace_id, grants, mcp=None):
+        self.mcp = mcp
         self.workspace_id, self.grants = workspace_id, frozenset(grants)
 
     def definitions(self, offered):
@@ -96,6 +100,8 @@ class Policy:
         if call.name not in CATALOG or call.name not in offered:
             raise InvalidRequest('tool_disallowed', 'This tool is not admitted for the run.')
         schema, capability, effect, _ = CATALOG[call.name]
+        if capability == 'mcp_docs' and not self.mcp:
+            raise InvalidRequest('mcp_not_admitted', 'MCP documentation is not admitted.')
         try:
             arguments = schema.model_validate(call.arguments).model_dump()
             if effect == 'command' and any('\x00' in arg for arg in arguments['argv']):
@@ -107,6 +113,11 @@ class Policy:
         value = {'sandbox_profile': 1, 'tool_image': TOOL_IMAGE, 'name': call.name, 'schema': schema.model_json_schema(), 'workspace_id': self.workspace_id,
                  'grants': sorted(self.grants), 'capability': capability, 'effect': effect,
                  'output_limit': OUTPUT_LIMIT, 'deadline_s': deadline, 'network': False}
+        if self.mcp:
+            value['mcp_sha256'] = self.mcp['sha256']
+            value['mcp_admission_id'] = self.mcp['admission_id']
+        if capability == 'mcp_docs':
+            value['tool_image'] = self.mcp['image']
         return Decision(arguments, capability, effect, hashlib.sha256(canonical(value).encode()).hexdigest(),
-                        capability not in {'read', 'memory'} and capability not in self.grants,
-                        'write' in self.grants, deadline)
+                        capability not in {'read', 'memory', 'mcp_docs'} and capability not in self.grants,
+                        capability != 'mcp_docs' and 'write' in self.grants, deadline)
