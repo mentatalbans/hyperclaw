@@ -1,6 +1,6 @@
 # HyperClaw runtime v2
 
-A local assistant with durable chat, image input, scoped file tools, and owned Docker commands in one Python package. M1 and M2 are implemented. [Testing](docs/testing.md) records verification and later milestones. The original platform remains in git at `dcad202`.
+A local assistant with durable chat, image input, scoped file tools, and owned Docker commands in one Python package. M1 through M3 are implemented. [Testing](docs/testing.md) records verification and later milestones. The original platform remains in git at `dcad202`.
 
 Python 3.11+ on macOS/Linux. Install with `uv sync --locked --extra dev`.
 
@@ -14,7 +14,7 @@ make test
 
 The default root is `~/.hyperclaw-v2`, selected by `--root`, then `HYPERCLAW_ROOT`. Settings are CLI overrides over `root/config.toml` over shipped defaults. Default model: `qwen3.8:27b-mlx` at `http://127.0.0.1:11434`. There is no automatic model download or cloud fallback. Ordinary setup and doctor do not contact a model; `--probe` checks the installed catalog.
 
-Initialization refuses nonempty unmarked roots and v1 data. M1 runtime-v2 databases migrate transactionally with a backup; already accepted M1 requests retain an empty tool allowlist. Personal data and existing running installations are not automatically adopted.
+Initialization refuses nonempty unmarked roots and v1 data. M1 runtime-v2 databases migrate transactionally with a backup; already accepted M1 requests retain an empty tool allowlist. M2 databases receive additive schedule tables at schema version 3. Personal data and existing running installations are not automatically adopted.
 
 Start a disposable daemon, then submit from another terminal:
 
@@ -29,7 +29,7 @@ hyperclaw --root /tmp/hyperclaw-demo run cancel RUN_ID
 hyperclaw --root /tmp/hyperclaw-demo session reset SESSION_ID
 ```
 
-Use a fresh demo directory. Default listener: `127.0.0.1:8011`; `serve --port 0` selects a free port. `root/daemon.json` contains discovery metadata, and `root/token` contains the private bearer token. All `/v1` requests require `Authorization: Bearer TOKEN`; public `/healthz` reports liveness. Host must match the selected loopback endpoint; cross-origin requests are disabled.
+Use a fresh demo directory. Default listener: `127.0.0.1:8011`; `serve --port 0` selects a free port. `root/daemon.json` contains discovery metadata, and `root/token` contains the private bearer token. All `/v1` requests require `Authorization: Bearer TOKEN`; public `/healthz` returns 503 if the worker or maintenance task becomes unavailable. Host must match the selected loopback endpoint; cross-origin requests are disabled.
 
 `chat` reports session/run IDs on stderr; reuse `--session SESSION_ID` to continue. `--request-id ID` makes identical submissions idempotent; changing the payload conflicts. `--retry-of RUN_ID` links an explicit new attempt to a failed, cancelled or interrupted run in the same generation. Unknown outcomes are `uncertain` and cannot be retried through that operation. Only one active run occupies a session, including while waiting for approval; other sessions share one worker.
 
@@ -82,4 +82,23 @@ hyperclaw --root /tmp/hyperclaw-demo chat "Describe this image." --image sample.
 
 The default serialized conversation budget is 64 KiB; attachments can explicitly raise it to at most 8 MiB. The loop allows at most 12 model rounds and three identical tool calls, with 64 KiB tool output and tool deadlines up to 60 seconds. Default model/run deadlines are 120/600 seconds. Run time excludes queue and approval waits; after abrupt death, a running interval is conservatively charged until recovery because the crash instant is unknown.
 
-Durable scheduling remains M3, explicit memory M4, MCP/skills M5, and web/Telegram M6. No legacy client parity or service switch is implied by these milestones.
+## Schedules
+
+Schedules submit ordinary runs to the same worker and use the same tool policy, approvals and receipts. Use a session ID reported by `chat` or created through the authenticated session API:
+
+```sh
+hyperclaw --root /tmp/hyperclaw-demo schedule create daily-note "Draft a short note." --session SESSION_ID --due 2036-01-01T09:00:00Z --interval-seconds 86400 --no-tools
+hyperclaw --root /tmp/hyperclaw-demo schedule list
+hyperclaw --root /tmp/hyperclaw-demo schedule inspect daily-note
+hyperclaw --root /tmp/hyperclaw-demo schedule occurrences daily-note
+hyperclaw --root /tmp/hyperclaw-demo schedule pause daily-note
+hyperclaw --root /tmp/hyperclaw-demo schedule retarget daily-note --expected-generation 0
+```
+
+Omit `--interval-seconds` for a one-shot. Due times require an explicit timezone and normalize to UTC; years 1970–9998 and intervals of 1–31,536,000 seconds are accepted. Schedule IDs accept 1–256 ASCII letters, digits, `-`, `_`, `.`, or `~`, except standalone `.` and `..`. Creation fetches the session's current generation. Repeating an ID with the same creation payload is idempotent; a changed payload conflicts. The `schedule:` request-ID prefix is reserved for scheduled runs.
+
+While a session is occupied, its earliest pending due time stays pending. After downtime or a busy period, one run represents that pending occurrence and the next due time advances along the original interval cadence to a future instant. Missed intervals do not create a burst of runs. Reservation, enqueue and advancement commit together. Health, event replay, cancellation, approval expiry and schedule polling continue while the worker handles slow model or tool work.
+
+Session reset pauses its schedules. `retarget` requires the schedule's expected generation and fetches the session's current generation before resuming. Pausing does not cancel queued runs; cancel those explicitly. An uncertain scheduled outcome pauses future occurrences as `uncertain_effect` and cannot be resumed through retarget. Completed schedules cannot be retargeted. Occurrences already accepted remain consumed after cancellation, failure or interruption.
+
+Explicit memory remains M4, MCP/skills M5, and web/Telegram M6. No legacy client parity or service switch is implied by these milestones.

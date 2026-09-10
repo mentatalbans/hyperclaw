@@ -1,6 +1,6 @@
 # HyperClaw Runtime v2 Roadmap Implementation Plan
 
-M1 and M2 completed 2026-09-09: [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md), [M2 acceptance](../../reports/2026-09-09-runtime-v2-m2.md). M3–M6 are not started. Baseline notes below describe the original planning state.
+M1 and M2 completed 2026-09-09: [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md), [M2 acceptance](../../reports/2026-09-09-runtime-v2-m2.md). M3 is implemented with platform gates passed and final review in progress: [M3 acceptance](../../reports/2026-09-09-runtime-v2-m3.md). M4–M6 are not started. Baseline notes below describe the original planning state.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -135,12 +135,12 @@ Reserve a due occurrence and enqueue its run in one transaction, keyed by (sched
 
 **Gate:**
 
-- [ ] The same tool workflow passes as a foreground observation and a detached run.
-- [ ] Process kills before invocation creation, after creation, after dispatch, and after receipt commit each produce the design's documented outcome.
-- [ ] Completed receipts are not replayed; ambiguous mutations never retry automatically.
-- [ ] Two ticks at the same instant and a restart at enqueue commit produce one scheduled run.
-- [ ] Cancelling a queued run prevents any model/tool request; approving a resumed request occupies no duplicate worker slot.
-- [ ] Health, event replay, and cancellation remain responsive during a slow model/tool request.
+- [x] The same tool workflow passes as a foreground observation and a detached run.
+- [x] Process kills before invocation creation, after creation, after dispatch, and after receipt commit each produce the design's documented outcome.
+- [x] Completed receipts are not replayed; ambiguous mutations never retry automatically.
+- [x] Two ticks at the same instant and a restart at enqueue commit produce one scheduled run.
+- [x] Cancelling a queued run prevents any model/tool request; approving a resumed request occupies no duplicate worker slot.
+- [x] Health, event replay, and cancellation remain responsive during a slow model/tool request.
 
 ### M4 — Replace memory with scoped, correctable facts
 

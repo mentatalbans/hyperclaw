@@ -1,6 +1,6 @@
 # HyperClaw runtime v2 design
 
-Status: M1 and M2 implemented and verified; M3–M6 remain planned. Design date: 2026-09-09. [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md), [M2 acceptance](../../reports/2026-09-09-runtime-v2-m2.md).
+Status: M1–M3 implemented with platform gates verified; M3 final review is in progress and M4–M6 remain planned. Design date: 2026-09-09. [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md), [M2 acceptance](../../reports/2026-09-09-runtime-v2-m2.md), [M3 acceptance](../../reports/2026-09-09-runtime-v2-m3.md).
 
 ## Decision
 
