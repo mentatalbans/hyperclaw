@@ -123,7 +123,7 @@ class Memory:
 
     @staticmethod
     def _match_query(query):
-        tokens = list(dict.fromkeys(token.casefold() for token in _WORD.findall(query)))
+        tokens = list(dict.fromkeys(_WORD.findall(query)))
         return ' OR '.join(f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens)
 
     def _search(self, scope, query, limit=5, *, observed_at=None):

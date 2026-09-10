@@ -54,6 +54,7 @@ async def evaluate_case(case, observed_at):
 
             records = {}
             id_to_key = {}
+            states = {}
             for item in case['records']:
                 valid_until = None
                 if item.get('valid_for_seconds') is not None:
@@ -61,6 +62,7 @@ async def evaluate_case(case, observed_at):
                 record = await memory.remember(scope(item), item['text'], valid_until=valid_until)
                 records[item['key']] = record
                 id_to_key[record.id] = item['key']
+                states[item['key']] = {'status': 'active', 'valid_until': valid_until}
 
             for action in case['actions']:
                 if action['op'] == 'advance':
@@ -75,8 +77,11 @@ async def evaluate_case(case, observed_at):
                         target.id, action['text'], target.scope, valid_until=valid_until)
                     records[action['key']] = record
                     id_to_key[record.id] = action['key']
+                    states[action['target']]['status'] = 'superseded'
+                    states[action['key']] = {'status': 'active', 'valid_until': valid_until}
                 elif action['op'] == 'forget':
                     await memory.forget(target.id, target.scope)
+                    states[action['target']]['status'] = 'forgotten'
                 else:
                     raise ValueError(f"Unknown fixture action: {action['op']}")
 
@@ -84,6 +89,11 @@ async def evaluate_case(case, observed_at):
             returned_keys = [id_to_key[item.id] for item in returned]
             expected = case['expected_keys']
             forbidden = case['forbidden_keys']
+            obsolete = [
+                key for key, state in states.items()
+                if state['status'] != 'active'
+                or (state['valid_until'] is not None and state['valid_until'] <= clock())
+            ]
             return {
                 'id': case['id'],
                 'category': case['category'],
@@ -92,9 +102,18 @@ async def evaluate_case(case, observed_at):
                 'forbidden_keys': forbidden,
                 'missing_keys': [key for key in expected if key not in returned_keys],
                 'forbidden_returned_keys': [key for key in forbidden if key in returned_keys],
+                'obsolete_keys': obsolete,
+                'stale_returned_keys': [key for key in obsolete if key in returned_keys],
             }
         finally:
             await store.close()
+
+
+def safety_counts(cases):
+    return (
+        sum(len(case['forbidden_returned_keys']) for case in cases),
+        sum(len(case['stale_returned_keys']) for case in cases),
+    )
 
 
 async def evaluate():
@@ -109,11 +128,7 @@ async def evaluate():
         hits = sum(not case['missing_keys'] for case in selected)
         return {'hits': hits, 'total': len(selected), 'score': hits / len(selected)}
 
-    forbidden_count = sum(len(case['forbidden_returned_keys']) for case in cases)
-    stale_count = sum(
-        len(case['forbidden_returned_keys'])
-        for case in cases if case['category'] == 'revision'
-    )
+    forbidden_count, stale_count = safety_counts(cases)
     return {
         'fixture_sha256': hashlib.sha256(fixture_bytes).hexdigest(),
         'total_cases': len(cases),

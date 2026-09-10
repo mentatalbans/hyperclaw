@@ -3,6 +3,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+from scripts.evaluate_memory import safety_counts
+
 
 ROOT = Path(__file__).parents[2]
 
@@ -27,3 +29,25 @@ def test_fixed_memory_evaluator_reports_all_cases_and_safety_metrics(tmp_path):
     assert report['stale_return_count'] == 0
     assert all(case['expected_keys'] is not None and case['missing_keys'] is not None
                for case in report['cases'])
+    by_id = {case['id']: case for case in report['cases']}
+    assert by_id['scope-correction-remains-private']['obsolete_keys'] == ['old']
+    assert by_id['scope-forgotten-shared-no-fallback']['obsolete_keys'] == ['gone']
+    assert by_id['revision-expiry-boundary']['obsolete_keys'] == ['expired']
+    assert by_id['scope-only-other-session']['obsolete_keys'] == []
+
+
+def test_safety_counts_stale_keys_across_categories_without_misclassifying_active_scope_keys():
+    cases = [
+        {
+            'category': 'scope',
+            'forbidden_returned_keys': ['gone', 'active-hidden'],
+            'stale_returned_keys': ['gone'],
+        },
+        {
+            'category': 'revision',
+            'forbidden_returned_keys': ['old'],
+            'stale_returned_keys': ['old'],
+        },
+    ]
+
+    assert safety_counts(cases) == (3, 2)

@@ -71,6 +71,18 @@ async def test_remember_search_defaults_shared_visibility_and_scope_before_limit
         await store.close()
 
 
+async def test_search_preserves_unicode_words_that_expand_under_python_casefold(tmp_path):
+    store = await Store.open(tmp_path)
+    memory = Memory(store)
+    try:
+        scope = await session_scope(store)
+        record = await memory.remember(scope, 'The street marker reads Straße.')
+
+        assert [item.id for item in await memory.search(scope, 'Straße')] == [record.id]
+    finally:
+        await store.close()
+
+
 def test_memory_contracts_validate_utf8_bounds_strict_limits_and_aware_json_times():
     assert MemoryRememberArguments(text='x').scope == 'session'
     assert MemorySearchArguments(query='x').limit == 5
