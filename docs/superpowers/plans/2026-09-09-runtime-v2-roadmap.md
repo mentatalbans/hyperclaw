@@ -1,6 +1,6 @@
 # HyperClaw Runtime v2 Roadmap Implementation Plan
 
-M1 and M2 completed 2026-09-09: [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md), [M2 acceptance](../../reports/2026-09-09-runtime-v2-m2.md). M3 completed 2026-09-09: [M3 acceptance](../../reports/2026-09-09-runtime-v2-m3.md). M4 completed 2026-09-10: [M4 evidence](../../reports/2026-09-10-runtime-v2-m4.md). M5–M6 are not started. Baseline notes below describe the original planning state.
+M1 and M2 completed 2026-09-09: [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md), [M2 acceptance](../../reports/2026-09-09-runtime-v2-m2.md). M3 completed 2026-09-09: [M3 acceptance](../../reports/2026-09-09-runtime-v2-m3.md). M4 completed 2026-09-10: [M4 evidence](../../reports/2026-09-10-runtime-v2-m4.md). M5 implementation and acceptance gates completed 2026-09-10; final review is pending: [M5 evidence](../../reports/2026-09-10-runtime-v2-m5.md). M6 is not started. Baseline notes below describe the original planning state.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -174,11 +174,11 @@ The first useful peer serves this repository's public documentation mounted read
 
 **Gate:**
 
-- [ ] Both selected protocol revisions are exercised; disconnected peers and oversized results produce bounded failures.
-- [ ] The admitted server reads documentation but cannot reach runtime credentials or mutate the workspace.
-- [ ] Changing a skill or tool schema changes provenance and requires renewed admission where authority changes.
-- [ ] Instruction text cannot enable a blocked tool; unsupported hooks/path escapes are rejected.
-- [ ] One real documentation question is answered with a retrieved source through the admitted server.
+- [x] Both selected protocol revisions are exercised; disconnected peers and oversized results produce bounded failures.
+- [x] The admitted server reads documentation but cannot reach runtime credentials or mutate the workspace.
+- [x] Changing a skill or tool schema changes provenance and requires renewed admission where authority changes.
+- [x] Instruction text cannot enable a blocked tool; unsupported hooks/path escapes are rejected.
+- [x] One real documentation question is answered with a retrieved source through the admitted server.
 
 ### M6 — Make the focused assistant comfortable to use
 
