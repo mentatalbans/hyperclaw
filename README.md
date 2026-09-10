@@ -1,8 +1,8 @@
 # HyperClaw runtime v2
 
-A local assistant with durable chat, image input, scoped file tools, explicit memory, and owned Docker commands in one Python package. M1 through M4 are implemented. [Testing](docs/testing.md) records verification and later milestones. The original platform remains in git at `dcad202`.
+A local assistant with durable chat, image input, scoped file tools, explicit memory, reviewed skills, admitted documentation tools, and owned Docker commands in one Python package. M1 through M5 are implemented. [Testing](docs/testing.md) records verification and later milestones. The original platform remains in git at `dcad202`.
 
-Python 3.11+ on macOS/Linux. Install with `uv sync --locked --extra dev`.
+Python 3.11+ on macOS/Linux. For development and the full test suite, install with `uv sync --locked --extra dev --extra mcp`. The runtime's MCP extra is optional.
 
 ```sh
 uv run --locked hyperclaw --help
@@ -14,7 +14,7 @@ make test
 
 The default root is `~/.hyperclaw-v2`, selected by `--root`, then `HYPERCLAW_ROOT`. Settings are CLI overrides over `root/config.toml` over shipped defaults. Default model: `qwen3.8:27b-mlx` at `http://127.0.0.1:11434`. There is no automatic model download or cloud fallback. Ordinary setup and doctor do not contact a model; `--probe` checks the installed catalog.
 
-Initialization refuses nonempty unmarked roots and v1 data. M1 runtime-v2 databases migrate transactionally with a backup; already accepted M1 requests retain an empty tool allowlist. M2 databases receive additive schedule tables at schema version 3; M3 databases receive additive memory/FTS tables at schema version 4. Existing accepted run and schedule tool lists stay unchanged. Personal data and existing running installations are not automatically adopted.
+Initialization refuses nonempty unmarked roots and v1 data. M1 runtime-v2 databases migrate transactionally with a backup; already accepted M1 requests retain an empty tool allowlist. M2 databases receive additive schedule tables at schema version 3; M3 databases receive additive memory/FTS tables at schema version 4. M4 databases receive additive skill admission at schema version 5 and MCP admission at schema version 6. Existing accepted run and schedule tool lists stay unchanged. Personal data and existing running installations are not automatically adopted.
 
 Start a disposable daemon, then submit from another terminal:
 
@@ -98,6 +98,44 @@ Use the session ID reported by the first command. Writes default to that session
 
 Memory text is limited to 2,048 UTF-8 bytes and search queries to 1,024 bytes. Retrieval uses SQLite FTS5/BM25 over literal query words and returns at most five eligible records. Scope, active status and expiry filter candidates before ranking and the result limit; BM25 corpus statistics are global. This lexical baseline can miss paraphrases without shared words. There are no embeddings, automatic promotions or learned authority. Facts are unverified text: storing an instruction does not grant file-write or command permission. Memory effects, index updates and their receipts commit in one transaction.
 
+## Reviewed skills
+
+Skills are explicit instruction packages beneath `root/skills/NAME/`. Copy a reviewed package, such as [documentation-answer](examples/skills/documentation-answer/SKILL.md), there, inspect its complete content and hash through the daemon, then admit that exact hash:
+
+```sh
+hyperclaw --root /tmp/hyperclaw-demo skill inspect documentation-answer
+hyperclaw --root /tmp/hyperclaw-demo skill admit documentation-answer --content-hash CONTENT_HASH
+hyperclaw --root /tmp/hyperclaw-demo chat "Summarize the citation rules in this skill." --skill documentation-answer --no-tools
+hyperclaw --root /tmp/hyperclaw-demo skill list
+hyperclaw --root /tmp/hyperclaw-demo skill revoke documentation-answer
+```
+
+The supported `SKILL.md` subset has exactly single-line `name` and `description` front matter plus a Markdown instruction body. Metadata values may be plain or JSON-double-quoted strings. Ordinary Markdown links can reference bounded `.md`/`.txt` files beneath the package. External HTTP(S) citations remain text and are never fetched. Executable hooks, extra metadata such as `allowed-tools`, escaping paths, symlinks, hardlinks and nontext payloads are rejected. This deliberately narrow subset does not claim compatibility with every skill bundle.
+
+Names use 1–64 lowercase letters, digits and hyphens, with no leading, trailing or consecutive hyphens. Descriptions are limited to 1,024 UTF-8 bytes; `SKILL.md` and each referenced file to 16,384 bytes; all loaded content to 32,768 bytes. A package may reference at most 16 resources, and traversal stops at 512 entries or depth 16. Unreferenced files are never injected into the prompt.
+
+Each run may explicitly select up to four admitted skills. Selected hashes are bound when the run is submitted. A queued run fails if its package changes before execution. Once execution begins, its recorded instruction snapshot is used across approval waits; revoke or replacement admission blocks further use. New package content requires renewed admission for new runs. Instructions count toward the context budget and are not automatically carried into later unselected runs. Skill text cannot change the run's tool allowlist or grant file-write, command or MCP authority.
+
+## Documentation MCP
+
+The optional MCP integration serves an admitted copy of public Markdown and text documentation. Install the extra with `uv sync --locked --extra dev --extra mcp`, then [build the documentation image explicitly](examples/mcp-docs/README.md). Before starting the daemon, set `mcp_docs_path` in `root/config.toml` to an absolute public documentation directory and `mcp_docs_image` to the built image's immutable ID or repository digest. Both settings are required together. `mcp_protocol` defaults to `2026-07-28`; `2025-11-25` is also supported.
+
+Inspect the file/catalog/image/protocol fingerprint, admit that exact value, then explicitly select the documentation tools:
+
+```sh
+hyperclaw --root /tmp/hyperclaw-demo mcp inspect
+hyperclaw --root /tmp/hyperclaw-demo mcp admit --expected-sha256 FINGERPRINT
+hyperclaw --root /tmp/hyperclaw-demo chat "What happens to schedules after session reset? Cite the documentation source." --tool mcp_docs_search --tool mcp_docs_read --skill documentation-answer
+hyperclaw --root /tmp/hyperclaw-demo run receipts RUN_ID
+hyperclaw --root /tmp/hyperclaw-demo mcp revoke
+```
+
+The skill in this example must first be admitted as described above. Documentation admission creates a separate snapshot beneath the runtime root. Each call runs in an owned container with only that snapshot mounted read-only at `/docs`, an unprivileged user, no network and bounded resources. It receives neither the workspace nor runtime credentials. Results identify source paths, line ranges and file hashes; the run records the admitted documentation revision. Source, catalog, image or protocol changes that alter the fingerprint require renewed admission and block pending use. Revoke retains historical manifests, snapshots and receipts; re-admitting the same content does not restore an old run's authority.
+
+Source collection accepts at most 512 `.md`/`.txt` files, each up to 65,536 UTF-8 bytes and 8 MiB combined, with traversal capped at 4,096 entries and depth 32. Search returns at most five hits; read returns at most 200 lines and 8,192 UTF-8 bytes. Symlinks, hardlinks, nonregular files and path escapes are rejected. Tool results and wire frames have separate bounds. The supported SDK/protocol features and explicit Docker/model test commands are described in [Testing](docs/testing.md).
+
+MCP tools support directly submitted runs, including `chat --detach`. Schedule creation rejects MCP tools; scheduled admission and revocation handling is deferred.
+
 ## Schedules
 
 Schedules submit ordinary runs to the same worker and use the same tool policy, approvals and receipts. Use a session ID reported by `chat` or created through the authenticated session API:
@@ -117,4 +155,4 @@ While a session is occupied, its earliest pending due time stays pending. After 
 
 Session reset pauses its schedules. `retarget` requires the schedule's expected generation and fetches the session's current generation before resuming. Pausing does not cancel queued runs; cancel those explicitly. An uncertain scheduled outcome pauses future occurrences as `uncertain_effect` and cannot be resumed through retarget. Completed schedules cannot be retargeted. Occurrences already accepted remain consumed after cancellation, failure or interruption.
 
-MCP/skills remain M5, and web/Telegram M6. No legacy client parity or service switch is implied by these milestones.
+Reviewed skills and the admitted documentation MCP peer are included in M5; web/Telegram remain M6. No legacy client parity or service switch is implied by these milestones.
