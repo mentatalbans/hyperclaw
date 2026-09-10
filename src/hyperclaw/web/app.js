@@ -405,12 +405,13 @@
     event.preventDefault();
     const text = byId('message').value;
     if (!state.session || !text.trim() || state.pendingSubmission) return;
+    const tools = Object.freeze(selected('tools')); const skills = Object.freeze(selected('skills'));
     state.pendingSubmission = {
-      payload: {
+      payload: Object.freeze({
         session_id: state.session.id, generation: state.session.generation,
-        request_id: crypto.randomUUID(), text, tools: selected('tools'), skills: selected('skills'),
-      },
-      connectionEpoch: state.connectionEpoch, selectionEpoch: state.selectionEpoch, inFlight: false,
+        request_id: crypto.randomUUID(), text, tools, skills,
+      }),
+      inFlight: false, attempt: null,
     };
     await sendPending();
   }
@@ -419,27 +420,35 @@
     const pending = state.pendingSubmission;
     if (!pending || pending.inFlight) return;
     const payload = pending.payload;
+    if (!state.session || state.session.id !== payload.session_id || !state.token) return;
+    const attempt = Object.freeze({
+      connectionEpoch: state.connectionEpoch, token: state.token,
+      selectionEpoch: state.selectionEpoch, sessionId: state.session.id,
+    });
+    pending.attempt = attempt;
     pending.inFlight = true;
     setPhase('submitting'); clearError();
     try {
       const run = await request('/v1/runs', {method: 'POST', body: JSON.stringify(payload)});
-      if (state.pendingSubmission !== pending) return;
+      if (state.pendingSubmission !== pending || pending.attempt !== attempt) return;
       state.pendingSubmission = null;
-      if (!ownsConnection(pending.connectionEpoch, state.token)) return;
+      if (!ownsConnection(attempt.connectionEpoch, attempt.token)) return;
       updateControls();
       if (!ownsSelection(
-        pending.connectionEpoch, state.token, pending.selectionEpoch, payload.session_id,
+        attempt.connectionEpoch, attempt.token, attempt.selectionEpoch, attempt.sessionId,
       )) return;
       byId('message').value = '';
       if (!state.runs.some((item) => item.id === run.id)) state.runs.unshift(run);
-      activateRun(run, pending.connectionEpoch, state.token, pending.selectionEpoch, payload.session_id);
+      activateRun(run, attempt.connectionEpoch, attempt.token, attempt.selectionEpoch, attempt.sessionId);
     } catch (error) {
-      if (state.pendingSubmission !== pending) return;
-      pending.inFlight = false;
+      if (state.pendingSubmission !== pending || pending.attempt !== attempt) return;
+      pending.inFlight = false; pending.attempt = null;
       if (error.status) state.pendingSubmission = null;
-      if (!ownsConnection(pending.connectionEpoch, state.token)) return;
+      if (!ownsConnection(attempt.connectionEpoch, attempt.token)) return;
       if (state.session && state.session.id === payload.session_id) showError(error);
-      if (state.selectionEpoch === pending.selectionEpoch) setPhase('selecting');
+      if (ownsSelection(
+        attempt.connectionEpoch, attempt.token, attempt.selectionEpoch, attempt.sessionId,
+      )) setPhase('selecting');
       updateControls();
     }
   }

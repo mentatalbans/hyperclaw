@@ -349,6 +349,58 @@ def test_late_submission_stays_with_its_original_session(web_service, browser_pa
     wait_status(page, "succeeded")
 
 
+def test_explicit_retry_rebinds_to_returned_original_session(web_service, browser_page):
+    app, peer = web_service
+    page = browser_page
+    session_a = app.client.post("/v1/sessions").json()
+    session_b = app.client.post("/v1/sessions").json()
+    provider_gate = threading.Event()
+    peer.enqueue(Reply(chunks=("accepted retry",), gate=provider_gate))
+    connect(page, app)
+    page.locator(f'#sessions button[data-session-id="{session_a["id"]}"]').click()
+    page.locator("#session-id").filter(has_text=session_a["id"]).wait_for()
+
+    page.evaluate("""() => {
+      const acceptedFetch = window.fetch;
+      window.__beforeAcceptance = {seen: false, bodies: [], release: null};
+      window.fetch = async (input, options = {}) => {
+        const request = input instanceof Request ? input : null;
+        const url = new URL(request ? request.url : input, location.href);
+        const method = (options.method || (request && request.method) || 'GET').toUpperCase();
+        if (method === 'POST' && url.pathname === '/v1/runs') {
+          window.__beforeAcceptance.bodies.push(options.body);
+          if (window.__beforeAcceptance.bodies.length === 1) {
+            window.__beforeAcceptance.seen = true;
+            await new Promise(resolve => { window.__beforeAcceptance.release = resolve; });
+            throw new TypeError('Synthetic failure before acceptance');
+          }
+        }
+        return acceptedFetch(input, options);
+      };
+    }""")
+    send(page, "retry after returning")
+    page.wait_for_function("() => window.__beforeAcceptance.seen")
+    assert app.client.get(f'/v1/sessions/{session_a["id"]}/runs').json() == []
+    page.evaluate("window.__beforeAcceptance.release()")
+    page.locator("#retry-send").wait_for(state="visible")
+
+    page.locator(f'#sessions button[data-session-id="{session_b["id"]}"]').click()
+    page.locator("#session-id").filter(has_text=session_b["id"]).wait_for()
+    assert page.locator("#retry-send").is_hidden()
+    page.locator(f'#sessions button[data-session-id="{session_a["id"]}"]').click()
+    page.locator("#session-id").filter(has_text=session_a["id"]).wait_for()
+    page.locator("#retry-send").wait_for(state="visible")
+    page.locator("#retry-send").click()
+
+    assert peer.take_request()["messages"][-1]["content"] == "retry after returning"
+    accepted = app.client.get(f'/v1/sessions/{session_a["id"]}/runs').json()[0]
+    page.locator("#run-id").filter(has_text=accepted["id"]).wait_for()
+    assert page.evaluate("window.__beforeAcceptance.bodies[0] === window.__beforeAcceptance.bodies[1]")
+    provider_gate.set()
+    wait_status(page, "succeeded")
+    assert peer.requests.empty(), "only the accepted retry may reach the provider"
+
+
 def test_aborted_observer_retry_cannot_replace_manual_reconnect(web_service, browser_page):
     app, peer = web_service
     page = browser_page
