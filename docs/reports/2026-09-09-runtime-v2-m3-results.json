@@ -10,7 +10,7 @@
     "1baf526",
     "627ed3c"
   ],
-  "status": "verification_passed_final_review_pending",
+  "status": "implemented_and_verified",
   "environment": {
     "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
     "machine": "arm64",
@@ -971,7 +971,18 @@
       "deferred_minor": "Maintenance failure logging omits the exception cause/traceback."
     },
     "final": {
-      "status": "review_pending"
+      "range": "4727861..dc4083e",
+      "implementation_commit": "627ed3c",
+      "model": "gpt-6-astra",
+      "spec": "compliant",
+      "quality": "approved",
+      "critical_findings": 0,
+      "important_findings": 0,
+      "deferred_minors": [
+        "Active schedules are scanned before filtering due time; large-population performance is unbenchmarked.",
+        "Maintenance failure logging omits exception cause/traceback."
+      ],
+      "report": "# Independent final M3 review\n\nReviewed range: `4727861..dc4083e`; final implementation: `627ed3c`.\n\n## Spec compliance\n\n**Compliant for the complete M3 milestone.** No material plan deviation or unresolved correctness defect was found. The review covered the whole-M3 package, changed source and tests, relevant surrounding ownership/reconciliation code, the design/roadmap/M3 plan, task reports and reviews, the migration fix re-review, and the acceptance Markdown/JSON. The package contains exactly the same changed lines as the named Git range; its additional wrapper/context accounts for the byte difference from plain `git diff`.\n\n- Foreground and detached work share `Runtime._work` and the existing execution loop. CLI observation is independent of ownership; disconnect does not cancel execution (`src/hyperclaw/runtime.py:162`, `tests/integration/test_recovery.py:32`, `tests/integration/test_recovery.py:58`).\n- Executor reconciliation, approval expiry, and running-run recovery finish before either worker or maintenance starts (`src/hyperclaw/runtime.py:38`). Prepared intents are settled only when their parent was running or terminal, preserving approved queued work; committed receipts remain immutable and recovery retains verification (`src/hyperclaw/execution/__init__.py:210`, `src/hyperclaw/store.py:532`).\n- Host and Docker SIGKILL tests cover invocation preparation, dispatch/effect ambiguity, committed receipts, owned process termination, unavailable backend evidence, repeated ordinary startup, and no effect/provider replay (`tests/integration/test_recovery.py:95`, `tests/live/test_recovery_docker.py:79`). The post-dispatch marker gap is conservatively uncertain; linked explicit retries cannot target an uncertain run.\n- Additive schema 3 and shared private submission keep run, message, queue event, occurrence, and schedule advancement in one serialized Store transaction. Tests cover simultaneous ticks, rollback, migration/reopen, and SIGKILL before/after COMMIT (`src/hyperclaw/store.py:86`, `src/hyperclaw/store.py:281`, `src/hyperclaw/store.py:396`, `tests/unit/test_scheduling.py:78`, `tests/integration/test_scheduling.py:229`).\n- UTC normalization and fixed precision, bounded inputs, integer cadence arithmetic, downtime coalescing, busy-session retention, consumed terminal occurrences, generation CAS, and permanent uncertainty pause match the plan. Reset and uncertain completion pause within their own transactions; retarget cannot erase uncertainty (`src/hyperclaw/contracts.py:124`, `src/hyperclaw/store.py:266`, `src/hyperclaw/store.py:373`, `src/hyperclaw/store.py:396`, `src/hyperclaw/store.py:517`).\n- The migrated v2 request-ID finding is resolved: scheduled submission cannot adopt an existing run; a collision selects a fresh bounded ID inside the same transaction while preserving the historical run/event (`src/hyperclaw/store.py:289`, `src/hyperclaw/store.py:423`, `tests/unit/test_scheduling.py:396`).\n- Maintenance owns expiry/reservation without executing work. Either owner failure makes new guarded acceptance unavailable and health returns 503; close wakes and awaits both tasks before releasing Store ownership (`src/hyperclaw/runtime.py:53`, `src/hyperclaw/runtime.py:141`, `src/hyperclaw/runtime.py:195`, `src/hyperclaw/runtime.py:202`, `src/hyperclaw/api.py:115`). The tests establish reservation and expiry while the worker is occupied, zero dispatch after queued cancellation, one exact approval decision/resume, and responsive controls under slow model and Docker work.\n- All schedule routes use the existing bearer boundary and Runtime; all CLI schedule controls use HTTP. Accepted IDs remain addressable as one URL segment, creation fetches the current session generation, and retarget supplies both generation values (`src/hyperclaw/api.py:93`, `src/hyperclaw/api.py:137`, `src/hyperclaw/cli.py:284`, `tests/integration/test_scheduling.py:51`).\n\nThe scope remains one package and CLI, one owner per root, existing execution policy and local model defaults, with no dependency expansion, M4 implementation, service adoption, push, or merge.\n\n## Strengths\n\n- Durable transitions reuse the existing Store connection, transaction wrapper, and normal submission logic, reducing the risk of divergent acceptance semantics.\n- Uncertainty handling composes correctly across effect recovery, terminalization, schedule pausing, and public retargeting. An incomplete model answer is interrupted even when a tool receipt proves its effect completed.\n- Failure tests inspect actual files, receipts, events, provider requests, and owned containers after real process death. Test-only fault controls do not become production settings.\n- The acceptance evidence names the exact final implementation, retains initial failures and their corrections, distinguishes selected external-service tests from offline tests, and separates executed local Linux from unexecuted hosted CI.\n\n## Issues\n\n### Critical \u2014 must fix\n\nNone.\n\n### Important \u2014 should fix\n\nNone.\n\n### Minor \u2014 nonblocking follow-ups\n\n1. **Active schedules are scanned before filtering due time.** `src/hyperclaw/store.py:404` loads all active schedules and reconstructs/checks each before its due-time comparison. At the 100 ms polling cadence (`src/hyperclaw/runtime.py:16`), large future schedule populations and their occurrence history can consume Store-owner time and delay other Store calls. The existing `(status,next_due_at)` index could bound the selection to due schedules. Preserve the transactional reset/uncertain-finish invariants when narrowing this query, and use a representative population measurement if schedule scale becomes a requirement. This is **not an M3 delivery blocker**: no large-population throughput target is specified, current behavior is correct, and the unbenchmarked limit is explicitly reported.\n\n2. **Maintenance failure logging loses the cause.** `src/hyperclaw/runtime.py:219` catches the exception and emits only a generic error message at line 223. Operators see the correct unavailable state but cannot diagnose the failure from that log. A future change should retain an appropriate exception class/cause or traceback in local logs while preserving the generic public 503 response. This is **not an M3 delivery blocker** because failure containment, acceptance gating, health reporting, and shutdown remain correct. The existing worker handler has the same diagnostic limitation.\n\n## Verification and limits\n\nNo test suite was rerun during review, as instructed. No concrete uncovered hypothesis required a targeted reproduction. Production source, tests, index, HEAD, and branch were not mutated; this report is the only review-authored file.\n\nThe controller's final recorded gates show 198 offline tests passing on macOS Python 3.11, macOS Python 3.13, and native-storage local Linux; 10 selected Docker tests passing on each of macOS and Linux; and all five selected Qwen tests passing. All six reported gate test counts and exit statuses were independently compared with their referenced local summary artifacts and matched. All 14 source hashes plus 39 test/dependency hashes were independently checked against current files and matched. The report records a built wheel with 14 Python files matching source, a fresh dependency/wheel installation, site-packages imports from an unrelated cwd, and installed CLI/HTTP schedule smoke checks.\n\nHosted Ubuntu CI is configured but was not run. Local Linux was a disposable Debian/aarch64 runner on Docker Desktop; this does not imply an independent hosted or x86 Linux execution. Large schedule-population performance was not measured. These limits are disclosed and do not invalidate the bounded M3 gates.\n\n## Recommendations\n\nRetain the two Minor items as explicit deferred follow-ups. Before declaring the overall task delivered, the controller should record this approval in the acceptance Markdown/JSON and plan/roadmap status, complete and record the test-owned keepalive cleanup, and make the authorized local documentation commit. Those final-review status and cleanup entries are intentionally pending in the reviewed snapshot and are administrative completion work, not implementation findings. No new full test battery is justified by documentation-only finalization.\n\n## Assessment\n\n**Spec verdict: compliant. Quality verdict: approved. Ready for M3 delivery: yes, after the already planned documentation/cleanup finalization.**\n\n**Ready to merge? Yes from this technical review; no merge or push is requested or authorized by this review.** The implementation satisfies the recovery, scheduling, public-control, and platform-evidence requirements with no Critical or Important issue. The two Minors can remain deferred without reopening the M3 implementation.\n"
     }
   },
   "hosted_ci": {
@@ -1035,7 +1046,15 @@
     "merge": false,
     "service_adoption": false,
     "m4_started": false,
-    "docker_keepalive_cleanup": "pending"
+    "docker_keepalive_cleanup": "removed",
+    "final_check": {
+      "main_head": "6f758390996b61f86fe57415954aa3f8fced583a",
+      "main_status": "?? .engram/",
+      "other_worktree_head": "503080511fdc66635844513103054b4e3c1966ef",
+      "other_worktree_status": "",
+      "verified_inputs": 53,
+      "git_status_commands_exit": 0
+    }
   },
   "limits": [
     "Local Linux uses a disposable Debian/aarch64 runner on Docker Desktop, not an executed hosted CI job.",
@@ -1043,5 +1062,39 @@
     "The trusted Linux verification runner has Docker socket access; runtime command containers do not.",
     "Active schedule scans are unbounded by due time; large schedule-population performance was not benchmarked.",
     "No lint or type-check tool is configured; no such passing gate is claimed."
-  ]
+  ],
+  "cleanup": {
+    "docker_keepalive": {
+      "command": [
+        "docker",
+        "rm",
+        "--force",
+        "hyperclaw-m3-verification-83d1cb6893"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.114,
+      "output": "hyperclaw-m3-verification-83d1cb6893"
+    },
+    "temporary_roots_removed": [
+      "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-verify-imvxbo76",
+      "/tmp/hyperclaw-m3-linux-f2y5zmcm",
+      "/tmp/hyperclaw-m3-linux-ojrqcft2",
+      "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+      "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-6vzt2r8g"
+    ],
+    "remaining_runtime_containers": {
+      "command": [
+        "docker",
+        "ps",
+        "-a",
+        "--filter",
+        "label=io.hyperclaw.installation",
+        "--format",
+        "{{.ID}} {{.Names}}"
+      ],
+      "exit_code": 0,
+      "output": ""
+    }
+  },
+  "controller_rulings": []
 }
