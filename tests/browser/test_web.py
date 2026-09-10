@@ -5,7 +5,7 @@ import threading
 import pytest
 
 from hyperclaw.skills import Skills
-from tests.support.process import Process
+from tests.support.process import Process, events, submit
 from tests.support.provider import ProviderStub, Reply
 from tests.support.tool_provider import frames, message_end, message_start, tool_block
 
@@ -46,6 +46,50 @@ def wait_approval(page):
     approval = page.locator("#approvals article").first
     approval.wait_for()
     return approval
+
+
+def gate_fetch_completion(page, key, method, path):
+    page.evaluate(
+        """({key, method, path}) => {
+          if (!window.__fetchGates) {
+            window.__fetchGates = new Map();
+            window.__ungatedFetch = window.fetch.bind(window);
+            window.fetch = async (input, options = {}) => {
+              const request = input instanceof Request ? input : null;
+              const url = new URL(request ? request.url : input, location.href);
+              const verb = (options.method || (request && request.method) || 'GET').toUpperCase();
+              const response = await window.__ungatedFetch(input, options);
+              for (const gate of window.__fetchGates.values()) {
+                if (!gate.claimed && gate.method === verb && gate.path === url.pathname) {
+                  gate.claimed = true;
+                  gate.seen = true;
+                  await new Promise(resolve => { gate.release = resolve; });
+                  gate.done = true;
+                  break;
+                }
+              }
+              return response;
+            };
+          }
+          window.__fetchGates.set(key, {method, path, claimed: false, seen: false, done: false});
+        }""",
+        {"key": key, "method": method, "path": path},
+    )
+
+
+def wait_fetch_gate(page, key):
+    page.wait_for_function("key => window.__fetchGates.get(key).seen", arg=key)
+
+
+def release_fetch_gate(page, key):
+    page.evaluate(
+        """async key => {
+          window.__fetchGates.get(key).release();
+          await window.__ungatedFetch('/healthz', {cache: 'no-store'});
+          await new Promise(resolve => requestAnimationFrame(() => resolve()));
+        }""",
+        key,
+    )
 
 
 def test_connect_reload_stream_logout_and_hostile_text_are_safe(web_service, browser_page, request):
@@ -241,6 +285,7 @@ def test_approval_renders_exact_hostile_arguments_and_requires_fresh_review_afte
 
     page.unroute("**/v1/approvals/*/decision", forge_once)
     page.locator("#refresh-approvals").click()
+    page.locator('#approvals article button[data-decision="approve"]:enabled').wait_for()
     approval = wait_approval(page)
     assert hostile_path in approval.text_content()
     approval.locator('button[data-decision="approve"]').click()
@@ -249,3 +294,154 @@ def test_approval_renders_exact_hostile_arguments_and_requires_fresh_review_afte
     assert "Verified synthetic write." in page.locator("#transcript").text_content()
     assert "Tool request: workspace_write" in page.locator("#activity").text_content()
     assert "succeeded" in page.locator("#receipts").text_content()
+
+
+def test_newer_selection_and_logout_own_late_session_completions(web_service, browser_page):
+    app, _peer = web_service
+    page = browser_page
+    session_a = app.client.post("/v1/sessions").json()
+    session_b = app.client.post("/v1/sessions").json()
+    connect(page, app)
+
+    gate_fetch_completion(page, "select-a", "GET", f'/v1/sessions/{session_a["id"]}')
+    page.locator(f'#sessions button[data-session-id="{session_a["id"]}"]').click()
+    wait_fetch_gate(page, "select-a")
+    page.locator(f'#sessions button[data-session-id="{session_b["id"]}"]').click()
+    page.locator("#session-id").filter(has_text=session_b["id"]).wait_for()
+    release_fetch_gate(page, "select-a")
+    assert page.locator("#session-id").text_content() == session_b["id"]
+
+    gate_fetch_completion(page, "logout-a", "GET", f'/v1/sessions/{session_a["id"]}')
+    page.locator(f'#sessions button[data-session-id="{session_a["id"]}"]').click()
+    wait_fetch_gate(page, "logout-a")
+    page.locator("#logout").click()
+    release_fetch_gate(page, "logout-a")
+    assert page.evaluate("document.body.dataset.phase") == "disconnected"
+    assert page.locator("#workspace").is_hidden()
+    assert page.locator("#send").is_disabled()
+
+
+def test_late_submission_stays_with_its_original_session(web_service, browser_page):
+    app, peer = web_service
+    page = browser_page
+    session_a = app.client.post("/v1/sessions").json()
+    session_b = app.client.post("/v1/sessions").json()
+    provider_gate = threading.Event()
+    peer.enqueue(Reply(chunks=("late A result",), gate=provider_gate))
+    connect(page, app)
+    page.locator(f'#sessions button[data-session-id="{session_a["id"]}"]').click()
+    page.locator("#session-id").filter(has_text=session_a["id"]).wait_for()
+
+    gate_fetch_completion(page, "submit-a", "POST", "/v1/runs")
+    send(page, "belongs to A")
+    peer.take_request()
+    wait_fetch_gate(page, "submit-a")
+    accepted = app.client.get(f'/v1/sessions/{session_a["id"]}/runs').json()[0]
+    page.locator(f'#sessions button[data-session-id="{session_b["id"]}"]').click()
+    page.locator("#session-id").filter(has_text=session_b["id"]).wait_for()
+    release_fetch_gate(page, "submit-a")
+    assert page.locator("#session-id").text_content() == session_b["id"]
+    assert page.locator(f'#run-history button[data-run-id="{accepted["id"]}"]').count() == 0
+
+    page.locator(f'#sessions button[data-session-id="{session_a["id"]}"]').click()
+    page.locator(f'#run-history button[data-run-id="{accepted["id"]}"]').wait_for()
+    provider_gate.set()
+    wait_status(page, "succeeded")
+
+
+def test_aborted_observer_retry_cannot_replace_manual_reconnect(web_service, browser_page):
+    app, peer = web_service
+    page = browser_page
+    provider_gate = threading.Event()
+    peer.enqueue(Reply(chunks=("partial", " complete"), gate=provider_gate))
+    connect(page, app)
+    page.locator("#new-session").click()
+    page.locator("#session-id").filter(has_not_text="None").wait_for()
+    send(page, "hold the run")
+    peer.take_request()
+    wait_status(page, "running")
+
+    page.evaluate("""() => {
+      window.__eventFetches = 0;
+      window.__retryCallbacks = [];
+      window.__realSetTimeout = window.setTimeout.bind(window);
+      const priorFetch = window.fetch;
+      window.__staleOriginalFetch = priorFetch;
+      window.fetch = (...args) => {
+        const input = args[0];
+        const url = new URL(input instanceof Request ? input.url : input, location.href);
+        if (url.pathname.endsWith('/events')) window.__eventFetches += 1;
+        return priorFetch(...args);
+      };
+      window.setTimeout = (callback, delay, ...args) => {
+        if (delay === 250) {
+          window.__retryCallbacks.push(() => callback(...args));
+          return 8675309;
+        }
+        return window.__realSetTimeout(callback, delay, ...args);
+      };
+    }""")
+    routed = {"count": 0}
+
+    def fail_first_reconnect(route):
+        routed["count"] += 1
+        if routed["count"] == 1:
+            route.fulfill(
+                status=503,
+                content_type="application/json",
+                body=json.dumps({"error": {"code": "synthetic_stream_failure", "message": "retry me"}}),
+            )
+        else:
+            route.continue_()
+
+    page.route("**/v1/runs/*/events?*", fail_first_reconnect)
+    page.locator("#reconnect-stream").click()
+    page.wait_for_function("() => window.__retryCallbacks.length === 1")
+    page.locator("#reconnect-stream").click()
+    page.wait_for_function("() => window.__eventFetches === 2")
+    fetches = page.evaluate("""async () => {
+      window.__retryCallbacks.shift()();
+      await window.__staleOriginalFetch('/healthz', {cache: 'no-store'});
+      await new Promise(resolve => window.__realSetTimeout(resolve, 0));
+      return window.__eventFetches;
+    }""")
+    assert fetches == 2
+    provider_gate.set()
+    wait_status(page, "succeeded")
+
+
+def test_hash_and_run_history_recover_records_beyond_first_page(web_service, browser_page):
+    app, peer = web_service
+    page = browser_page
+    sessions = [app.client.post("/v1/sessions").json() for _ in range(51)]
+    oldest_session = sessions[0]
+    created_runs = []
+    for number in range(51):
+        peer.enqueue(Reply(chunks=(f"history result {number}",)))
+        run = submit(app, f"history request {number}", oldest_session, request_id=f"history-{number}")
+        assert events(app, run["id"])[-1]["data"]["status"] == "succeeded"
+        created_runs.append(run)
+    oldest_run = created_runs[0]
+
+    page.goto(app.url + f'#session={oldest_session["id"]}&run={oldest_run["id"]}')
+    page.locator("#token").fill((app.root / "token").read_text().strip())
+    page.locator("#connect").click()
+    page.locator("#session-id").filter(has_text=oldest_session["id"]).wait_for()
+    page.locator("#run-id").filter(has_text=oldest_run["id"]).wait_for()
+    assert page.locator(f'#sessions button[data-session-id="{oldest_session["id"]}"]').count() == 1
+    assert page.locator(f'#run-history button[data-run-id="{oldest_run["id"]}"]').count() == 1
+    page.locator("#load-older-runs").wait_for(state="visible")
+    page.locator("#load-older-runs").click()
+    page.locator("#load-older-runs").wait_for(state="hidden")
+    assert page.locator("#run-history button").count() == 51
+
+    page.locator("#logout").click()
+    page.evaluate(
+        "hash => { location.hash = hash; }",
+        f'session={sessions[1]["id"]}&run={oldest_run["id"]}',
+    )
+    page.locator("#token").fill((app.root / "token").read_text().strip())
+    page.locator("#connect").click()
+    page.locator("#errors").filter(has_text="run_session_mismatch").wait_for()
+    assert page.locator("#session-id").text_content() == sessions[1]["id"]
+    assert page.locator("#run-id").text_content() == "None"

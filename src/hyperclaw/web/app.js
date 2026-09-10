@@ -11,6 +11,8 @@
   const state = {
     phase: 'disconnected', token: '', sessions: [], session: null, runs: [], run: null,
     stream: null, lastSeq: 0, reconnects: 0, pendingSubmission: null,
+    connectionEpoch: 0, selectionEpoch: 0, observationEpoch: 0, approvalsEpoch: 0,
+    sessionCursor: null, hasOlderSessions: false, runCursor: null, hasOlderRuns: false,
   };
 
   function node(tag, text, className) {
@@ -66,7 +68,30 @@
     byId('reset-session').disabled = !connected || !state.session;
     byId('cancel-run').disabled = !connected || !state.run || TERMINAL.has(state.run.status);
     byId('reconnect-stream').disabled = !connected || !state.run || TERMINAL.has(state.run.status);
-    byId('retry-send').hidden = !state.pendingSubmission;
+    byId('retry-send').hidden = !state.pendingSubmission || !state.session ||
+      state.pendingSubmission.payload.session_id !== state.session.id || state.pendingSubmission.inFlight;
+    byId('load-older-runs').hidden = !state.session || !state.hasOlderRuns;
+  }
+
+  function ownsConnection(epoch, token) {
+    return state.connectionEpoch === epoch && state.token === token && Boolean(token);
+  }
+
+  function ownsSelection(connectionEpoch, token, selectionEpoch, sessionId) {
+    return ownsConnection(connectionEpoch, token) && state.selectionEpoch === selectionEpoch &&
+      state.session && state.session.id === sessionId;
+  }
+
+  function invalidateObservation() {
+    state.observationEpoch += 1;
+    if (state.stream) state.stream.abort();
+    state.stream = null;
+  }
+
+  function beginSelection() {
+    state.selectionEpoch += 1;
+    invalidateObservation();
+    return state.selectionEpoch;
   }
 
   function hashState() {
@@ -92,7 +117,7 @@
       button.addEventListener('click', () => selectSession(session.id));
       target.append(button);
     }
-    byId('load-older-sessions').hidden = state.sessions.length < 50;
+    byId('load-older-sessions').hidden = !state.hasOlderSessions;
   }
 
   function renderChoices(skills, mcp) {
@@ -133,6 +158,7 @@
       button.addEventListener('click', () => selectRun(run.id));
       target.append(button);
     }
+    byId('load-older-runs').hidden = !state.session || !state.hasOlderRuns;
   }
 
   function appendActivity(label, value) {
@@ -172,20 +198,29 @@
     updateControls();
   }
 
-  async function loadReceipts() {
+  async function loadReceipts(expectedOwner) {
     if (!state.run) return;
+    const connectionEpoch = state.connectionEpoch; const token = state.token;
+    const selectionEpoch = state.selectionEpoch; const sessionId = state.session && state.session.id;
     const runId = state.run.id;
     const receipts = await request(`/v1/runs/${encodeURIComponent(runId)}/receipts`);
-    if (!state.run || state.run.id !== runId) return;
+    const owns = expectedOwner || (() => ownsSelection(
+      connectionEpoch, token, selectionEpoch, sessionId,
+    ) && state.run && state.run.id === runId);
+    if (!owns()) return;
     const target = byId('receipts'); clear(target);
     for (const receipt of receipts) target.append(node('pre', JSON.stringify(receipt, null, 2)));
     if (!receipts.length) target.append(node('p', 'No receipts.', 'muted'));
   }
 
-  async function refreshApprovals() {
+  async function refreshApprovals(expectedOwner) {
     if (!state.token) return;
+    const connectionEpoch = state.connectionEpoch; const token = state.token;
+    const approvalsEpoch = ++state.approvalsEpoch;
+    const owns = expectedOwner || (() => ownsConnection(connectionEpoch, token));
     try {
       const approvals = await request('/v1/approvals');
+      if (!owns() || state.approvalsEpoch !== approvalsEpoch) return;
       const target = byId('approvals'); clear(target);
       if (!approvals.length) target.append(node('p', 'No waiting approvals.', 'muted'));
       for (const approval of approvals) {
@@ -206,10 +241,14 @@
         }
         article.append(title, details, controls); target.append(article);
       }
-    } catch (error) { showError(error); }
+    } catch (error) {
+      if (owns() && state.approvalsEpoch === approvalsEpoch) showError(error);
+    }
   }
 
   async function decideApproval(article, approval, approved) {
+    const connectionEpoch = state.connectionEpoch; const token = state.token;
+    const selectionEpoch = state.selectionEpoch;
     for (const button of article.querySelectorAll('button')) button.disabled = true;
     try {
       clearError();
@@ -220,9 +259,13 @@
           policy_sha256: approval.policy_sha256,
         }),
       });
-      if (state.run && state.run.id === run.id) renderRun(run, true);
-      await refreshApprovals();
+      if (!ownsConnection(connectionEpoch, token)) return;
+      if (state.selectionEpoch === selectionEpoch && state.run && state.run.id === run.id) {
+        renderRun(run, true);
+      }
+      await refreshApprovals(() => ownsConnection(connectionEpoch, token));
     } catch (error) {
+      if (!ownsConnection(connectionEpoch, token)) return;
       showError(error);
       article.append(node('p', 'Decision rejected. Refresh and review the current action before deciding again.', 'warning'));
     }
@@ -232,80 +275,126 @@
     const candidate = byId('token').value;
     byId('token').value = '';
     if (!candidate) { showError({message: 'Enter the operator token.'}); return; }
-    abortStream(); clearError(); state.token = candidate; setPhase('connecting');
+    state.connectionEpoch += 1; beginSelection(); state.approvalsEpoch += 1;
+    const connectionEpoch = state.connectionEpoch;
+    clearError(); state.token = candidate; setPhase('connecting');
     try {
       const [sessions, skills, mcp] = await Promise.all([
         request('/v1/sessions'), request('/v1/skills'), request('/v1/mcp'),
       ]);
+      if (!ownsConnection(connectionEpoch, candidate)) return;
       state.sessions = sessions;
+      state.sessionCursor = sessions.length ? sessions.at(-1).id : null;
+      state.hasOlderSessions = sessions.length === 50;
       renderChoices(skills, mcp);
       byId('workspace').hidden = false; byId('logout').hidden = false; byId('connect').hidden = true;
       byId('connection-panel').classList.add('connected');
       byId('connection-status').textContent = 'Connected';
-      setPhase('selecting'); renderSessions(); await refreshApprovals();
+      setPhase('selecting'); renderSessions(); refreshApprovals();
       const remembered = hashState();
-      if (remembered.session && sessions.some((item) => item.id === remembered.session)) {
+      if (remembered.session) {
         await selectSession(remembered.session, remembered.run);
       }
     } catch (error) {
+      if (!ownsConnection(connectionEpoch, candidate)) return;
       state.token = ''; setPhase('disconnected'); showError(error);
       byId('connection-status').textContent = 'Disconnected';
     }
   }
 
-  function abortStream() {
-    if (state.stream) state.stream.abort();
-    state.stream = null;
-  }
-
   function logout() {
-    abortStream();
+    state.connectionEpoch += 1; state.selectionEpoch += 1; state.approvalsEpoch += 1;
+    invalidateObservation();
     state.phase = 'disconnected'; state.token = ''; state.sessions = []; state.session = null;
     state.runs = []; state.run = null; state.pendingSubmission = null; state.lastSeq = 0;
+    state.sessionCursor = null; state.hasOlderSessions = false;
+    state.runCursor = null; state.hasOlderRuns = false;
     byId('token').value = ''; byId('workspace').hidden = true; byId('logout').hidden = true;
     byId('connection-panel').classList.remove('connected');
     byId('connect').hidden = false; byId('connection-status').textContent = 'Disconnected';
-    clear(byId('transcript')); clear(byId('approvals')); clearError();
+    byId('session-id').textContent = 'None'; byId('generation').textContent = '—';
+    byId('run-id').textContent = 'None'; byId('run-status').textContent = 'No run selected';
+    clear(byId('sessions')); clear(byId('run-history')); clear(byId('transcript'));
+    clear(byId('activity')); clear(byId('receipts')); clear(byId('approvals')); clearError();
     history.replaceState(null, '', location.pathname); setPhase('disconnected');
   }
 
   async function createSession() {
+    const connectionEpoch = state.connectionEpoch; const token = state.token;
+    const selectionEpoch = beginSelection();
     try {
       clearError();
       const session = await request('/v1/sessions', {method: 'POST', body: '{}'});
+      if (!ownsConnection(connectionEpoch, token) || state.selectionEpoch !== selectionEpoch) return;
       state.sessions.unshift(session); renderSessions(); await selectSession(session.id);
-    } catch (error) { showError(error); }
-  }
-
-  async function loadRuns(sessionId) {
-    const runs = await request(`/v1/sessions/${encodeURIComponent(sessionId)}/runs`);
-    if (state.session && state.session.id === sessionId) {
-      state.runs = runs; renderRunHistory();
+    } catch (error) {
+      if (ownsConnection(connectionEpoch, token) && state.selectionEpoch === selectionEpoch) showError(error);
     }
-    return runs;
   }
 
   async function selectSession(sessionId, preferredRun) {
-    abortStream(); clearError(); setPhase('selecting');
+    const connectionEpoch = state.connectionEpoch; const token = state.token;
+    const selectionEpoch = beginSelection();
+    clearError(); setPhase('selecting');
     try {
-      const session = await request(`/v1/sessions/${encodeURIComponent(sessionId)}`);
+      const [session, runs] = await Promise.all([
+        request(`/v1/sessions/${encodeURIComponent(sessionId)}`),
+        request(`/v1/sessions/${encodeURIComponent(sessionId)}/runs`),
+      ]);
+      if (!ownsConnection(connectionEpoch, token) || state.selectionEpoch !== selectionEpoch) return;
       state.session = session;
+      if (!state.sessions.some((item) => item.id === session.id)) state.sessions.push(session);
+      state.runs = runs;
+      state.runCursor = runs.length ? runs.at(-1).id : null;
+      state.hasOlderRuns = runs.length === 50;
       byId('session-id').textContent = session.id; byId('generation').textContent = String(session.generation);
-      renderSessions();
-      const runs = await loadRuns(session.id);
-      const chosen = runs.find((run) => run.id === preferredRun) || runs[0];
-      if (chosen) await selectRun(chosen.id);
+      state.run = null; state.lastSeq = 0;
+      renderSessions(); renderRun(null);
+      let chosen = runs[0];
+      if (preferredRun) {
+        chosen = await request(`/v1/runs/${encodeURIComponent(preferredRun)}`);
+        if (!ownsSelection(connectionEpoch, token, selectionEpoch, session.id)) return;
+        if (chosen.request.session_id !== session.id) {
+          throw {error: {code: 'run_session_mismatch', message: 'The requested run does not belong to this session.'}};
+        }
+        const listed = state.runs.findIndex((run) => run.id === chosen.id);
+        if (listed >= 0) state.runs[listed] = chosen;
+        else state.runs.push(chosen);
+        renderRunHistory();
+      }
+      if (chosen) activateRun(chosen, connectionEpoch, token, selectionEpoch, session.id);
       else { renderRun(null); setPhase('selecting'); }
-    } catch (error) { showError(error); setPhase('selecting'); }
+    } catch (error) {
+      if (ownsConnection(connectionEpoch, token) && state.selectionEpoch === selectionEpoch) {
+        showError(error); renderRun(null); setPhase('selecting');
+      }
+    }
   }
 
   async function selectRun(runId) {
-    abortStream(); clearError(); state.lastSeq = 0; state.reconnects = 0; setPhase('observing');
+    if (!state.session) return;
+    const connectionEpoch = state.connectionEpoch; const token = state.token;
+    const sessionId = state.session.id; const selectionEpoch = beginSelection();
+    clearError(); state.lastSeq = 0; state.reconnects = 0; renderRun(null); setPhase('observing');
     try {
       const run = await request(`/v1/runs/${encodeURIComponent(runId)}`);
-      renderRun(run);
-      observe(run.id);
-    } catch (error) { showError(error); setPhase('selecting'); }
+      if (!ownsSelection(connectionEpoch, token, selectionEpoch, sessionId)) return;
+      if (run.request.session_id !== sessionId) {
+        throw {error: {code: 'run_session_mismatch', message: 'The requested run does not belong to this session.'}};
+      }
+      activateRun(run, connectionEpoch, token, selectionEpoch, sessionId);
+    } catch (error) {
+      if (ownsSelection(connectionEpoch, token, selectionEpoch, sessionId)) {
+        showError(error); setPhase('selecting');
+      }
+    }
+  }
+
+  function activateRun(run, connectionEpoch, token, selectionEpoch, sessionId) {
+    if (!ownsSelection(connectionEpoch, token, selectionEpoch, sessionId)) return;
+    state.lastSeq = 0; state.reconnects = 0;
+    renderRun(run); setPhase('observing');
+    observe(run.id, connectionEpoch, token, selectionEpoch, sessionId);
   }
 
   function selected(name) {
@@ -317,26 +406,41 @@
     const text = byId('message').value;
     if (!state.session || !text.trim() || state.pendingSubmission) return;
     state.pendingSubmission = {
-      session_id: state.session.id, generation: state.session.generation,
-      request_id: crypto.randomUUID(), text, tools: selected('tools'), skills: selected('skills'),
+      payload: {
+        session_id: state.session.id, generation: state.session.generation,
+        request_id: crypto.randomUUID(), text, tools: selected('tools'), skills: selected('skills'),
+      },
+      connectionEpoch: state.connectionEpoch, selectionEpoch: state.selectionEpoch, inFlight: false,
     };
     await sendPending();
   }
 
   async function sendPending() {
-    if (!state.pendingSubmission) return;
-    const payload = state.pendingSubmission;
+    const pending = state.pendingSubmission;
+    if (!pending || pending.inFlight) return;
+    const payload = pending.payload;
+    pending.inFlight = true;
     setPhase('submitting'); clearError();
     try {
       const run = await request('/v1/runs', {method: 'POST', body: JSON.stringify(payload)});
-      if (state.pendingSubmission !== payload) return;
-      state.pendingSubmission = null; byId('message').value = '';
-      state.runs.unshift(run); state.lastSeq = 0; state.reconnects = 0;
-      renderRun(run); setPhase('observing'); observe(run.id);
+      if (state.pendingSubmission !== pending) return;
+      state.pendingSubmission = null;
+      if (!ownsConnection(pending.connectionEpoch, state.token)) return;
+      updateControls();
+      if (!ownsSelection(
+        pending.connectionEpoch, state.token, pending.selectionEpoch, payload.session_id,
+      )) return;
+      byId('message').value = '';
+      if (!state.runs.some((item) => item.id === run.id)) state.runs.unshift(run);
+      activateRun(run, pending.connectionEpoch, state.token, pending.selectionEpoch, payload.session_id);
     } catch (error) {
-      showError(error);
+      if (state.pendingSubmission !== pending) return;
+      pending.inFlight = false;
       if (error.status) state.pendingSubmission = null;
-      setPhase('selecting'); updateControls();
+      if (!ownsConnection(pending.connectionEpoch, state.token)) return;
+      if (state.session && state.session.id === payload.session_id) showError(error);
+      if (state.selectionEpoch === pending.selectionEpoch) setPhase('selecting');
+      updateControls();
     }
   }
 
@@ -350,7 +454,8 @@
     return {id, event: JSON.parse(data.join('\n'))};
   }
 
-  async function applyEvent(item) {
+  async function applyEvent(item, owns) {
+    if (!owns()) return;
     if (item.id <= state.lastSeq) return;
     state.lastSeq = item.id;
     const event = item.event;
@@ -360,6 +465,7 @@
         state.run.verification === 'passed' ? 'Verification passed' : 'Verification failed';
       byId('run-status').textContent = `Run: ${state.run.status} · ${verification}`;
       byId('run-status').dataset.status = state.run.status;
+      renderRunHistory();
       updateControls();
     } else if (event.kind === 'model.text') {
       const output = document.querySelector('.assistant-output');
@@ -370,31 +476,36 @@
       appendActivity(`Tool request: ${event.data.call.name}`, event.data);
     } else if (event.kind === 'tool.finished') {
       appendActivity('Tool finished', event.data);
-      await loadReceipts();
+      await loadReceipts(owns);
     } else if (event.kind === 'approval.required') {
       state.run = {...state.run, status: 'waiting_approval'};
       byId('run-status').textContent = 'Run: waiting approval · No verification requested';
       byId('run-status').dataset.status = 'waiting_approval';
       updateControls();
       appendActivity(`Approval required: ${event.data.call.name}`, event.data);
-      await refreshApprovals();
+      await refreshApprovals(owns);
     }
   }
 
-  async function durableRun(runId) {
+  async function durableRun(runId, owns) {
     const run = await request(`/v1/runs/${encodeURIComponent(runId)}`);
-    if (!state.run || state.run.id !== runId) return null;
+    if (!owns()) return null;
     const partial = document.querySelector('.assistant-output')?.textContent || '';
     renderRun(run, true);
     if (!run.output && partial) document.querySelector('.assistant-output').textContent = partial;
-    await loadReceipts();
+    await loadReceipts(owns);
     return run;
   }
 
-  async function observe(runId) {
-    if (!state.run || state.run.id !== runId) return;
-    abortStream();
+  async function observe(runId, connectionEpoch, token, selectionEpoch, sessionId) {
+    if (!ownsSelection(connectionEpoch, token, selectionEpoch, sessionId) ||
+        !state.run || state.run.id !== runId) return;
+    invalidateObservation();
+    const observationEpoch = state.observationEpoch;
     const controller = new AbortController(); state.stream = controller;
+    const owns = () => ownsSelection(connectionEpoch, token, selectionEpoch, sessionId) &&
+      state.observationEpoch === observationEpoch && state.stream === controller &&
+      state.run && state.run.id === runId;
     try {
       const response = await fetch(`/v1/runs/${encodeURIComponent(runId)}/events?after=${state.lastSeq}`, {
         credentials: 'omit', cache: 'no-store', signal: controller.signal,
@@ -412,16 +523,18 @@
           const frame = buffer.slice(0, match.index);
           buffer = buffer.slice(match.index + match[0].length);
           const item = parseFrame(frame);
-          if (item) await applyEvent(item);
+          if (item) await applyEvent(item, owns);
+          if (!owns()) return;
         }
         if (done) break;
       }
       if (buffer.trim()) throw {error: {code: 'stream_frame', message: 'Event stream ended inside a frame.'}};
-      const run = await durableRun(runId);
+      const run = await durableRun(runId, owns);
+      if (!owns()) return;
       if (!run || TERMINAL.has(run.status)) { state.reconnects = 0; setPhase('selecting'); return; }
       throw {error: {code: 'stream_ended', message: 'Event stream ended before durable completion.'}};
     } catch (error) {
-      if (controller.signal.aborted || !state.run || state.run.id !== runId) return;
+      if (controller.signal.aborted || !owns()) return;
       showError(error);
       if (TERMINAL.has(state.run.status)) { setPhase('selecting'); return; }
       const status = error && error.status;
@@ -430,7 +543,7 @@
       }
       const delay = 250 * (2 ** state.reconnects++);
       await new Promise((resolve) => setTimeout(resolve, delay));
-      if (state.run && state.run.id === runId && state.token) observe(runId);
+      if (owns()) observe(runId, connectionEpoch, token, selectionEpoch, sessionId);
     } finally {
       if (state.stream === controller) state.stream = null;
     }
@@ -438,49 +551,105 @@
 
   async function cancelRun() {
     if (!state.run) return;
+    const connectionEpoch = state.connectionEpoch; const token = state.token;
+    const selectionEpoch = state.selectionEpoch; const sessionId = state.session.id; const runId = state.run.id;
     try {
       clearError();
       const partial = document.querySelector('.assistant-output')?.textContent || '';
-      const run = await request(`/v1/runs/${encodeURIComponent(state.run.id)}/cancel`, {method: 'POST', body: '{}'});
+      const run = await request(`/v1/runs/${encodeURIComponent(runId)}/cancel`, {method: 'POST', body: '{}'});
+      if (!ownsSelection(connectionEpoch, token, selectionEpoch, sessionId) ||
+          !state.run || state.run.id !== runId) return;
       renderRun(run, true);
       if (!run.output && partial) document.querySelector('.assistant-output').textContent = partial;
-      await loadRuns(state.session.id);
-    } catch (error) { showError(error); }
+      const runs = await request(`/v1/sessions/${encodeURIComponent(sessionId)}/runs`);
+      if (!ownsSelection(connectionEpoch, token, selectionEpoch, sessionId)) return;
+      state.runs = runs; state.runCursor = runs.length ? runs.at(-1).id : null;
+      state.hasOlderRuns = runs.length === 50; renderRunHistory();
+    } catch (error) {
+      if (ownsSelection(connectionEpoch, token, selectionEpoch, sessionId)) showError(error);
+    }
   }
 
   async function resetSession() {
     if (!state.session) return;
+    const connectionEpoch = state.connectionEpoch; const token = state.token;
+    const selectionEpoch = state.selectionEpoch; const sessionId = state.session.id;
+    const generation = state.session.generation;
     try {
       clearError();
-      const session = await request(`/v1/sessions/${encodeURIComponent(state.session.id)}/reset`, {
-        method: 'POST', body: JSON.stringify({generation: state.session.generation}),
+      const session = await request(`/v1/sessions/${encodeURIComponent(sessionId)}/reset`, {
+        method: 'POST', body: JSON.stringify({generation}),
       });
+      if (!ownsSelection(connectionEpoch, token, selectionEpoch, sessionId)) return;
       state.session = session; byId('generation').textContent = String(session.generation);
       const listed = state.sessions.find((item) => item.id === session.id);
       if (listed) Object.assign(listed, session);
-      renderSessions(); await loadRuns(session.id); saveHash(); updateControls();
-    } catch (error) { showError(error); }
+      renderSessions();
+      const runs = await request(`/v1/sessions/${encodeURIComponent(sessionId)}/runs`);
+      if (!ownsSelection(connectionEpoch, token, selectionEpoch, sessionId)) return;
+      state.runs = runs; state.runCursor = runs.length ? runs.at(-1).id : null;
+      state.hasOlderRuns = runs.length === 50; renderRunHistory(); saveHash(); updateControls();
+    } catch (error) {
+      if (ownsSelection(connectionEpoch, token, selectionEpoch, sessionId)) showError(error);
+    }
   }
 
   async function loadOlderSessions() {
-    if (!state.sessions.length) return;
+    if (!state.sessionCursor || !state.hasOlderSessions) return;
+    const connectionEpoch = state.connectionEpoch; const token = state.token;
+    const cursor = state.sessionCursor;
     try {
-      const older = await request(`/v1/sessions?limit=50&before=${encodeURIComponent(state.sessions.at(-1).id)}`);
-      state.sessions.push(...older); renderSessions();
-    } catch (error) { showError(error); }
+      const older = await request(`/v1/sessions?limit=50&before=${encodeURIComponent(cursor)}`);
+      if (!ownsConnection(connectionEpoch, token) || state.sessionCursor !== cursor) return;
+      for (const session of older) {
+        if (!state.sessions.some((item) => item.id === session.id)) state.sessions.push(session);
+      }
+      if (older.length) state.sessionCursor = older.at(-1).id;
+      state.hasOlderSessions = older.length === 50;
+      renderSessions();
+    } catch (error) {
+      if (ownsConnection(connectionEpoch, token)) showError(error);
+    }
+  }
+
+  async function loadOlderRuns() {
+    if (!state.session || !state.runCursor || !state.hasOlderRuns) return;
+    const connectionEpoch = state.connectionEpoch; const token = state.token;
+    const selectionEpoch = state.selectionEpoch; const sessionId = state.session.id;
+    const cursor = state.runCursor;
+    try {
+      const older = await request(
+        `/v1/sessions/${encodeURIComponent(sessionId)}/runs?limit=50&before=${encodeURIComponent(cursor)}`,
+      );
+      if (!ownsSelection(connectionEpoch, token, selectionEpoch, sessionId) || state.runCursor !== cursor) return;
+      for (const run of older) {
+        if (!state.runs.some((item) => item.id === run.id)) state.runs.push(run);
+      }
+      if (older.length) state.runCursor = older.at(-1).id;
+      state.hasOlderRuns = older.length === 50;
+      renderRunHistory();
+    } catch (error) {
+      if (ownsSelection(connectionEpoch, token, selectionEpoch, sessionId)) showError(error);
+    }
   }
 
   byId('connect').addEventListener('click', connect);
   byId('logout').addEventListener('click', logout);
   byId('new-session').addEventListener('click', createSession);
   byId('load-older-sessions').addEventListener('click', loadOlderSessions);
+  byId('load-older-runs').addEventListener('click', loadOlderRuns);
   byId('composer').addEventListener('submit', startSubmission);
   byId('retry-send').addEventListener('click', sendPending);
   byId('cancel-run').addEventListener('click', cancelRun);
   byId('reset-session').addEventListener('click', resetSession);
-  byId('refresh-approvals').addEventListener('click', refreshApprovals);
+  byId('refresh-approvals').addEventListener('click', () => refreshApprovals());
   byId('reconnect-stream').addEventListener('click', () => {
-    if (state.run) { state.reconnects = 0; clearError(); observe(state.run.id); }
+    if (state.run && state.session) {
+      state.reconnects = 0; clearError();
+      observe(
+        state.run.id, state.connectionEpoch, state.token, state.selectionEpoch, state.session.id,
+      );
+    }
   });
   setPhase('disconnected');
 })();
