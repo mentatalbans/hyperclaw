@@ -12,7 +12,7 @@
     "7b56c76 feat: add durable scoped memory core",
     "5000f50 docs: plan M4 and freeze memory evaluation cases"
   ],
-  "status": "gates_passed_final_review_pending",
+  "status": "complete",
   "environment": {
     "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
     "machine": "arm64",
@@ -1775,7 +1775,16 @@
       "task-2-review.md": "### Spec Compliance\n\n- \u2705 Spec compliant. The four exact memory tools are admitted as intrinsically scoped `memory` capabilities without write/execute grants (`src/hyperclaw/execution/policy.py:66`, `src/hyperclaw/execution/policy.py:104`), new run/schedule defaults and the CLI enum expose them (`src/hyperclaw/contracts.py:72`, `src/hyperclaw/contracts.py:102`, `src/hyperclaw/contracts.py:260`, `src/hyperclaw/cli.py:96`), and `Executor` dispatches them through the existing settled host-effect path (`src/hyperclaw/execution/__init__.py:13`, `src/hyperclaw/execution/__init__.py:90`).\n- \u2705 The required single transaction is present: `Memory.invoke` reloads the durable invocation, returns an immutable existing receipt, performs private CRUD/search dispatch, converts only known domain failures into failed receipts, and calls the synchronous receipt transition inside the same Store transaction (`src/hyperclaw/memory.py:250`, `src/hyperclaw/memory.py:307`, `src/hyperclaw/store.py:762`). The receipt transition writes invocation status/receipt, artifacts, and `tool.finished` together (`src/hyperclaw/store.py:762`).\n- \u2705 Persisted identity and authority are enforced. Workspace and run/session identity come from the persisted invocation, run, and checkpoint (`src/hyperclaw/memory.py:251`, `src/hyperclaw/memory.py:256`, `src/hyperclaw/memory.py:276`); strict schemas reject model-selected workspace/session/source IDs (`tests/unit/test_policy.py:59`, `tests/integration/test_memory.py:109`). Retrieved text is tested against both command approval and a real workspace-write attempt without changing grants or creating an artifact (`tests/unit/test_memory.py:447`, `tests/integration/test_memory.py:121`).\n- \u2705 Failure, cancellation, and recovery behavior is covered at the relevant boundaries. Receipt-event failure rolls back the record and FTS index (`tests/unit/test_memory.py:396`, `tests/integration/test_memory.py:246`); process death before and after commit is restarted twice without replay or duplicate versions/events/provider calls (`tests/integration/test_memory.py:208`); ordinary conversation does not create memory (`tests/integration/test_memory.py:145`).\n- \u2705 The live test uses a pytest temporary runtime root, a new session, an opaque marker seeded through public `Memory`, and the real daemon/model path; it checks receipt text/source/version and final output (`tests/live/conftest.py:31`, `tests/live/test_memory.py:13`). The user prompt excludes the marker and the new session has no earlier conversation history (`tests/live/test_memory.py:21`, `tests/live/test_memory.py:36`).\n- \u26a0\ufe0f Cannot verify from this task review: the opt-in live test was collected but intentionally not executed. The final live, Docker, supported-platform/Python-version, and wheel/install gates are controller-owned and remain pending after this review. The report provides passing focused offline evidence for 127 tests but no result from those later gates (`.superpowers/sdd/2026-09-10-runtime-v2-m4/task-2-report.md:45`).\n\n### Strengths\n\n- The mutation/index/receipt/event unit is structurally atomic. Private memory validation and source checks occur before mutation where possible (`src/hyperclaw/memory.py:69`, `src/hyperclaw/memory.py:175`), while SQLite or event failures escape to Store rollback rather than being converted into false success (`src/hyperclaw/memory.py:307`, `src/hyperclaw/store.py:224`).\n- Search output keeps only leading complete records before constructing `ToolReceipt`, preserving valid JSON and complete record text under the bound (`src/hyperclaw/memory.py:238`).\n- The integration tests exercise public HTTP/CLI/process behavior rather than replacing the runtime with mocks. They verify grouped tool results and receipts (`tests/integration/test_memory.py:36`), session/shared visibility and provenance across restart/reset (`tests/integration/test_memory.py:61`), correction/forget persistence (`tests/integration/test_memory.py:88`), and crash-side transaction outcomes (`tests/integration/test_memory.py:208`).\n- Existing async receipt callers retain the same wrapper and transaction ownership while memory gets the reusable synchronous transition required for composition (`src/hyperclaw/store.py:762`, `src/hyperclaw/store.py:777`).\n\n### Issues\n\n#### Critical (Must Fix)\n\n- None.\n\n#### Important (Should Fix)\n\n- None.\n\n#### Minor (Nice to Have)\n\n- `src/hyperclaw/memory.py:28` duplicates the 65,536-byte receipt limit already defined by policy at `src/hyperclaw/execution/policy.py:72` and enforced by `ToolReceipt` at `src/hyperclaw/contracts.py:395`. The pre-serialization guard is necessary, but a future limit change in only one location could make `ToolReceipt` slice search JSON after `_record_output` accepted it. Move the shared byte limit to contracts (or expose a shared complete-JSON bounding helper) and use it from policy, receipt validation, and memory output assembly.\n\n### Focused Checks\n\n- Named risk \u2014 handled domain failure after partial mutation: checked private `_remember`, `_correct`, and `_forget` ordering (`src/hyperclaw/memory.py:100`, `src/hyperclaw/memory.py:175`, `src/hyperclaw/memory.py:207`). Known validation/conflict/not-found paths occur before writes or at a zero-row guarded update; later SQLite failures escape and roll back.\n- Named risk \u2014 Store rollback and owner-health propagation: checked `_call` and `_transaction` (`src/hyperclaw/store.py:213`, `src/hyperclaw/store.py:224`). SQLite/event failures become `StorageFailure` after rollback, which the runtime treats as an unhealthy owner rather than a model/tool failure (`src/hyperclaw/runtime.py:332`).\n- Named risk \u2014 settled cancellation: checked Executor settlement, Store future settlement, and runtime cancellation (`src/hyperclaw/execution/__init__.py:13`, `src/hyperclaw/store.py:200`, `src/hyperclaw/runtime.py:106`). Once memory dispatch starts, cancellation waits for transaction commit/rollback before run reconciliation.\n- Named risk \u2014 repeated startup recovery: checked Store recovery and Executor reconciliation (`src/hyperclaw/store.py:558`, `src/hyperclaw/execution/__init__.py:201`). A rolled-back prepared invocation gets one interrupted receipt and is never dispatched; a committed receipt is left unchanged, and terminal runs are not recovered again.\n- No tests were rerun: the report's 127-test focused result directly covers the reviewed head, and reading raised no uncovered behavioral doubt requiring reproduction. The review-package output was truncated by the tool after the Store hunk, so only the missing contiguous diff span was fetched to complete the single package read; changed files were otherwise not reread except for the named cross-interface checks above.\n\n### Assessment\n\n**Task quality:** Approved\n\n**Reasoning:** The implementation satisfies Task 2 and its global constraints with strong real-process coverage of the load-bearing atomicity and recovery behavior. The sole finding is a small constant-sharing maintenance risk; it does not undermine current correctness. Final live/platform/wheel gates remain pending for the controller as planned.\n\n## Validation Fix Round 1 Re-review (`74cd5b0..9e3484f`)\n\n### Finding Verdicts\n\n- **Live Qwen selected workspace scope and limit 10 for a session-scoped seed** \u2014 ADDRESSED. `MemorySearchArguments` now tells the model that session is the default, includes shared workspace records, and that workspace searches only shared records; its limit description states the valid integer range (`src/hyperclaw/contracts.py:239`, `src/hyperclaw/contracts.py:250`). The catalog repeats the operational distinction at the tool-selection surface (`src/hyperclaw/execution/policy.py:67`).\n- **Preserve strict bounds and defaults while improving guidance** \u2014 ADDRESSED. The fix retains `MemoryToolScope`, default `session`, and `Field(default=5, ge=1, le=5, strict=True)`; it adds descriptions without clamping, coercion, or relaxed validation (`src/hyperclaw/contracts.py:239`). The generated-schema regression verifies the public integer/default/minimum/maximum contract (`tests/unit/test_policy.py:70`).\n- **Live capability prompt must request the intended scope/limit without exposing the marker** \u2014 ADDRESSED. The prompt explicitly requests session scope and limit 5, while its existing runtime assertion proves the generated opaque marker is absent (`tests/live/test_memory.py:36`). The session is created before the private seed and has no model conversation containing that marker (`tests/live/test_memory.py:21`).\n- **Regression and test hygiene** \u2014 ADDRESSED. The schema tests inspect `Policy.definitions`, the actual model-facing interface, rather than mirroring private field objects (`tests/unit/test_policy.py:70`, `tests/unit/test_policy.py:89`). Here the descriptions are behavioral tool instructions implicated by a real model failure, and the opt-in live test validates the resulting end-to-end capability. The report records 65 affected offline tests passing and this live test passing once in 95.44 seconds (`.superpowers/sdd/2026-09-10-runtime-v2-m4/task-2-report.md:165`, `.superpowers/sdd/2026-09-10-runtime-v2-m4/task-2-report.md:172`).\n\n### New Breakage in the Fix Diff\n\n- None. The production diff changes schema/catalog descriptions only; types, defaults, strictness, validation flow, policy authority, and runtime behavior remain unchanged (`src/hyperclaw/contracts.py:217`, `src/hyperclaw/contracts.py:239`, `src/hyperclaw/contracts.py:259`, `src/hyperclaw/contracts.py:270`).\n\n### Out-of-Scope Observations\n\n- The prior Minor finding remains unchanged and should carry into the final review: the 65,536-byte output limit is duplicated across memory, policy, and `ToolReceipt` (`src/hyperclaw/memory.py:28`, `src/hyperclaw/execution/policy.py:72`, `src/hyperclaw/contracts.py:395`). It does not block this fix round.\n- The targeted new live memory case has now passed. The controller's complete milestone live/platform/Python/wheel batteries, and any final Docker gate, still follow this task review and remain pending.\n\n### Spec Compliance\n\n- \u2705 Spec compliant. The fix supplies the intended model guidance, keeps rejection strict, retains marker isolation, and now has direct live evidence for the new memory case.\n\n### Quality Assessment\n\n- **Task quality:** Approved. The change is small, clear, and limited to the model-facing contract that caused the observed failure; the regression checks that public contract and the live case checks actual behavior.\n\n### Verdict\n\n**Fix round:** All validation findings addressed, no new Critical/Important breakage. No suite was rerun during re-review because the appended report contains focused affected-suite and live-test results and the diff raised no uncovered concrete doubt.\n"
     },
     "final": {
-      "status": "pending"
+      "status": "approved",
+      "spec_compliance": "approved",
+      "quality": "approved",
+      "critical": 0,
+      "important": 0,
+      "minor": 4,
+      "reviewed_range": "c8ac94dc707d1583de71e43964b2b70b1368eca8..6049d31",
+      "source_commit": "9e3484f129156ae1975ef81cbccd7c8d29ac4883",
+      "reviewer": "m4_final_review (gpt-6-astra, high)",
+      "report": "# Final independent M4 review\n\nReviewed range: `c8ac94dc707d1583de71e43964b2b70b1368eca8..6049d31`; production/test source: `9e3484f129156ae1975ef81cbccd7c8d29ac4883`. Reviewed the approved design, M4 plan, all 24 changed files, fixed fixture, acceptance narrative/JSON, embedded verification harnesses and task reviews. The 384,034-byte packaged review was handled in passes; its diff body exactly matches `git diff -U10 c8ac94d..6049d31`. Review was read-only except this report, with no subagents and no rerun of accepted batteries.\n\n## Spec compliance\n\n**Compliant with M4 and the applicable global constraints.**\n\n- The additive schema 4 migration uses the existing Store connection and transaction owner, keeps historical accepted tool arrays, and transactionally maintains active FTS entries (`src/hyperclaw/store.py:102`, `tests/unit/test_memory.py:305`). There is no new service, package, database connection owner, model dependency or download path.\n- Memory visibility, exact-scope mutation, provenance checks, immutable correction versions, stale conflicts, idempotent forget and expiry follow the concrete M4 decisions (`src/hyperclaw/memory.py:82`, `src/hyperclaw/memory.py:134`, `src/hyperclaw/memory.py:175`, `src/hyperclaw/memory.py:208`). SQL applies workspace/session/status/expiry eligibility before ordering and LIMIT. The disclosed global BM25 statistics are consistent with the implementation.\n- Model arguments cannot supply workspace, session or source-run identities. Executor admission and policy recheck precede memory dispatch; the memory dispatcher derives identity from persisted invocation/run/checkpoint state (`src/hyperclaw/execution/__init__.py:68`, `src/hyperclaw/execution/policy.py:66`, `src/hyperclaw/memory.py:250`). Retrieved instructions do not change grants, and storing text does not produce a truth-verification claim.\n- Memory effects, FTS changes, receipts and completion events share one Store transaction. Domain rejection paths occur before a write or on a zero-row guard; later storage failures escape to rollback. Existing receipt replay, cancellation settlement and interrupted-startup handling remain intact (`src/hyperclaw/memory.py:307`, `src/hyperclaw/store.py:762`, `tests/integration/test_memory.py:208`, `tests/integration/test_memory.py:246`).\n- Public HTTP/CLI tools, scope across restart/reset, correction/forget, ordinary conversation without extraction and grouped tool results are covered by actual daemon processes (`tests/integration/test_memory.py:36`). The live test retrieves an opaque marker from a freshly reopened Store through the actual selected Qwen model (`tests/live/test_memory.py:13`).\n- The 40-case fixture was frozen before production implementation and remains byte-identical to commit `5000f50`. Recorded exact recall is 10/10, paraphrase recall is 5/10, and both forbidden/stale return counts are zero. The report does not turn paraphrase misses into successes or claim general semantic retrieval quality (`scripts/evaluate_memory.py:34`, `scripts/evaluate_memory.py:126`).\n- No M5 implementation, compatibility layer, cloud fallback or running-service adoption is included. Defaults and the Python/macOS/Linux constraints remain intact. Final status/checklist edits were explicitly controller-owned and pending at the reviewed documentation head; this is a delivery bookkeeping step, not missing M4 implementation.\n\n## Strengths\n\n- Atomicity is structural and verified at the actual COMMIT boundary: rollback injection and SIGKILL on both sides of memory/receipt commit cover the principal data-loss and replay risks.\n- The small Memory component reuses Store ownership without introducing a parallel persistence or scheduling abstraction. The extracted synchronous receipt transition preserves existing async callers.\n- Scope filtering occurs in SQL before the result limit, with deterministic ties. Corrections preserve historical evidence while removing prior versions from retrieval.\n- Evidence is unusually inspectable: source/test hashes, the sealed fixture, actual commands, unsuccessful attempts, installed-wheel provenance, test counts, live receipts and explicit measurement limitations are retained together.\n\n## Issues\n\n### Critical \u2014 none\n\n### Important \u2014 none\n\n### Minor\n\n1. **Receipt limit has three independent definitions.** `src/hyperclaw/memory.py:28`, `src/hyperclaw/execution/policy.py:72`, `src/hyperclaw/contracts.py:424`. They currently agree at 65,536 bytes, and memory search keeps complete leading JSON records before constructing a receipt. A future change to only the receipt validator could slice otherwise accepted JSON. Use a shared constant when touching this boundary next; a focused escaping/whole-record bound regression would protect that change. This is future drift risk, not current malformed output.\n\n2. **The inherited Docker recovery fixture assumes two restarts finish within eight seconds.** `tests/live/test_recovery_docker.py:68`, `tests/live/test_recovery_docker.py:163`, `tests/live/test_recovery_docker.py:193`. The recorded loaded Linux attempt reached the no-late-write assertion after 17.82 seconds; it had already established an uncertain receipt and subsequent owned-container removal. While Docker is intentionally unavailable, the daemon cannot stop that running container, so a delayed write before recovery is consistent with the uncertain-outcome contract. Replace the wall-clock-only side-effect trigger with a controlled barrier in future test maintenance, retaining assertions that the parent/child tree stops and receipts never replay. This is a test determinism problem; it does not establish an M4 runtime cleanup regression. The unchanged macOS and Linux rechecks passed.\n\n3. **Inherited maintenance errors omit their cause.** `src/hyperclaw/runtime.py:219`. The handler correctly marks the owner unhealthy and wakes observers, but logs only a generic maintenance message. Preserve useful exception context without exposing private inputs when improving operational diagnostics. M4 does not change this handler, and the existing failure behavior remains fail-closed.\n\n4. **Inherited schedule population cost remains unmeasured.** `src/hyperclaw/store.py:430`. Each maintenance tick materializes all active schedule IDs and performs per-schedule checks even for future schedules. This shares the Store owner with memory, so large populations could increase latency. The supported bounded tests show no correctness failure and M4 adds no schedule scan; keep this as the existing nonblocking scaling follow-up and benchmark before choosing an optimization.\n\n## Evidence and limitations\n\n- Independently compared all six accepted summary files with their underlying JUnit: 239 offline tests each on macOS Python 3.11, macOS Python 3.13 and local Linux Python 3.13; 10 Docker tests each on macOS/Linux; six selected live Qwen tests. All accepted summaries/JUnit files agree and contain zero failures/errors. These are inspected recorded runs, not reviewer reruns.\n- Independently recomputed every recorded hash against `9e3484f`: 15 source files and 54 test/dependency/configuration inputs match. Linux's copied input map matches all 69 inputs. Embedded harness source hashes also match. Wheel evidence records all 15 packaged Python files matching source and three public tests running from an unrelated directory against the installed package.\n- Independently checked fixture bytes against the seal commit and its SHA-256. Read all 40 cases and their expected/forbidden labels, including scope cases containing obsolete records. The evaluator counts stale returns across categories and exposes misses explicitly.\n- Investigated a concrete Unicode-tokenization concern using a temporary real Store and six exact terms spanning Indic scripts, German and a decomposed accent. All returned their stored record; no new defect was established. The temporary root was removed automatically. No live service or accepted battery was rerun.\n- The successful live snapshot shows a marker-free prompt, session scope/limit 5, the actual stored record/version/source in a tool result, and that marker in the final answer. The earlier limit-10 call was correctly rejected. The refreshed failed live attempt lacks its precise error after fixture deletion; the report appropriately labels timeout as a hypothesis. Later success demonstrates capability, not a reliable latency or model-argument compliance rate. Keep that limitation and the unsuccessful attempts in final acceptance.\n- Local Linux execution is accurately distinguished from configured but unexecuted hosted CI. The reviewed trusted verification runner's Docker socket is not a runtime command-container mount.\n- Inspected the controller's cleanup/preservation evidence supplied during review: seven recorded M4 temporary roots and the task-owned keepalive were removed; no matching M4 or installation-labelled containers remained. Existing images/services and the other worktree states were preserved. The final acceptance still needs to incorporate this evidence and this review as planned.\n\n## Recommendations\n\nComplete the controller-owned status/checklist and evidence archival edits, carrying the four Minor follow-ups and variable live-model behavior forward. No production or test changes are required to accept M4. Preserve the local branch/worktree and stop before M5, push, merge or service adoption.\n\n## Assessment\n\n**Spec compliance: Approved.**\n\n**Code quality: Approved.**\n\n**Ready to merge? Yes, technically; no merge is requested or authorized by this review.**\n\n**Ready for local M4 delivery? Yes, after the planned final evidence/status documentation is recorded.** The scoped storage model and policy-bound atomic receipt integration satisfy the milestone with real-process, migration, recovery, platform and live evidence. No Critical or Important finding remains; the identified maintenance and test-determinism follow-ups do not undermine current M4 behavior.\n"
     }
   },
   "hosted_ci": {
@@ -1856,7 +1865,56 @@
     "push": false,
     "merge": false,
     "service_adoption": false,
-    "m5_started": false
+    "m5_started": false,
+    "checks": {
+      "other_worktrees": [
+        {
+          "path": "/Users/kairos/Projects/work/hyper/hyperclaw",
+          "head": {
+            "command": [
+              "git",
+              "rev-parse",
+              "HEAD"
+            ],
+            "exit_code": 0,
+            "output": "6f758390996b61f86fe57415954aa3f8fced583a"
+          },
+          "status": {
+            "command": [
+              "git",
+              "status",
+              "--short"
+            ],
+            "exit_code": 0,
+            "output": "?? .engram/"
+          }
+        },
+        {
+          "path": "/Users/kairos/Projects/work/hyper/.integration-worktrees/hyperclaw-1-provider-recovery",
+          "head": {
+            "command": [
+              "git",
+              "rev-parse",
+              "HEAD"
+            ],
+            "exit_code": 0,
+            "output": "503080511fdc66635844513103054b4e3c1966ef"
+          },
+          "status": {
+            "command": [
+              "git",
+              "status",
+              "--short"
+            ],
+            "exit_code": 0,
+            "output": ""
+          }
+        }
+      ],
+      "source_test_dependency_hashes_match": true,
+      "source_count": 15,
+      "input_count": 54
+    }
   },
   "limits": [
     "The fixed corpus contains40 synthetic cases; scores do not establish general retrieval quality or large-corpus performance.",
@@ -1870,7 +1928,142 @@
     "No lint or type-check tool is configured; no such passing gate is claimed."
   ],
   "cleanup": {
-    "status": "pending"
+    "started_at": "2026-09-10T15:28:37.595011+00:00",
+    "commands": [
+      {
+        "command": [
+          "docker",
+          "inspect",
+          "--format",
+          "{{.Id}}",
+          "hyperclaw-m4-verification-keepalive-cf8437033f"
+        ],
+        "cwd": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
+        "exit_code": 0,
+        "stdout": "9e869c0f8d9b5921f1276ae032a2c574ab2e48bfd11e9246a52adb154b28771e\n",
+        "stderr": "",
+        "elapsed_seconds": 0.028
+      },
+      {
+        "command": [
+          "docker",
+          "rm",
+          "--force",
+          "9e869c0f8d9b5921f1276ae032a2c574ab2e48bfd11e9246a52adb154b28771e"
+        ],
+        "cwd": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
+        "exit_code": 0,
+        "stdout": "9e869c0f8d9b5921f1276ae032a2c574ab2e48bfd11e9246a52adb154b28771e\n",
+        "stderr": "",
+        "elapsed_seconds": 0.77
+      },
+      {
+        "command": [
+          "docker",
+          "ps",
+          "-a",
+          "-q",
+          "--filter",
+          "name=hyperclaw-m4-"
+        ],
+        "cwd": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "elapsed_seconds": 0.017
+      },
+      {
+        "command": [
+          "docker",
+          "ps",
+          "-a",
+          "-q",
+          "--filter",
+          "label=io.hyperclaw.installation"
+        ],
+        "cwd": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "elapsed_seconds": 0.015
+      }
+    ],
+    "directories": [
+      {
+        "path": "/tmp/hyperclaw-m4-linux-ab7fe00o",
+        "existed": true,
+        "removed": true
+      },
+      {
+        "path": "/tmp/hyperclaw-m4-linux-fojfcxij",
+        "existed": true,
+        "removed": true
+      },
+      {
+        "path": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m4-wheel-p8vv_ulp",
+        "existed": true,
+        "removed": true
+      },
+      {
+        "path": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m4-wheel-qsgitqt4",
+        "existed": true,
+        "removed": true
+      },
+      {
+        "path": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m4-verify-h5xxthrn",
+        "existed": true,
+        "removed": true
+      },
+      {
+        "path": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m4-live-debug-qk0bnbyb",
+        "existed": true,
+        "removed": true
+      },
+      {
+        "path": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m4-live-observed-jdh4fk_k",
+        "existed": true,
+        "removed": true
+      }
+    ],
+    "status": "complete",
+    "preserved": "Existing verification image, Docker/model services, other containers, reports, wheel artifact and development worktree retained. Final review and ledger archived here before this plan\u2019s SDD workspace was removed.",
+    "sdd_workspace": {
+      "path": ".superpowers/sdd/2026-09-10-runtime-v2-m4",
+      "status": "removed_after_review_and_ledger_archive"
+    }
   },
-  "controller_rulings": []
+  "controller_rulings": [],
+  "progress_ledger": "# SDD ledger \u2014 plan: docs/superpowers/plans/2026-09-10-runtime-v2-m4.md\n\nUser requested starting approved M4 after completed M3. Continue existing branch/worktree, local commits/reviews and disposable testing; no push, merge, service adoption or M5. Base c8ac94d. No ancestor AGENTS.md exists. Existing linked worktree and non-submodule status verified. Locked sync passed; baseline198offline passed/15deselected in48.20s.\n\n## Preflight interface scan\n| Tasks | Shared interface | Finding |\n| --- | --- | --- |\n| 1 / 2 | Memory CRUD/private operations and invocation receipt composition | Same Store connection; private synchronous operations reusable inside one receipt transaction. Task2 adds invoke only after core review. |\n| 1 / 2 | Contracts and tool defaults | Task1 adds memory values/arguments; Task2 changes admitted tool names/defaults. Stored historical tool arrays are preserved. |\n| 1 / 3 | Fixed fixture and evaluation report | Controller authored40cases before implementation; SHA stored in fixture-seal.json. No paraphrase score threshold or tuning against the fixture. |\n| 2 / 3 | Executor recovery, public CLI and live model | Core Memory mutation and receipt share transaction; real SIGKILL tests prove both commit sides. Final Docker/live gates required because shared dispatch changes. |\n| 1 | Scope/ranking/index semantics | WHERE visibility/status/expiry precedes ORDER BY/LIMIT; global BM25 statistics disclosed. Exact mutation scope differs from search union visibility intentionally. |\n| 2 | Authority and public operation path | Memory receives trusted run/workspace IDs; schemas cannot supply them. Existing chat/HTTP plus --tool exposes all operations without extra CRUD API. |\n| 3 | Source/fixture/report identity and preservation | Freeze committed source before final batteries; record actual platforms and hashes, clean own fixtures, preserve worktree. |\n\nTask1: active, /root/m4_memory_core, base5000f50; implementer owns core/schema/contracts/evaluator tests. Fixture sealed31fa338e74e2901103f1d5317e2f26c8964ae077d2220f93d0dfdb0be0aebf2e before production implementation.\nTask2: controller preparing real-process integration/crash tests and live scenario; production waits for Task1 review. Initial test fixture typo corrected before recording intended RED.\nTask3: pending.\n\nTask2 RED: public-tool tests (scope/provenance, corrections/forget, no automatic extraction) 3failed/8deselected in1.51s because RunRequest rejects memory allowlists. Command: uv run --locked pytest tests/integration/test_memory.py -q -k \"scope_and_provenance or correction_and_forget or ordinary_conversation\". First attempted run had a fixture Reply(raw=...) typo; fixed to Reply(frames=...) before this intended RED.\n\nTask3 preparation: locked disposable macOS Python3.13.5 environment ready at /var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m4-verify-h5xxthrn/venv313; uv sync no-cache/link-mode-copy exit0 in1.564s. Evidence test-results/m4-preparation/python313-install.json. Task-owned wheel/Linux orchestrator in test-results/m4-preparation/verify_artifacts.py is prepared but NOT run before final source freeze. Reuses existing pinned verification image, no shared-service changes. README/SECURITY/testing edits staged for later review only (currently uncommitted).\n\nTask1: implementation complete 7b56c76; task review active /root/m4_core_review over5000f50..7b56c76. Focused44passed in5.30s; evaluation40cases exact10/10, paraphrase5/10, forbidden0, stale0; compile/diffclean. Review pending; Task2production not dispatched.\n\nTask1 fix round1/5 active: Important findings Unicode casefold expansion mismatches FTS unicode61 exact literal tokens; stale-return metric only counted revision category. Review confirms Store-backed Stra\u00dfe exact-query miss. Resumed /root/m4_memory_core over base7b56c76, covering unit memory and evaluator regressions, no fixture changes.\n\nTask3 Docker preparation: version endpoint was cached/available while VM engine endpoint refused connections and info/inspect timed out. Normal open -g -a Docker, no restart/settings change; later task-owned container probe passed in0.318s and runner script hash matched c773d340735a8ad5aa1e33939361aef7cff2fc07729d4176bd87b2752b020291. Task-owned no-network/no-mount keepalive hyperclaw-m4-verification-keepalive-cf8437033f created to avoid repeat idle startup; remove at final cleanup. Evidence test-results/m4-preparation/docker-*.json and linux-runner-probe*.json. Actual implementation Python3.11.13/SQLite3.49.1 hasFTS5.\n\nTask1 fix round1/5 implementation b7749e4, scoped re-review active /root/m4_core_review over7b56c76..b7749e4. Covering14passed in0.43s; Unicode exact matching fixed; all-category stale bookkeeping test added; fullfixture metrics unchanged, compile/diffclean.\n\nTask1 fix round1/5: 2addressed,0open; commits7b56c76..b7749e4. Task1: complete (commits5000f50..b7749e4, review clean; spec compliant, quality approved).\nTask2: dispatch ready, baseb7749e4. Controller-written integration/support/live files become implementer-owned; docs remain controller-owned.\n\nTask2: active /root/m4_memory_tools, baseb7749e4, brief task-2-brief.md/report task-2-report.md. Core review is approved, no parked findings. Controller owns docs and test-results/m4-preparation orchestration.\nTask3 prepared final collector test-results/m4-preparation/collect_report.py (do NOT run until every gate exists and has passed). Planned report directories m4-mac311,m4-mac313,m4-linux,m4-docker,m4-live,m4-wheel, evaluation final test-results/m4-evaluation-final.json. Collector takes final implementation commit argument and embeds source/test hashes, fixture seal, actual gate summaries, wheel matched sources, evidence and live JUnit properties. Final review/cleanup fields remain pending until controller finalizes them.\n\nTask2 checkpoint: real-daemon memory integration12passed in9.36s; cross-surface covering127passed in34.11s. Added fixed-clock expired-record HTTP filtering, awarevalid_until receipt normalization, command authority denial withoutDocker, live JUnit run/session IDs. Implementer self-review/commit/report pending; no final battery started yet.\n\nTask2 implementation complete74cd5b0; final focused127passed in34.08s, integration12passed, compile/diffchecks clean. Task2 review active /root/m4_tools_review overb7749e4..74cd5b0. No final platform battery started before task review. Public expiry fixture first used a query overlapping a valid fact via approved OR semantics; corrected to unique expired marker, recorded transparently in report.\n\nTask2: complete (commitsb7749e4..74cd5b0, spec compliant, quality approved, no Critical/Important). Deferred Minor: duplicated65536receipt-outputlimit in memory/policy/ToolReceipt; current behavior agrees, finalreview totriage.\nTask3: active; final implementation freeze74cd5b0f73c991a692d066969f0cea5549330ac2, start final gates.\n\nFinal gates launched2026-09-10T14:59:39Z on74cd5b0, all distinct disposable resources: PTYmac31181832,mac31348016,linux73588,docker44724,live14753,wheel65302. Wheel scratch /var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m4-wheel-qsgitqt4; Linux scratch persisted in test-results/m4-linux/execution.json. Poll sessions via write_stdin. No final success claim until each completes.\n\nInitial final-gate run at74cd5b0 completed: mac311235passed/16deselected in81.44s; mac313235passed/16deselected in68.02s; Linux235passed/16deselected in131.32s plus10Dockerpassed (runnerwall228.198s); macDocker10passed in46.39s; wheel15sourcefiles matched and3publictests passed. Live5passed/1failed: new memory case failed invalid_tool_arguments.\nFocused live diagnostic preserved root /var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m4-live-debug-qk0bnbyb and full evidence test-results/m4-preparation/live-diagnostic.json. Persisted checkpoint shows actual Qwen args scope=workspace,limit=10; hidden public schema min/max and ambiguous test scope. Runtime correctly rejected over-limit before invocation. Task2 validation fix round1 active /root/m4_memory_tools: publish min1/max5 integer schema, clarify scope semantics, explicit session/limit5 live prompt without marker, focused regression + newlive actualrun, commit/report then scopedreview. Keep fixed40case fixture unchanged.\nArchived initial Linux/wheel evidence to test-results/m4-linux-initial and m4-wheel-initial before refreshing final gates; initial scratch roots remain recorded there for cleanup. Mac/live/Docker initial timestamped reports retained in their original directories. All controller PTY sessions from initial gate wave and diagnostic have completed.\n\nCorrection to controller's initial schema hypothesis: direct implementer inspection established typeinteger/default5/minimum1/maximum5 were ALREADY advertised at74cd5b0. The actual model ignored bounds; missing machine bounds was not a defect. User-facing correction was sent. Do not repeat the disproved hypothesis in final reports. Actual fix9e3484f adds descriptive scope/limit guidance and explicit session/limit5 live prompt; strict enforcement and fixedfixture unchanged. Affected65offline passed24.34s; focusedactualnewlive passed95.44s. Scopedfixreview active /root/m4_tools_review over74cd5b0..9e3484f; task2report appends truthful evidence.\n\nTask2 validation fix round1: approved9e3484f, no new findings; prior output-limit Minor carriedforward. Final source freeze9e3484f129156ae1975ef81cbccd7c8d29ac4883. Final refreshed gate wave2026-09-10T15:16:12Z sessionsmac3112829,mac3135424,Linux28088,Docker64981,live79396,wheel82523. Only these sessions are active root PTYs. Eval andcompile/diff refreshed too.\n\nRefreshed gates on9e3484f: mac311239passed/16deselected118.44s; mac313239passed/16deselected96.15s; macDocker10passed84.43s; wheel15sourcefiles matched and3installedpublictests passed. Linuxoffline239passed/16deselected247.53s, LinuxDocker9passed/1failed95.94s: unavailable-backend test confirms uncertainty and eventual owned-container removal but delayed parent write occurred before cleanup; test script writes after8seconds while call took17.82seconds through two restarts. Live5passed/1failed168.13s: memory case failed after121.79s; battery deleted runtime fixture, so precise error not retained (timeout is only a hypothesis). Running unchanged live tests sequentially with a read-only pre-teardown DB/log capture, then rechecking LinuxDocker only on existing frozen copy/environment. Retain earlier failures in acceptance. Active observed-live PTY97945; all earlier sessions closed.\n\nObserved sequential live on unchanged9e3484f passedall6/10deselected82.44s. Read-only pre-teardown snapshot proves memory run90c45bef52eb482aa5810c4a848d35ac succeeded, actual args scope=session/limit5, returnedopaque archive-87bcb30ef14449e48c94393ef183e3ae fromrecordc9b0ff8f7ece458d8e391617fe97e48c; memorycase42.66s. Reporttest-results/m4-live/live-20260910T152320904189Z. OnlyactivePTY21358 sequentialLinuxDockerrecheck; originalLinuxofflinepass retained.\n\nFinal LinuxDocker sequential recheck passed10/6deselected80.65s, same frozen source/environment; earlierfailedattemptretained. All final gatespassed; sourceANDtest/dependency/fixturehashesmatch9e3484f, Linuxcopymatchesallverifiedinputs, wheel15sourcefilesmatch. AcceptanceJSON/MDgeneratedandchecked; finalwholeM4reviewpending.\n\nFinalwholeM4review active/root/m4_final_review on6049d31 (basec8ac94d), packagedrange384034bytes. All7explicitlyrecordedownruntime temp roots andkeepalivecontainerremoved; noinstallationlabelledorM4namedcontainersremain. OtherworktreeHEAD/statusunchanged;69source/test/dependencyhashesmatchfinalimplementation. Cleanup/preservationactualevidenceembeddedinacceptanceJSON; finalreviewandsddscratcharchivepending.\n\nTask3: complete. FinalwholeM4review approved,0Critical/Important,4nonblockingMinors; allacceptedgatespassed,ownedruntimecleanupandpreservationcheckscomplete. Finaldocumentationcommitrecordsapproval/status; M5notstarted.\n",
+  "completed_at": "2026-09-10T15:33:55.581785+00:00",
+  "follow_ups": [
+    {
+      "severity": "Minor",
+      "issue": "Consolidate duplicated65536byte receipt-output bound when changing that boundary."
+    },
+    {
+      "severity": "Minor",
+      "issue": "Replace inherited8second Docker recovery fixture trigger with a controlled barrier."
+    },
+    {
+      "severity": "Minor",
+      "issue": "Retain exception cause in maintenance failure diagnostics without disclosing private inputs."
+    },
+    {
+      "severity": "Minor",
+      "issue": "Measure Store-owner latency with large active schedule populations before optimizing."
+    }
+  ],
+  "final_documentation_check": {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "output": "",
+    "all_m4_checkboxes_complete": true,
+    "69_verified_input_hashes_match": true,
+    "final_review_and_ledger_archived": true,
+    "m4_sdd_scratch_removed": true
+  }
 }
