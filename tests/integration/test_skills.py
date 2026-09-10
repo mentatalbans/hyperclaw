@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
@@ -110,6 +111,27 @@ def test_changed_or_revoked_skill_blocks_new_and_queued_runs(service):
     seen = events(app, run['id'])
     assert seen[-1]['data']['status'] == 'failed'
     assert app.client.get(f"/v1/runs/{run['id']}").json()['error']['code'] == 'skill_not_admitted'
+    assert peer.requests.empty()
+
+
+def test_disk_edit_after_submit_blocks_first_execution_without_provider_request(service):
+    app, peer = service
+    gate = threading.Event()
+    peer.enqueue(Reply(gate=gate))
+    blocker = submit(app, 'hold worker', request_id='blocker')
+    peer.take_request()
+    document = write_skill(app.root, 'Reviewed at submit.')
+    app.client.post('/v1/skills/documentation-answer/admit',
+                    json={'content_hash': document.content_hash}).raise_for_status()
+    queued = submit(app, 'queued selection', request_id='queued',
+                    skills=['documentation-answer'])
+    write_skill(app.root, 'Edited after submit.')
+
+    gate.set()
+    assert events(app, blocker['id'])[-1]['data']['status'] == 'succeeded'
+    assert events(app, queued['id'])[-1]['data']['status'] == 'failed'
+    result = app.client.get(f"/v1/runs/{queued['id']}").json()
+    assert result['error']['code'] == 'skill_changed'
     assert peer.requests.empty()
 
 

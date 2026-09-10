@@ -111,6 +111,13 @@ def test_rejects_symlinks_hardlinks_executables_nontext_and_nul(tmp_path):
         Skills(tmp_path / 'skills').load('documentation-answer')
 
 
+def test_rejects_fifo_as_nonregular_package_content(tmp_path):
+    directory = package(tmp_path)
+    os.mkfifo(directory / 'pipe.txt')
+    with pytest.raises(InvalidRequest):
+        Skills(tmp_path / 'skills').load('documentation-answer')
+
+
 def test_enforces_utf8_byte_resource_document_and_combined_bounds(tmp_path):
     directory = package(tmp_path, description='é' * 513)
     with pytest.raises(InvalidRequest):
@@ -160,6 +167,57 @@ def test_run_request_allows_four_distinct_valid_skill_names():
         with pytest.raises(ValueError):
             RunRequest(session_id='session', generation=0, request_id='request', text='hello',
                        skills=selected)
+
+
+def test_combined_limit_counts_multiple_individually_valid_resources(tmp_path):
+    directory = package(tmp_path, body='Read [one](one.txt) and [two](two.txt).')
+    (directory / 'rules.txt').unlink()
+    (directory / 'one.txt').write_text('a' * 16_384)
+    (directory / 'two.txt').write_text('b' * 16_384)
+    with pytest.raises(InvalidRequest):
+        Skills(tmp_path / 'skills').load('documentation-answer')
+
+
+def test_resource_count_accepts_sixteen_and_rejects_seventeen(tmp_path):
+    links = []
+    directory = package(tmp_path, body='Placeholder.')
+    (directory / 'rules.txt').unlink()
+    for number in range(17):
+        name = f'r{number}.txt'
+        (directory / name).write_text(str(number))
+        links.append(f'[{number}]({name})')
+    header = '---\nname: documentation-answer\ndescription: Count resources.\n---\n'
+    (directory / 'SKILL.md').write_text(header + ' '.join(links[:16]) + '\n')
+    assert len(Skills(tmp_path / 'skills').load('documentation-answer').resources) == 16
+    (directory / 'SKILL.md').write_text(header + ' '.join(links) + '\n')
+    with pytest.raises(InvalidRequest):
+        Skills(tmp_path / 'skills').load('documentation-answer')
+
+
+def test_traversal_accepts_512_entries_and_rejects_513(tmp_path):
+    directory = package(tmp_path, body='No local resources.')
+    (directory / 'rules.txt').unlink()
+    for number in range(511):
+        (directory / f'{number}.txt').write_text('safe')
+    Skills(tmp_path / 'skills').load('documentation-answer')
+    (directory / 'overflow.txt').write_text('unsafe')
+    with pytest.raises(InvalidRequest):
+        Skills(tmp_path / 'skills').load('documentation-answer')
+
+
+def test_traversal_accepts_depth_sixteen_and_rejects_seventeen(tmp_path):
+    directory = package(tmp_path, body='No local resources.')
+    nested = directory
+    for number in range(16):
+        nested = nested / f'd{number}'
+        nested.mkdir()
+    (nested / 'leaf.txt').write_text('safe')
+    Skills(tmp_path / 'skills').load('documentation-answer')
+    too_deep = nested / 'd16'
+    too_deep.mkdir()
+    (too_deep / 'leaf.txt').write_text('unsafe')
+    with pytest.raises(InvalidRequest):
+        Skills(tmp_path / 'skills').load('documentation-answer')
 
 
 async def test_admission_is_immutable_exact_and_survives_reopen(tmp_path):

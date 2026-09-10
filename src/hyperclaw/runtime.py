@@ -304,8 +304,13 @@ class Runtime:
     async def _selected_documents(self, run):
         if set(run.request.skills) != set(run.skill_hashes):
             raise Conflict('skill_selection_changed', 'Run skill provenance is incomplete.')
-        return [await self.store.admitted_skill(name, run.skill_hashes[name])
-                for name in run.request.skills]
+        documents = []
+        for name in run.request.skills:
+            loaded = self.skills.load(name)
+            if loaded.content_hash != run.skill_hashes[name]:
+                raise Conflict('skill_changed', 'Skill content changed after this run was submitted.')
+            documents.append(await self.store.admitted_skill(name, run.skill_hashes[name]))
+        return documents
 
     async def _verify_skills(self, run, checkpoint):
         if checkpoint.skill_hashes != run.skill_hashes:
