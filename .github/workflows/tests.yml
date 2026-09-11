@@ -44,13 +44,24 @@ jobs:
       - name: Run selected Linux Docker gate
         if: matrix.python == '3.13'
         run: make test-docker PYTHON=.venv/bin/python MCP_DOCS_IMAGE="$MCP_DOCS_IMAGE"
-      - name: Build and smoke-install the wheel outside the checkout
-        run: |
-          uv build
-          uv venv --python "${{ matrix.python }}" "$RUNNER_TEMP/hyperclaw-wheel"
-          uv pip install --python "$RUNNER_TEMP/hyperclaw-wheel/bin/python" dist/*.whl
-          cd "$RUNNER_TEMP"
-          "$RUNNER_TEMP/hyperclaw-wheel/bin/hyperclaw" --help
+      - name: Verify the base wheel public path outside the checkout
+        env:
+          HYPERCLAW_REPORT_ARTIFACT: tests-python-${{ matrix.python }}
+        run: >-
+          .venv/bin/python scripts/verify_wheel.py
+          --python "${{ matrix.python }}"
+          --variant base
+          --report-dir test-results/ci-wheel-base
+      - name: Verify the MCP wheel public and Docker paths outside the checkout
+        if: matrix.python == '3.13'
+        env:
+          HYPERCLAW_REPORT_ARTIFACT: tests-python-${{ matrix.python }}
+        run: >-
+          .venv/bin/python scripts/verify_wheel.py
+          --python "${{ matrix.python }}"
+          --variant mcp
+          --mcp-docs-image "$MCP_DOCS_IMAGE"
+          --report-dir test-results/ci-wheel-mcp
       - name: Save test, timing, and coverage reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

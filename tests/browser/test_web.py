@@ -260,6 +260,7 @@ def test_cancel_reset_and_old_generation_history_remain_inspectable(web_service,
     send(page, "cancel this")
     peer.take_request()
     wait_status(page, "running")
+    page.locator("#transcript").filter(has_text="partial").wait_for()
     page.locator("#cancel-run").click()
     wait_status(page, "cancelled")
     assert "partial" in page.locator("#transcript").text_content()
