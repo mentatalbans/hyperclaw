@@ -200,6 +200,8 @@ Web authentication uses the bearer header, with no token in a URL or persistent 
 
 ## Completion and operating limits
 
+There is no M7 in this roadmap. After M6, the [post-M6 review](../../reports/2026-09-10-runtime-v2-post-m6-review.md) and [testing plan](2026-09-10-runtime-v2-post-m6-testing.md) identify further validation of the completed scope. The testing plan is not yet executed and adds no feature milestone.
+
 The first review checkpoint is the working M1 vertical slice, not an empty framework. M2's container cancellation/reconciliation gate is the highest implementation uncertainty; resolve it before unattended execution. M4's paraphrase evaluation decides whether semantic retrieval deserves more work.
 
 Do not add multi-agent delegation, browser automation, speech, trading, cloud model routing, remote multi-user hosting, embeddings, or automatic skill learning merely to match the old catalog. Each needs a concrete workflow and its own acceptance evidence.

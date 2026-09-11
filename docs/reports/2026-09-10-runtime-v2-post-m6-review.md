@@ -1,0 +1,35 @@
+# Runtime v2 post-M6 testing review — September 10, 2026
+
+The [roadmap](../superpowers/plans/2026-09-09-runtime-v2-roadmap.md) defines six milestones and ends at M6. There is no M7. The next useful work is a testing pass over the completed runtime, described in the [post-M6 testing plan](../superpowers/plans/2026-09-10-runtime-v2-post-m6-testing.md).
+
+This is a targeted review of test coverage, reproducibility and operating evidence at `ef947cf3a8058c6aef680e96cf589b734e1ef43f`, not a new whole-code security audit. I inspected the design, roadmap, testing guide, M6 acceptance, test runner, CI workflow, installed-wheel helper, browser tests, model evaluation, Store migrations, scheduler and recovery tests. No new production defect was reproduced during this review. The findings below distinguish missing evidence from known limitations; priorities refer to the next testing pass.
+
+## What is already demonstrated
+
+The [M6 report](2026-09-10-runtime-v2-m6.md) records 427 passing offline tests on each accepted platform, 22 Docker cases on each platform, seven live Qwen cases, 17 Chrome cases, and 164 combined fresh base/MCP wheel cases. Its one-root walkthrough covers real approvals and file receipts, crash recovery, corrected memory, admitted MCP and skills, and a live web conversation. Telegram has 88 fixture-based cases, including repeated process-kill boundaries. These are historical accepted results; this documentation review did not rerun them.
+
+The existing tests already exercise exact request deduplication, stale generations, approval hashes, scope enforcement, interrupted/uncertain effects, real process death, malformed transport, credential isolation and admission revocation. The plan extends those tests where evidence is missing rather than replacing them or treating a larger test count as progress.
+
+## Findings, in priority order
+
+| ID / priority | Observation and source | Implication | Plan |
+| --- | --- | --- | --- |
+| F1 / high | Detailed wheel and walkthrough runners are retained beneath ignored `test-results/m6-preparation/`. Tracked `scripts/` contains only the battery and memory evaluator. [CI](../../.github/workflows/tests.yml) installs a wheel outside the checkout but only runs `hyperclaw --help`. | The strong local acceptance is real, but a fresh checkout cannot directly repeat the entire package/public-path proof using a supported tracked command. Preserve the useful helpers as portable test tooling. | Task 1 |
+| F2 / high | [Telegram](../../tests/integration/test_telegram.py), [scheduling](../../tests/integration/test_scheduling.py), [background](../../tests/integration/test_background.py) and [browser](../../tests/browser/test_web.py) tests cover their own races. The accepted walkthrough is sequential. There is no tracked sustained mixed-channel scenario. | Shared Runtime/Store ownership needs a composed test with HTTP, Telegram and due schedules present during approval, cancellation and restart. This is a coverage gap, not a demonstrated ordering failure. | Tasks 2, 5 |
+| F3 / high | [Store tests](../../tests/unit/test_store.py) cover rollback, backup and newer-schema refusal; the [schema-6 migration case](../../tests/unit/test_telegram.py) preserves a queued run. [HTTP storage failure](../../tests/integration/test_http.py) uses a trigger. | There is no end-to-end restore drill for a populated runtime or test demonstrating actual `SQLITE_FULL` behavior. Check usable recovered state and effect history, not just successful migration or backup-file existence. | Task 3 |
+| F4 / medium | Hosted CI is explicitly unexecuted in M6 evidence. Local Linux evidence is arm64; the configured hosted job uses Ubuntu with Python 3.11/3.13. | Local results do not establish hosted-runner behavior. Record OS/architecture and the actual workflow result when an authorized remote run is available. | Task 1 |
+| F5 / medium | [Qwen documentation assertions](../../tests/live/test_mcp.py) check the marker, root name, source hash, receipts and unchanged grants. They do not validate each factual claim or cited line. The M6 report records incorrect citation numbers. The sealed memory fixture retrieves 5/10 paraphrases. | Transport/provenance success does not establish answer correctness or general retrieval quality. Measure them separately on frozen cases and retain incorrect answers. | Task 6 |
+| F6 / medium | [Browser coverage](../../tests/browser/test_web.py) exercises real Chrome, mobile width, hostile text and navigation races. [The browser fixture](../../tests/conftest.py) always launches Chromium. There are no explicit keyboard or assistive-technology tests. | A readable screenshot is insufficient evidence that keyboard-only and screen-reader workflows are usable. Safari behavior on the target Mac is also unmeasured; changing the existing channel flag does not select WebKit. | Task 4 |
+| F7 / medium | [Schedule maintenance](../../src/hyperclaw/store.py) fetches every active schedule and performs per-schedule queries inside one transaction. [Maintenance failure logging](../../src/hyperclaw/runtime.py) gives a generic error. [Docker recovery fixtures](../../tests/live/test_recovery_docker.py) contain eight-second delayed effects. | Measure scale, shutdown behavior and failure diagnosis before choosing an optimization or raising timeouts. The existing one-worker design is intentional. | Tasks 3, 5 |
+
+Two test-selection details matter: `make test-all` currently excludes browser tests because it never supplies `--run-browser`; browser acceptance requires its own command. Also, the battery's mode-selection unit matrix has no browser case. Task 1 makes this explicit and guards against accidentally turning an omitted gate into a claimed pass.
+
+Coverage is useful for locating unexamined behavior, not as a release score. The accepted macOS 3.11 quick report measured 84.22% combined coverage. For example, CLI coverage was 165/336 statements and 7/64 branches, despite existing public CLI tests. Inspect those missing user-facing paths during Task 4; this instrumentation result alone does not prove that every missing line is untested across all gates.
+
+## Scope and disposition
+
+Start with repeatable installed-package acceptance, composed recovery, and populated-state restoration. Follow with operator usability, bounded load measurement and a separate answer-quality evaluation. Real Telegram service validation is conditional on a selected test bot/chat and permission to send test messages; fixture evidence remains sufficient for the original M6 scope.
+
+Scheduled MCP remains deliberately rejected. The duplicated receipt-size ceiling is a maintenance follow-up; test observable boundaries before considering consolidation. No embeddings, parallel runtime workers, extra channels or new architecture are justified by this review alone.
+
+The review and plan add documentation only. Historical acceptance reports remain unchanged, and the plan's new tests and service trials have not been executed.

@@ -2,6 +2,8 @@
 
 Runtime v2 replaces the legacy test suite; raw count parity is not a goal. Historical source and tests remain at dcad202.
 
+The six-milestone roadmap ends at M6. The [post-M6 review](reports/2026-09-10-runtime-v2-post-m6-review.md) and [testing plan](superpowers/plans/2026-09-10-runtime-v2-post-m6-testing.md) define the next validation pass: repeatable installed-package acceptance, composed recovery, populated-state restoration, operator workflows, bounded load and separate answer-quality measurement. That plan is not yet executed; the accepted M6 results below remain the current baseline.
+
 | Retained behavior | Destination | Milestone |
 | --- | --- | --- |
 | Configuration precedence, explicit local model, root preservation | tests/unit/test_config.py | M1 |
