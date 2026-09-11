@@ -21,7 +21,10 @@ venv/
 build/
 dist/
 .coverage
+.coverage.*
 .pytest_cache/
+test-results/
+.worktrees/
 
 # Logs & runtime state
 logs/
@@ -72,3 +75,6 @@ CLAUDE.md
 
 # Example templates are shippable
 !*.example.plist
+
+# Agent review scratch, not runtime data
+.superpowers/

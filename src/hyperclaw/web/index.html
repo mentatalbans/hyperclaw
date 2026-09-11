@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HyperClaw</title>
+  <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMxNzIyM2IiLz48cGF0aCBkPSJNMTggMTR2MzZNNDYgMTR2MzZNMTggMzJoMjgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzZlZTdiNyIgc3Ryb2tlLXdpZHRoPSI5IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=">
+  <link rel="stylesheet" href="/web/style.css">
+  <script src="/web/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <section id="connection-panel" aria-labelledby="connect-title">
+      <h1 id="connect-title">HyperClaw</h1>
+      <p class="credential-control">Connect to the local runtime with its operator token.</p>
+      <label class="credential-control" for="token">Operator token</label>
+      <input class="credential-control" id="token" name="token" type="password" autocomplete="off">
+      <button class="credential-control" id="connect" type="button">Connect</button>
+      <button id="logout" type="button" hidden>Disconnect</button>
+      <p id="connection-status" role="status">Disconnected</p>
+    </section>
+    <div id="errors" class="errors" role="alert" aria-live="assertive"></div>
+    <section id="workspace" hidden aria-label="Conversation workspace">
+      <div id="discovery-errors" class="errors" role="status"></div>
+      <div class="workspace-grid">
+        <aside aria-label="Sessions">
+          <div class="row">
+            <h2>Sessions</h2>
+            <button id="new-session" type="button">New session</button>
+          </div>
+          <div id="sessions" class="stack"></div>
+          <button id="load-older-sessions" type="button" hidden>Load older</button>
+        </aside>
+        <div class="conversation">
+          <div class="row wrap">
+            <div><span class="label">Session</span> <code id="session-id">None</code></div>
+            <div><span class="label">Generation</span> <span id="generation">—</span></div>
+            <button id="reset-session" type="button" disabled>Reset conversation</button>
+          </div>
+          <div class="row wrap">
+            <div><span class="label">Run</span> <code id="run-id">None</code></div>
+            <div id="run-status" class="run-state" role="status" aria-live="polite">No run selected</div>
+            <button id="cancel-run" type="button" disabled>Cancel run</button>
+            <button id="reconnect-stream" type="button" disabled>Reconnect stream</button>
+          </div>
+          <div id="transcript" class="transcript" aria-live="polite"></div>
+          <form id="composer">
+            <label for="message">Message</label>
+            <textarea id="message" rows="4" required></textarea>
+            <div class="row">
+              <button id="send" type="submit" disabled>Send</button>
+              <button id="retry-send" type="button" hidden>Retry same request</button>
+            </div>
+          </form>
+          <details>
+            <summary>Run tools and reviewed skills</summary>
+            <fieldset><legend>Allowed tools</legend><div id="tools" class="choices"></div></fieldset>
+            <fieldset><legend>Admitted skills</legend><div id="skills" class="choices"></div></fieldset>
+          </details>
+        </div>
+        <aside aria-label="Run details">
+          <h2>Run history</h2>
+          <div id="run-history" class="stack"></div>
+          <button id="load-older-runs" type="button" hidden>Load older runs</button>
+          <h2>Approvals</h2>
+          <button id="refresh-approvals" type="button">Refresh approvals</button>
+          <div id="approvals" class="stack"></div>
+          <h2>Activity</h2>
+          <div id="activity" class="stack"></div>
+          <h2>Receipts</h2>
+          <div id="receipts" class="stack"></div>
+        </aside>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

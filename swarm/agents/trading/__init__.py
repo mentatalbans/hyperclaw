@@ -1,1 +1,0 @@
-"""Swarm agents: trading domain."""

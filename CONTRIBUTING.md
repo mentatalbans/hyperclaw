@@ -1,52 +1,13 @@
-# Contributing to HyperClaw
+# Contributing
 
-HyperClaw is MIT-licensed and open for contributions. Here's how to get involved.
+Runtime v2 lives in `src/hyperclaw`; CI is configured for Python 3.11 and 3.13. Use `uv sync --locked --extra dev --extra mcp`, then `make test`. Narrow pytest runs use `.venv/bin/python -m pytest PATH -q`. Keep tests compatible with a base installation without the optional MCP package.
 
-## Getting Started
+Follow the September 9 design and milestone plans under docs/superpowers. Test behavior through public contracts, loopback providers and disposable subprocesses. Select live Ollama tests explicitly; never use personal runtime roots or modify running services during tests. Preserve research/planning history. Commit dependency changes in uv.lock.
 
-```bash
-git clone https://github.com/mentatalbans/hyperclaw.git
-cd hyperclaw
-pip install -e ".[dev]"
-pytest tests/ -v  # confirm 184/184 passing
-```
+`make test-coverage` reports statement and branch counts separately; no percentage threshold substitutes for scenario coverage. CI uses locked dependencies, runs the quick battery on Python 3.11 and 3.13, smoke-installs the wheel outside the checkout, and uploads reports even on failure. A configured CI job is not evidence of an executed hosted run.
 
-## Adding an Agent
+Docker, model and browser gates require explicit selection. `make test-live` selects the installed model; `make test-live-mcp MCP_DOCS_IMAGE=sha256:...` includes the admitted documentation peer. `make test-all MCP_DOCS_IMAGE=sha256:...` combines offline, model and Docker checks with coverage. Build required images explicitly and pass their immutable IDs.
 
-1. Pick a domain: `swarm/agents/{personal,business,scientific,creative,recursive}/`
-2. Inherit `BaseAgent`, define `agent_id`, `domain`, `supported_task_types`, `preferred_model`
-3. Implement `async run(task, state, context) -> str`
-4. Register in `swarm/registry.py` inside `build_default()`
-5. Add tests in `tests/unit/`
+For browser tests, include `--extra browser` in the sync command, then run `make test-browser BROWSER_CHANNEL=chrome` with an existing Chrome installation. The default Chromium channel requires a separate, explicit `.venv/bin/python -m playwright install chromium`. Browser tests are a separate gate from `make test-all`; ordinary startup and quick tests never install or launch a browser. Keep the three packaged web assets local and verify changes in a real browser.
 
-## Writing Tests
-
-- Use `pytest-asyncio` for async tests
-- Mock asyncpg pools with `unittest.mock.AsyncMock`
-- Maintain 90%+ coverage on all `core/`, `memory/`, `security/` modules
-- Run: `pytest tests/ --cov=core --cov=memory --cov=security --cov=models`
-
-## Code Style
-
-- Python 3.11+ type hints on all functions
-- Async-first — avoid blocking calls
-- Pydantic v2 for all data models
-- No references to other agent platforms in code or comments
-
-## Security Rules (enforced)
-
-- ChatJimmy outputs are **never** auto-certified — always route through Claude first
-- VITALS and MEDICUS must always append medical disclaimer to output
-- COUNSEL must always append legal disclaimer to output
-- All new agents must work within HyperShield policies
-
-## Submitting
-
-1. Fork the repo
-2. Create a feature branch: `git checkout -b feat/your-feature`
-3. Commit with a descriptive message
-4. Open a PR — all tests must pass
-
-## Questions?
-
-Open a [GitHub Discussion](https://github.com/mentatalbans/hyperclaw/discussions) — that's the best place for ideas, questions, and showcasing what you've built with HyperClaw.
+See [the testing guide](docs/testing.md) for exact setup, supported behavior and milestone evidence.

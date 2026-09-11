@@ -1,0 +1,99 @@
+name: Test battery
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deterministic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install locked dependencies
+        run: |
+          python -m pip install uv==0.8.3
+          uv sync --locked --extra dev --extra mcp --python "${{ matrix.python }}"
+      - name: Run isolated offline battery
+        run: make test PYTHON=.venv/bin/python COVERAGE=1
+      - name: Pull pinned Docker tool image
+        if: matrix.python == '3.13'
+        run: docker pull python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e
+      - name: Build pinned MCP documentation image explicitly
+        if: matrix.python == '3.13'
+        run: |
+          docker build -f examples/mcp-docs/Dockerfile -t hyperclaw-mcp-docs .
+          echo "MCP_DOCS_IMAGE=$(docker image inspect -f '{{.Id}}' hyperclaw-mcp-docs)" >> "$GITHUB_ENV"
+      - name: Run selected Linux Docker gate
+        if: matrix.python == '3.13'
+        run: make test-docker PYTHON=.venv/bin/python MCP_DOCS_IMAGE="$MCP_DOCS_IMAGE"
+      - name: Verify the base wheel public path outside the checkout
+        env:
+          HYPERCLAW_REPORT_ARTIFACT: tests-python-${{ matrix.python }}
+        run: >-
+          .venv/bin/python scripts/verify_wheel.py
+          --python "${{ matrix.python }}"
+          --variant base
+          --report-dir test-results/ci-wheel-base
+      - name: Verify the MCP wheel public and Docker paths outside the checkout
+        if: matrix.python == '3.13'
+        env:
+          HYPERCLAW_REPORT_ARTIFACT: tests-python-${{ matrix.python }}
+        run: >-
+          .venv/bin/python scripts/verify_wheel.py
+          --python "${{ matrix.python }}"
+          --variant mcp
+          --mcp-docs-image "$MCP_DOCS_IMAGE"
+          --report-dir test-results/ci-wheel-mcp
+      - name: Save test, timing, and coverage reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tests-python-${{ matrix.python }}
+          path: test-results/
+          if-no-files-found: error
+          retention-days: 14
+
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+      - name: Install locked browser test dependencies
+        run: |
+          python -m pip install uv==0.8.3
+          uv sync --locked --extra dev --extra browser --python 3.13
+      - name: Install the explicitly selected browser
+        run: .venv/bin/python -m playwright install --with-deps chromium
+      - name: Run browser gate
+        run: make test-browser PYTHON=.venv/bin/python BROWSER_CHANNEL=chromium
+      - name: Save browser reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: browser-tests
+          path: test-results/
+          if-no-files-found: error
+          retention-days: 14

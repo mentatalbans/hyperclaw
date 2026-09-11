@@ -1,39 +1,36 @@
-# Security
+# Security model
 
-## Reporting a vulnerability
+Runtime v2 targets one local operator on macOS/Linux. Default root: `~/.hyperclaw-v2`. Setup refuses existing unmarked/v1 roots. Tests use disposable data. The token stays private (0600), and the root stays private (0700). One daemon locks the root and owns SQLite, model IO, and tool processes.
 
-Open a GitHub issue with the label `security`, or email the maintainer privately for
-sensitive reports. Do not include exploit details in public issues.
+Every `/v1` route requires the operator bearer token, including sessions, run history, schedules, approvals, grants, workspace metadata and receipts. Public `/healthz` exposes availability without private runtime data and returns 503 when background ownership fails. The only other public routes are the fixed empty shell `/`, `/web/app.js`, and `/web/style.css` for GET/HEAD; they use package resources rather than a directory mount. Host validation and origin rejection apply before authentication. Tokens do not appear in URLs, assets or daemon discovery metadata.
 
-## Threat model: your assistant answers DMs
+The web client keeps its bearer token in JavaScript memory and clears it on disconnect or reload. Fetches omit browser credentials and caching. The client uses DOM text nodes for transcripts, tool arguments, errors and receipts, and the shell blocks inline/external execution with CSP. It stores no credential in cookies, local/session storage, IndexedDB or a service worker. Event replay uses committed sequence numbers; disconnecting an observer never cancels a run. Ambiguous submissions retain one payload and request ID for deliberate retry instead of creating fresh work automatically. Approval controls submit the exact arguments and policy hashes that were displayed; a stale decision requires a fresh review.
 
-HyperClaw connects LLM tool execution (shell, files, email) to chat channels. The single
-most important configuration decision is **who is allowed to talk to it**. A stranger who
-can message your bot can potentially read your files and send email as you.
+The closed tool catalog validates arguments and the per-run allowlist, records intent, and checks authority immediately before effects. File writes and command execution have separate workspace grants. Without a grant, operator approval binds exact invocation arguments, schema/policy hash, workspace identity and expiry. Model output cannot grant authority. Changes invalidate old approvals.
 
-### What happens when a stranger messages the bot
+Host file tools traverse relative to owned directory descriptors and reject symlinks, parent escapes, absolute paths, hardlinks, devices and FIFOs. Reads, searches and outputs are bounded. Publication uses a temporary file and descriptor-relative rename, then observes the final content hash. Publication that cannot be verified is uncertain. User projects require an explicit workspace selection; cwd is never implicitly selected.
 
-- **Telegram**: messages from any chat id other than `TELEGRAM_CHAT_ID` are ignored.
-  Keep the bot username unlisted and never post it publicly; Telegram bots are
-  discoverable by name and WILL receive spam probes.
-- **iMessage**: senders not in `IMESSAGE_ALLOWED_CONTACTS` are ignored. The allowlist
-  is **empty by default = deny everyone**. Add only your own numbers/emails.
+Commands run in digest-pinned Docker containers with an unprivileged user, read-only root, dropped capabilities, no-new-privileges, CPU/memory/PID limits, bounded temporary storage/logs/output, and no network. Only the chosen workspace is mounted. An execution approval does not grant a writable mount. No host-shell fallback, Docker socket mount, runtime database mount, operator-home mount or ambient environment forwarding is available to the command tool. Run the Linux daemon as the workspace owner; root uses the unprivileged fallback UID documented in README.
 
-### Recommended settings
+Docker is a chosen isolation boundary, not proof against kernel or Docker vulnerabilities. Explicitly selecting a workspace exposes that workspace's contents to admitted tools; review its contents and grants accordingly. Docker ownership labels and persisted IDs support cancellation/reconciliation without touching foreign installations. Receipts prevent replay of completed invocations but cannot promise exactly-once external effects. Unknown outcomes remain uncertain and never automatically retry. A command/file check failure overrides model claims of success.
 
-1. `TELEGRAM_CHAT_ID` — set to your own chat id only. Group chats are not recommended:
-   anyone added to the group inherits full tool access.
-2. `IMESSAGE_ALLOWED_CONTACTS` — your numbers only, in every format iMessage may
-   report them (`+15551234567,5551234567`).
-3. Run the gateway on a machine you control; do not expose the HTTP server (`PORT`)
-   to the internet without authentication in front of it.
-4. `HEARTBEAT_URL` is a secret — anyone holding it can fake your machine's liveness.
-5. Rotate any credential that ever lands in a chat transcript or log file.
+Schedules carry explicit session generation and tool allowlist. Their runs pass through the same policy and approval boundary as direct submissions. Session reset pauses schedules until an explicit generation-checked retarget; uncertain outcomes prevent automatic continuation. Pausing a schedule leaves previously accepted runs intact. A failed worker or maintenance task stops new acceptance, including automatic schedule reservations, until restart and reconciliation.
 
-### Secrets hygiene
+The configured Ollama endpoint is explicit; there is no provider fallback or model download. Loopback does not prove the model server itself is offline. Untrusted image/text/model content has no path to operator approval APIs through the tool catalog. Skill instructions, MCP results and server annotations cannot change grants. Switching an existing running service remains a separate operational action.
 
-- All credentials live in `.env` (gitignored). `.env.example` documents every variable.
-- Bot tokens appear in httpx request-URL log lines at INFO level; keep `logs/` private
-  and rotate the token if logs are ever shared.
-- The pre-push hook in this repo runs a secret scan before anything reaches a public
-  remote. Keep it installed.
+Memory tools accept session/workspace visibility, never model-selected workspace IDs, session IDs or source-run IDs. Those identities come from the persisted invocation and run. Search filters permitted scope, active version and expiry before ranking/LIMIT; correction and forget require exact scope. Explicit shared records are visible across sessions in that workspace. Session reset does not erase explicit memory. Forget excludes a fact from future retrieval while leaving past versions, tool receipts and conversation archives intact.
+
+Remember, correct and forget are allowed when the operator admits their tool names for a run. This memory capability confers no filesystem-write or command grant. Retrieved text remains untrusted input. Memory mutations, FTS maintenance, receipt and completion event commit together through the sole Store owner. Recovery preserves committed receipts and never repeats an interrupted memory mutation automatically.
+
+Reviewed skill packages are operator-admitted by exact content hash through authenticated administration routes. Model-facing tools cannot admit or revoke them. Names resolve only beneath the installation's skills directory, and resource reads use bounded descriptor-relative traversal. Unsupported executable hooks and escaping/nonregular files are rejected. A run binds selected hashes and snapshots instructions separately from ordinary conversation history. Revoked or replaced admission blocks pending use; instruction text supplies no execution authority.
+
+The fixed documentation MCP integration binds its source snapshot, operator schemas, image and protocol to an explicit admission fingerprint. Preview and admission do not start a peer. Every tool call uses the same recorded invocation and container owner as other execution. Only the admitted text snapshot is mounted at `/docs`, read-only; the workspace, enclosing runtime directory, database, credentials, home and Docker socket remain outside the peer. Source and snapshot reads are bounded and reject links, nonregular files and escaping paths.
+
+The optional maintained SDK owns protocol dispatch and negotiation. The attachment limits frames before parsing and bounds complete results independently. Unsupported result features fail explicitly; sampling, roots, elicitation, tasks, subscriptions and remote authentication are not enabled. Cache and automatic tool retries are disabled. A valid result becomes conclusive only after the owner establishes that the peer stopped. Closing the attachment alone is insufficient. Startup reconciles historical MCP containers even without the SDK or current MCP settings, and never converts raw protocol logs into a successful receipt.
+
+
+Telegram is opt-in and daemon-owned. Its bot token lives only in the fixed private `telegram-token` credential file and the active transport; Settings and status never contain it. Descriptor-based reads reject symlinks, hardlinks, nonregular files, permission/owner mismatches, replacements and oversized credentials. Successful HTTPX request logging and transport errors redact the token, including the Bot API's credential-bearing paths. The production transport fixes `https://api.telegram.org`, ignores environment proxies, refuses redirects and encoded responses, and bounds raw streamed JSON to 1 MiB and photos to 4 MiB. Returned file paths cannot select arbitrary URLs or escape relative Telegram file paths.
+
+Every Telegram input requires a configured chat/sender pair before attachment IO or model submission; bots, anonymous/channel senders and unsupported message types are rejected. Rejected unauthorized text is not journaled. The same pair is checked before download and outgoing delivery. Shared group replies remain visible to group members. Telegram provides no operator policy, grant, skill/MCP admission or approval APIs: those remain local and authenticated. Authorized content still passes through normal run/tool policy and exact-invocation approvals.
+
+Telegram intake and cursor commits are atomic in the one Store. Recovery binds the exact reserved session generation/request key and never replays accepted runs. Each outbound phase commits `sending` before network IO, requires a validated message ID to become `sent`, and preserves explicit failures and uncertain outcomes for operator inspection. Restart changes in-flight sends to `uncertain`; failed and uncertain sends are never automatically retried. This avoids blind duplicates without claiming exactly-once external delivery.

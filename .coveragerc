@@ -1,0 +1,10 @@
+[run]
+source = src/hyperclaw
+branch = True
+parallel = True
+patch = subprocess
+sigterm = True
+
+[report]
+show_missing = True
+skip_covered = True

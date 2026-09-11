@@ -1,0 +1,1497 @@
+{
+  "schema_version": 1,
+  "observed_at": "2030-01-01T00:00:00Z",
+  "description": "Forty synthetic cases fixed before Memory retrieval implementation. Query expectations are hand-labelled; paraphrase recall is measured without a pass threshold. Each case uses a fresh Store and maps session aliases to real session IDs.",
+  "cases": [
+    {
+      "id": "exact-archive",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Archive drawer label is juniper 482.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "juniper 482",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "exact-delivery",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Delivery dock identifier is north pier 17.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "north pier 17",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "exact-calibration",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Calibration reference token is opal 693.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "opal 693",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "exact-planting",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Planting tray holds crimson basil seeds.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "crimson basil",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "exact-lantern",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Lantern battery specification is amber cell 240.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "amber cell 240",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "exact-rehearsal",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Rehearsal room is willow studio 8.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "willow studio 8",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "exact-cafe",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Cafe reservation name is Mira Lantern.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Mira Lantern",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "exact-unicode",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "The café shelf label is café azuré.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "café azuré",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "exact-quoted",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Document title is Draft \"OR\" Atlas.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Draft \"OR\" Atlas",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "exact-inventory",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Inventory tag is cobalt-731-bridge.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "cobalt-731-bridge",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "paraphrase-entry",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Workshop access code is cedar seven.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "workshop entry credentials",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "paraphrase-lift",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Deliver parcels via freight lift.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "package elevator",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "paraphrase-meeting",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "The meeting starts at noon on Wednesday.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Wednesday meeting time",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "paraphrase-paperwork",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Keep receipts inside the green binder.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "purchase paperwork storage",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "paraphrase-footwear",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Trail shoes require a wide fit.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "hiking footwear size",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "paraphrase-coffee",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "I prefer decaffeinated coffee after lunch.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "coffee preference afternoon",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "paraphrase-venue",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Reserve the auditorium for the annual lecture.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "yearly talk venue",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "paraphrase-contacts",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Emergency contacts are listed in the red notebook.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "emergency phone list",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "paraphrase-canoe",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "The canoe is moored beside the boathouse.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "paddling vessel location",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "paraphrase-backup",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Backup snapshots run at 02:30 UTC.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d1",
+          "text": "Spare cables are inside the pine cabinet.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "d2",
+          "text": "The spare umbrella is beside the entrance.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "backup job schedule",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": []
+    },
+    {
+      "id": "revision-correct-current",
+      "category": "revision",
+      "records": [
+        {
+          "key": "old",
+          "text": "Raven project deadline is Monday.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [
+        {
+          "op": "correct",
+          "target": "old",
+          "key": "new",
+          "text": "Raven project deadline is Friday."
+        }
+      ],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Raven project deadline",
+      "expected_keys": [
+        "new"
+      ],
+      "forbidden_keys": [
+        "old"
+      ]
+    },
+    {
+      "id": "revision-correct-old-term",
+      "category": "revision",
+      "records": [
+        {
+          "key": "old",
+          "text": "Compass passphrase is hazelnut.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [
+        {
+          "op": "correct",
+          "target": "old",
+          "key": "new",
+          "text": "Compass passphrase is cinnamon."
+        }
+      ],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "hazelnut",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "old"
+      ]
+    },
+    {
+      "id": "revision-correct-chain",
+      "category": "revision",
+      "records": [
+        {
+          "key": "old",
+          "text": "Aurora meeting room is birch.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [
+        {
+          "op": "correct",
+          "target": "old",
+          "key": "new1",
+          "text": "Aurora meeting room is maple."
+        },
+        {
+          "op": "correct",
+          "target": "new1",
+          "key": "new2",
+          "text": "Aurora meeting room is cedar."
+        }
+      ],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Aurora meeting room",
+      "expected_keys": [
+        "new2"
+      ],
+      "forbidden_keys": [
+        "old",
+        "new1"
+      ]
+    },
+    {
+      "id": "revision-shared-correction",
+      "category": "revision",
+      "records": [
+        {
+          "key": "old",
+          "text": "Shared printer queue is violet.",
+          "workspace": "alpha",
+          "session": null
+        }
+      ],
+      "actions": [
+        {
+          "op": "correct",
+          "target": "old",
+          "key": "new",
+          "text": "Shared printer queue is silver."
+        }
+      ],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "b"
+      },
+      "query": "Shared printer queue",
+      "expected_keys": [
+        "new"
+      ],
+      "forbidden_keys": [
+        "old"
+      ]
+    },
+    {
+      "id": "revision-expiry-boundary",
+      "category": "revision",
+      "records": [
+        {
+          "key": "expired",
+          "text": "Visitor token is topaz.",
+          "workspace": "alpha",
+          "session": "a",
+          "valid_for_seconds": 60
+        }
+      ],
+      "actions": [
+        {
+          "op": "advance",
+          "seconds": 60
+        }
+      ],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Visitor token",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "expired"
+      ]
+    },
+    {
+      "id": "revision-expiry-keeps-current",
+      "category": "revision",
+      "records": [
+        {
+          "key": "expired",
+          "text": "Orchid access note is retired.",
+          "workspace": "alpha",
+          "session": "a",
+          "valid_for_seconds": 30
+        },
+        {
+          "key": "current",
+          "text": "Orchid access note is renewed.",
+          "workspace": "alpha",
+          "session": "a",
+          "valid_for_seconds": 300
+        }
+      ],
+      "actions": [
+        {
+          "op": "advance",
+          "seconds": 31
+        }
+      ],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Orchid access note",
+      "expected_keys": [
+        "current"
+      ],
+      "forbidden_keys": [
+        "expired"
+      ]
+    },
+    {
+      "id": "revision-correct-expired",
+      "category": "revision",
+      "records": [
+        {
+          "key": "old",
+          "text": "Nimbus launch hour is eight.",
+          "workspace": "alpha",
+          "session": "a",
+          "valid_for_seconds": 10
+        }
+      ],
+      "actions": [
+        {
+          "op": "advance",
+          "seconds": 20
+        },
+        {
+          "op": "correct",
+          "target": "old",
+          "key": "new",
+          "text": "Nimbus launch hour is ten."
+        }
+      ],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Nimbus launch hour",
+      "expected_keys": [
+        "new"
+      ],
+      "forbidden_keys": [
+        "old"
+      ]
+    },
+    {
+      "id": "revision-forget-private",
+      "category": "revision",
+      "records": [
+        {
+          "key": "gone",
+          "text": "Heron locker code is copper.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [
+        {
+          "op": "forget",
+          "target": "gone"
+        }
+      ],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Heron locker code",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "gone"
+      ]
+    },
+    {
+      "id": "revision-forget-shared",
+      "category": "revision",
+      "records": [
+        {
+          "key": "gone",
+          "text": "Shared ferry booking is lotus.",
+          "workspace": "alpha",
+          "session": null
+        }
+      ],
+      "actions": [
+        {
+          "op": "forget",
+          "target": "gone"
+        }
+      ],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "b"
+      },
+      "query": "Shared ferry booking",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "gone"
+      ]
+    },
+    {
+      "id": "revision-forget-corrected",
+      "category": "revision",
+      "records": [
+        {
+          "key": "old",
+          "text": "Kestrel sensor threshold is thirty.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [
+        {
+          "op": "correct",
+          "target": "old",
+          "key": "new",
+          "text": "Kestrel sensor threshold is forty."
+        },
+        {
+          "op": "forget",
+          "target": "new"
+        }
+      ],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Kestrel sensor threshold",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "old",
+        "new"
+      ]
+    },
+    {
+      "id": "scope-session-flood",
+      "category": "scope",
+      "records": [
+        {
+          "key": "target",
+          "text": "The handoff checklist includes securing the telescope and returning the observation log.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "hidden0",
+          "text": "handoff checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden1",
+          "text": "handoff checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden2",
+          "text": "handoff checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden3",
+          "text": "handoff checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden4",
+          "text": "handoff checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden5",
+          "text": "handoff checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden6",
+          "text": "handoff checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden7",
+          "text": "handoff checklist",
+          "workspace": "alpha",
+          "session": "b"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "handoff checklist",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "hidden0",
+        "hidden1",
+        "hidden2",
+        "hidden3",
+        "hidden4",
+        "hidden5",
+        "hidden6",
+        "hidden7"
+      ]
+    },
+    {
+      "id": "scope-workspace-flood",
+      "category": "scope",
+      "records": [
+        {
+          "key": "target",
+          "text": "The dispatch register includes the south gate inspection and the afternoon parcel count.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "hidden0",
+          "text": "dispatch register",
+          "workspace": "beta",
+          "session": "a"
+        },
+        {
+          "key": "hidden1",
+          "text": "dispatch register",
+          "workspace": "beta",
+          "session": "a"
+        },
+        {
+          "key": "hidden2",
+          "text": "dispatch register",
+          "workspace": "beta",
+          "session": "a"
+        },
+        {
+          "key": "hidden3",
+          "text": "dispatch register",
+          "workspace": "beta",
+          "session": "a"
+        },
+        {
+          "key": "hidden4",
+          "text": "dispatch register",
+          "workspace": "beta",
+          "session": "a"
+        },
+        {
+          "key": "hidden5",
+          "text": "dispatch register",
+          "workspace": "beta",
+          "session": "a"
+        },
+        {
+          "key": "hidden6",
+          "text": "dispatch register",
+          "workspace": "beta",
+          "session": "a"
+        },
+        {
+          "key": "hidden7",
+          "text": "dispatch register",
+          "workspace": "beta",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "dispatch register",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "hidden0",
+        "hidden1",
+        "hidden2",
+        "hidden3",
+        "hidden4",
+        "hidden5",
+        "hidden6",
+        "hidden7"
+      ]
+    },
+    {
+      "id": "scope-only-other-session",
+      "category": "scope",
+      "records": [
+        {
+          "key": "hidden",
+          "text": "Quarry key code is saffron.",
+          "workspace": "alpha",
+          "session": "b"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Quarry key code",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "hidden"
+      ]
+    },
+    {
+      "id": "scope-shared-is-visible",
+      "category": "scope",
+      "records": [
+        {
+          "key": "shared",
+          "text": "Observatory radio channel is seven.",
+          "workspace": "alpha",
+          "session": null
+        },
+        {
+          "key": "hidden",
+          "text": "Observatory radio channel is private.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "b"
+      },
+      "query": "Observatory radio channel",
+      "expected_keys": [
+        "shared"
+      ],
+      "forbidden_keys": [
+        "hidden"
+      ]
+    },
+    {
+      "id": "scope-workspace-only",
+      "category": "scope",
+      "records": [
+        {
+          "key": "shared",
+          "text": "Maintenance notebook belongs beside the lathe.",
+          "workspace": "alpha",
+          "session": null
+        },
+        {
+          "key": "hidden-a",
+          "text": "Maintenance notebook has a personal sketch.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "hidden-b",
+          "text": "Maintenance notebook has a private address.",
+          "workspace": "alpha",
+          "session": "b"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": null
+      },
+      "query": "Maintenance notebook",
+      "expected_keys": [
+        "shared"
+      ],
+      "forbidden_keys": [
+        "hidden-a",
+        "hidden-b"
+      ]
+    },
+    {
+      "id": "scope-same-session-other-workspace",
+      "category": "scope",
+      "records": [
+        {
+          "key": "target",
+          "text": "Beacon maintenance date is Thursday.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "hidden",
+          "text": "Beacon maintenance date is Tuesday.",
+          "workspace": "beta",
+          "session": "a"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Beacon maintenance date",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "hidden"
+      ]
+    },
+    {
+      "id": "scope-foreign-shared",
+      "category": "scope",
+      "records": [
+        {
+          "key": "hidden",
+          "text": "Shared survey coordinates are delta nine.",
+          "workspace": "beta",
+          "session": null
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Shared survey coordinates",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "hidden"
+      ]
+    },
+    {
+      "id": "scope-correction-remains-private",
+      "category": "scope",
+      "records": [
+        {
+          "key": "old",
+          "text": "Workshop radio preset is bronze.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "shared",
+          "text": "Workshop radio preset instructions are posted.",
+          "workspace": "alpha",
+          "session": null
+        }
+      ],
+      "actions": [
+        {
+          "op": "correct",
+          "target": "old",
+          "key": "new",
+          "text": "Workshop radio preset is pewter."
+        }
+      ],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "b"
+      },
+      "query": "Workshop radio preset",
+      "expected_keys": [
+        "shared"
+      ],
+      "forbidden_keys": [
+        "old",
+        "new"
+      ]
+    },
+    {
+      "id": "scope-forgotten-shared-no-fallback",
+      "category": "scope",
+      "records": [
+        {
+          "key": "gone",
+          "text": "Public transit voucher is indigo.",
+          "workspace": "alpha",
+          "session": null
+        },
+        {
+          "key": "hidden",
+          "text": "Public transit voucher is personal.",
+          "workspace": "alpha",
+          "session": "a"
+        }
+      ],
+      "actions": [
+        {
+          "op": "forget",
+          "target": "gone"
+        }
+      ],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "b"
+      },
+      "query": "Public transit voucher",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "gone",
+        "hidden"
+      ]
+    },
+    {
+      "id": "scope-five-visible-survive-flood",
+      "category": "scope",
+      "records": [
+        {
+          "key": "visible0",
+          "text": "Departure checklist includes the brass compass.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "visible1",
+          "text": "Departure checklist includes the folded map.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "visible2",
+          "text": "Departure checklist includes the spare lantern.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "visible3",
+          "text": "Departure checklist includes the sealed canteen.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "visible4",
+          "text": "Departure checklist includes the canvas pouch.",
+          "workspace": "alpha",
+          "session": "a"
+        },
+        {
+          "key": "hidden0",
+          "text": "Departure checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden1",
+          "text": "Departure checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden2",
+          "text": "Departure checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden3",
+          "text": "Departure checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden4",
+          "text": "Departure checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden5",
+          "text": "Departure checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden6",
+          "text": "Departure checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden7",
+          "text": "Departure checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden8",
+          "text": "Departure checklist",
+          "workspace": "alpha",
+          "session": "b"
+        },
+        {
+          "key": "hidden9",
+          "text": "Departure checklist",
+          "workspace": "alpha",
+          "session": "b"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "alpha",
+        "session": "a"
+      },
+      "query": "Departure checklist",
+      "expected_keys": [
+        "visible0",
+        "visible1",
+        "visible2",
+        "visible3",
+        "visible4"
+      ],
+      "forbidden_keys": [
+        "hidden0",
+        "hidden1",
+        "hidden2",
+        "hidden3",
+        "hidden4",
+        "hidden5",
+        "hidden6",
+        "hidden7",
+        "hidden8",
+        "hidden9"
+      ]
+    }
+  ]
+}

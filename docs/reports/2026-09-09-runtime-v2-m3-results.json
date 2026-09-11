@@ -1,0 +1,1100 @@
+{
+  "milestone": "M3",
+  "date": "2026-09-09",
+  "branch": "refactor/runtime-v2",
+  "baseline_commit": "47278619e8c6c764efbbc3c4a0ffc00d3142c315",
+  "implementation_commit": "627ed3c2a036ddf1ec22f0ae3e0c600a5faf98a0",
+  "implementation_commits": [
+    "77d07df",
+    "b9e322c",
+    "1baf526",
+    "627ed3c"
+  ],
+  "status": "implemented_and_verified",
+  "environment": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "python_default": "3.14.7",
+    "macos": {
+      "command": [
+        "sw_vers"
+      ],
+      "exit_code": 0,
+      "output": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83"
+    },
+    "uv": {
+      "command": [
+        "uv",
+        "--version"
+      ],
+      "exit_code": 0,
+      "output": "uv 0.8.3 (7e78f54e7 2025-07-24)"
+    },
+    "docker": {
+      "command": [
+        "docker",
+        "version",
+        "--format",
+        "{{json .Server}}"
+      ],
+      "exit_code": 0,
+      "output": "{\"Platform\":{\"Name\":\"Docker Desktop 4.46.0 (204649)\"},\"Components\":[{\"Name\":\"Engine\",\"Version\":\"28.4.0\",\"Details\":{\"ApiVersion\":\"1.51\",\"Arch\":\"arm64\",\"BuildTime\":\"Wed Sep  3 20:58:53 2025\",\"Experimental\":\"false\",\"GitCommit\":\"249d679\",\"GoVersion\":\"go1.24.7\",\"KernelVersion\":\"6.10.14-linuxkit\",\"MinAPIVersion\":\"1.24\",\"Os\":\"linux\"}},{\"Name\":\"containerd\",\"Version\":\"1.7.27\",\"Details\":{\"GitCommit\":\"05044ec0a9a75232cad458027ca83437aae3f4da\"}},{\"Name\":\"runc\",\"Version\":\"1.2.5\",\"Details\":{\"GitCommit\":\"v1.2.5-0-g59923ef\"}},{\"Name\":\"docker-init\",\"Version\":\"0.19.0\",\"Details\":{\"GitCommit\":\"de40ad0\"}}],\"Version\":\"28.4.0\",\"ApiVersion\":\"1.51\",\"MinAPIVersion\":\"1.24\",\"GitCommit\":\"249d679\",\"GoVersion\":\"go1.24.7\",\"Os\":\"linux\",\"Arch\":\"arm64\",\"KernelVersion\":\"6.10.14-linuxkit\",\"BuildTime\":\"2025-09-03T20:58:53.000000000+00:00\"}"
+    },
+    "git": {
+      "command": [
+        "git",
+        "worktree",
+        "list",
+        "--porcelain"
+      ],
+      "exit_code": 0,
+      "output": "worktree /Users/kairos/Projects/work/hyper/hyperclaw\nHEAD 6f758390996b61f86fe57415954aa3f8fced583a\nbranch refs/heads/feat/consolidate-ollama\n\nworktree /Users/kairos/Projects/work/hyper/.integration-worktrees/hyperclaw-1-provider-recovery\nHEAD 503080511fdc66635844513103054b4e3c1966ef\nbranch refs/heads/fix/1-hyperspeed-terminal-recovery\n\nworktree /Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor\nHEAD 1baf526926b5206f2aec926d111b1a5b19b07843\nbranch refs/heads/refactor/runtime-v2"
+    }
+  },
+  "gates": {
+    "macos311_offline": {
+      "mode": "quick",
+      "started_at": "2026-09-10T04:02:14.006448+00:00",
+      "elapsed_seconds": 62.322,
+      "exit_code": 0,
+      "python": "3.11.13",
+      "command": [
+        "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/.venv/bin/python3",
+        "-m",
+        "pytest",
+        "tests",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/macos311/quick-20260910T040214006448Z/junit.xml",
+        "-m",
+        "not ollama and not docker",
+        "--cov=src/hyperclaw",
+        "--cov-report=xml:/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/macos311/quick-20260910T040214006448Z/coverage.xml",
+        "--cov-report=json:/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/macos311/quick-20260910T040214006448Z/coverage.json",
+        "--cov-report=html:/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/macos311/quick-20260910T040214006448Z/htmlcov",
+        "--cov-report=term:skip-covered"
+      ],
+      "tests": {
+        "total": 198,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "coverage": {
+        "statements": {
+          "covered": 2419,
+          "total": 2815
+        },
+        "branches": {
+          "covered": 602,
+          "total": 816
+        }
+      },
+      "deselected": 15,
+      "artifact_path": "test-results/m3-final/macos311/quick-20260910T040214006448Z/summary.json"
+    },
+    "macos313_offline": {
+      "mode": "quick",
+      "started_at": "2026-09-10T04:03:37.775116+00:00",
+      "elapsed_seconds": 51.506,
+      "exit_code": 0,
+      "python": "3.13.5",
+      "command": [
+        "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-verify-imvxbo76/python313-final/bin/python",
+        "-m",
+        "pytest",
+        "tests",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/macos313/quick-20260910T040337775116Z/junit.xml",
+        "-m",
+        "not ollama and not docker"
+      ],
+      "tests": {
+        "total": 198,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "deselected": 15,
+      "artifact_path": "test-results/m3-final/macos313/quick-20260910T040337775116Z/summary.json"
+    },
+    "macos_docker": {
+      "mode": "docker",
+      "started_at": "2026-09-10T04:05:33.897252+00:00",
+      "elapsed_seconds": 43.188,
+      "exit_code": 0,
+      "python": "3.11.13",
+      "command": [
+        "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/.venv/bin/python3",
+        "-m",
+        "pytest",
+        "tests/live",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/macos-docker/docker-20260910T040533897252Z/junit.xml",
+        "--run-docker",
+        "-m",
+        "docker"
+      ],
+      "tests": {
+        "total": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "deselected": 5,
+      "artifact_path": "test-results/m3-final/macos-docker/docker-20260910T040533897252Z/summary.json"
+    },
+    "live_qwen": {
+      "mode": "live",
+      "started_at": "2026-09-10T04:02:14.006433+00:00",
+      "elapsed_seconds": 30.95,
+      "exit_code": 0,
+      "python": "3.11.13",
+      "command": [
+        "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/.venv/bin/python3",
+        "-m",
+        "pytest",
+        "tests/live",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/live/live-20260910T040214006433Z/junit.xml",
+        "--run-ollama",
+        "--ollama-url",
+        "http://127.0.0.1:11434",
+        "--ollama-model",
+        "qwen3.8:27b-mlx",
+        "-m",
+        "ollama"
+      ],
+      "tests": {
+        "total": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "deselected": 10,
+      "artifact_path": "test-results/m3-final/live/live-20260910T040214006433Z/summary.json"
+    },
+    "linux_offline": {
+      "mode": "quick",
+      "started_at": "2026-09-10T04:02:19.530477+00:00",
+      "elapsed_seconds": 94.886,
+      "exit_code": 0,
+      "python": "3.13.5",
+      "command": [
+        "/tmp/hyperclaw-m3-linux-f2y5zmcm/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/tmp/hyperclaw-m3-linux-f2y5zmcm/reports/quick-20260910T040219530477Z/junit.xml",
+        "-m",
+        "not ollama and not docker"
+      ],
+      "tests": {
+        "total": 198,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "deselected": 15,
+      "artifact_path": "test-results/m3-linux/batteries/quick-20260910T040219530477Z/summary.json"
+    },
+    "linux_docker": {
+      "mode": "docker",
+      "started_at": "2026-09-10T04:03:54.527058+00:00",
+      "elapsed_seconds": 47.053,
+      "exit_code": 0,
+      "python": "3.13.5",
+      "command": [
+        "/tmp/hyperclaw-m3-linux-f2y5zmcm/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/live",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/tmp/hyperclaw-m3-linux-f2y5zmcm/reports/docker-20260910T040354527058Z/junit.xml",
+        "--run-docker",
+        "-m",
+        "docker"
+      ],
+      "tests": {
+        "total": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "deselected": 5,
+      "artifact_path": "test-results/m3-linux/batteries/docker-20260910T040354527058Z/summary.json"
+    }
+  },
+  "checks": [
+    {
+      "command": [
+        "uv",
+        "sync",
+        "--locked",
+        "--extra",
+        "dev"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.01,
+      "output": "Resolved 32 packages in 0.53ms\nAudited 30 packages in 0.05ms\n"
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "--locked",
+        "python",
+        "-m",
+        "compileall",
+        "-q",
+        "src",
+        "tests"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.062,
+      "output": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.022,
+      "output": ""
+    }
+  ],
+  "python313_install": {
+    "scratch": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-verify-imvxbo76",
+    "py313": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-verify-imvxbo76/python313-final/bin/python",
+    "commands": [
+      {
+        "command": [
+          "uv",
+          "sync",
+          "--locked",
+          "--extra",
+          "dev",
+          "--python",
+          "3.13"
+        ],
+        "environment": {
+          "UV_PROJECT_ENVIRONMENT": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-verify-imvxbo76/python313"
+        },
+        "exit_code": 0,
+        "elapsed_seconds": 0.737,
+        "output": "Using CPython 3.13.5\nCreating virtual environment at: /var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-verify-imvxbo76/python313\nResolved 32 packages in 1ms\nInstalled 30 packages in 162ms\n + annotated-doc==0.0.5\n + annotated-types==0.8.0\n + anyio==4.15.1\n + certifi==2026.7.22\n + click==8.5.0\n + coverage==7.16.0\n + fastapi==0.141.1\n + h11==0.16.0\n + httpcore==1.0.9\n + httpx==0.28.1\n + hyperclaw==2.0.0.dev0 (from file:///Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor)\n + idna==3.19\n + iniconfig==2.3.0\n + markdown-it-py==4.2.0\n + mdurl==0.1.2\n + packaging==26.3\n + pluggy==1.6.0\n + pydantic==2.13.5\n + pydantic-core==2.46.5\n + pygments==2.21.0\n + pytest==9.1.1\n + pytest-asyncio==1.4.0\n + pytest-cov==7.1.0\n + rich==15.0.0\n + shellingham==1.5.4\n + starlette==1.6.0\n + typer==0.27.2\n + typing-extensions==4.16.0\n + typing-inspection==0.4.4\n + uvicorn==0.52.4\n"
+      },
+      {
+        "command": [
+          "uv",
+          "sync",
+          "--locked",
+          "--extra",
+          "dev",
+          "--python",
+          "3.13",
+          "--reinstall",
+          "--no-cache"
+        ],
+        "environment": {
+          "UV_PROJECT_ENVIRONMENT": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-verify-imvxbo76/python313-final",
+          "UV_LINK_MODE": "copy"
+        },
+        "exit_code": 0,
+        "elapsed_seconds": 1.694,
+        "output": "Using CPython 3.13.5\nCreating virtual environment at: /var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-verify-imvxbo76/python313-final\nResolved 32 packages in 0.69ms\n   Building hyperclaw @ file:///Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor\nDownloading pygments (1.2MiB)\nDownloading pydantic-core (1.8MiB)\n Downloading pygments\n Downloading pydantic-core\n      Built hyperclaw @ file:///Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor\nPrepared 30 packages in 1.33s\nInstalled 30 packages in 199ms\n + annotated-doc==0.0.5\n + annotated-types==0.8.0\n + anyio==4.15.1\n + certifi==2026.7.22\n + click==8.5.0\n + coverage==7.16.0\n + fastapi==0.141.1\n + h11==0.16.0\n + httpcore==1.0.9\n + httpx==0.28.1\n + hyperclaw==2.0.0.dev0 (from file:///Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor)\n + idna==3.19\n + iniconfig==2.3.0\n + markdown-it-py==4.2.0\n + mdurl==0.1.2\n + packaging==26.3\n + pluggy==1.6.0\n + pydantic==2.13.5\n + pydantic-core==2.46.5\n + pygments==2.21.0\n + pytest==9.1.1\n + pytest-asyncio==1.4.0\n + pytest-cov==7.1.0\n + rich==15.0.0\n + shellingham==1.5.4\n + starlette==1.6.0\n + typer==0.27.2\n + typing-extensions==4.16.0\n + typing-inspection==0.4.4\n + uvicorn==0.52.4\n"
+      }
+    ],
+    "initial_py313": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-verify-imvxbo76/python313/bin/python"
+  },
+  "linux_execution": {
+    "root": "/tmp/hyperclaw-m3-linux-f2y5zmcm",
+    "commands": [
+      {
+        "command": [
+          "docker",
+          "build",
+          "--build-arg",
+          "VERIFY_UID=501",
+          "--build-arg",
+          "VERIFY_GID=20",
+          "--tag",
+          "hyperclaw-verification:runtime-v2-m3",
+          "containers/verification"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.636
+      },
+      {
+        "command": [
+          "docker",
+          "run",
+          "--rm",
+          "--entrypoint",
+          "stat",
+          "--mount",
+          "type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock,readonly",
+          "hyperclaw-verification:runtime-v2-m3",
+          "-c",
+          "%g",
+          "/var/run/docker.sock"
+        ],
+        "exit_code": 0,
+        "output": "0"
+      },
+      {
+        "command": [
+          "docker",
+          "run",
+          "--rm",
+          "--name",
+          "hyperclaw-m3-verify-f2y5zmcm",
+          "--user",
+          "501:20",
+          "--group-add",
+          "0",
+          "--cap-drop",
+          "ALL",
+          "--security-opt",
+          "no-new-privileges",
+          "--workdir",
+          "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
+          "--mount",
+          "type=bind,src=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor,dst=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor,readonly",
+          "--mount",
+          "type=bind,src=/tmp/hyperclaw-m3-linux-f2y5zmcm,dst=/tmp/hyperclaw-m3-linux-f2y5zmcm",
+          "--mount",
+          "type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock",
+          "--env",
+          "TMPDIR=/tmp/hyperclaw-m3-linux-f2y5zmcm/shared-tmp",
+          "--env",
+          "UV_PROJECT_ENVIRONMENT=/tmp/hyperclaw-m3-linux-f2y5zmcm/venv",
+          "--env",
+          "UV_CACHE_DIR=/tmp/hyperclaw-m3-linux-f2y5zmcm/uv-cache",
+          "--env",
+          "VERIFY_REPORT_DIR=/tmp/hyperclaw-m3-linux-f2y5zmcm/reports",
+          "--env",
+          "VERIFY_SOURCE_DIR=/tmp/hyperclaw-m3-linux-f2y5zmcm/source",
+          "hyperclaw-verification:runtime-v2-m3"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 146.683
+      }
+    ],
+    "source_sha256": {
+      "src/hyperclaw/__init__.py": "cbce46810e6319159862bd29a0826e628852e69172e2752ac867c6cf937f37b4",
+      "src/hyperclaw/__main__.py": "a46eaf19e57db9541fcbfff27022acdf42176d13baaca97fe6570443dd726d42",
+      "src/hyperclaw/api.py": "e220fc28885177f100ee286c3b4a022fe95032844864ff29e1cadbf67db45288",
+      "src/hyperclaw/cli.py": "135a0fb565ce0fd4cebfeae0269a092f6033a4b547435cd90e5cc1e63a2a42f6",
+      "src/hyperclaw/config.py": "237a6ab45e80105273a25c1d93914f7e5c6c76fc8ba2af3278adc818b828e197",
+      "src/hyperclaw/contracts.py": "08e5b9fab1bddcb35175fd99cb28253963447677cc7bfcd7041d2e752196059b",
+      "src/hyperclaw/execution/__init__.py": "bc1e4e62920334999d8d56917d6511496249109f6d5927a269b2a2d6f03a9bbc",
+      "src/hyperclaw/execution/docker.py": "a8efaa7e018e477f462509d4b0112f19bca7e79aba2539b6cb80c6f946d283ed",
+      "src/hyperclaw/execution/policy.py": "f41da2647d96295495beaab2bb595391c4624673db809735e8d5111b34134117",
+      "src/hyperclaw/execution/workspace.py": "05265e4e1cd3858cd29662c211233469d5e5509378311d5ec1593769b480f3ef",
+      "src/hyperclaw/ollama.py": "204a26ea228c8d8eac153637df2604224924d98f5cf71397351464cc9da440d3",
+      "src/hyperclaw/runtime.py": "f7ae77d092fab95080eb6c731f0c0a8a9cec5e56d50fab1b3176ebcf76e8c736",
+      "src/hyperclaw/scheduling.py": "059435e9912450c5b6dc086bcb0f54e70b5d407e108321dd216bffc3ccb6baa8",
+      "src/hyperclaw/store.py": "d91965457add846d57e21b793506ee2a6da157efc37958ccc7f7d7a3fddff4ce"
+    },
+    "copied_source_matches": true
+  },
+  "wheel": {
+    "scratch": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+    "commands": [
+      {
+        "command": [
+          "uv",
+          "build"
+        ],
+        "cwd": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
+        "exit_code": 0,
+        "elapsed_seconds": 0.848,
+        "output": "Building source distribution...\nrunning egg_info\nwriting src/hyperclaw.egg-info/PKG-INFO\nwriting dependency_links to src/hyperclaw.egg-info/dependency_links.txt\nwriting entry points to src/hyperclaw.egg-info/entry_points.txt\nwriting requirements to src/hyperclaw.egg-info/requires.txt\nwriting top-level names to src/hyperclaw.egg-info/top_level.txt\nreading manifest file 'src/hyperclaw.egg-info/SOURCES.txt'\nadding license file 'LICENSE'\nwriting manifest file 'src/hyperclaw.egg-info/SOURCES.txt'\nrunning sdist\nrunning egg_info\nwriting src/hyperclaw.egg-info/PKG-INFO\nwriting dependency_links to src/hyperclaw.egg-info/dependency_links.txt\nwriting entry points to src/hyperclaw.egg-info/entry_points.txt\nwriting requirements to src/hyperclaw.egg-info/requires.txt\nwriting top-level names to src/hyperclaw.egg-info/top_level.txt\nreading manifest file 'src/hyperclaw.egg-info/SOURCES.txt'\nadding license file 'LICENSE'\nwriting manifest file 'src/hyperclaw.egg-info/SOURCES.txt'\nrunning check\ncreating hyperclaw-2.0.0.dev0\ncreating hyperclaw-2.0.0.dev0/src/hyperclaw\ncreating hyperclaw-2.0.0.dev0/src/hyperclaw.egg-info\ncreating hyperclaw-2.0.0.dev0/src/hyperclaw/execution\ncopying files to hyperclaw-2.0.0.dev0...\ncopying LICENSE -> hyperclaw-2.0.0.dev0\ncopying README.md -> hyperclaw-2.0.0.dev0\ncopying pyproject.toml -> hyperclaw-2.0.0.dev0\ncopying src/hyperclaw/__init__.py -> hyperclaw-2.0.0.dev0/src/hyperclaw\ncopying src/hyperclaw/__main__.py -> hyperclaw-2.0.0.dev0/src/hyperclaw\ncopying src/hyperclaw/api.py -> hyperclaw-2.0.0.dev0/src/hyperclaw\ncopying src/hyperclaw/cli.py -> hyperclaw-2.0.0.dev0/src/hyperclaw\ncopying src/hyperclaw/config.py -> hyperclaw-2.0.0.dev0/src/hyperclaw\ncopying src/hyperclaw/contracts.py -> hyperclaw-2.0.0.dev0/src/hyperclaw\ncopying src/hyperclaw/ollama.py -> hyperclaw-2.0.0.dev0/src/hyperclaw\ncopying src/hyperclaw/runtime.py -> hyperclaw-2.0.0.dev0/src/hyperclaw\ncopying src/hyperclaw/scheduling.py -> hyperclaw-2.0.0.dev0/src/hyperclaw\ncopying src/hyperclaw/store.py -> hyperclaw-2.0.0.dev0/src/hyperclaw\ncopying src/hyperclaw.egg-info/PKG-INFO -> hyperclaw-2.0.0.dev0/src/hyperclaw.egg-info\ncopying src/hyperclaw.egg-info/SOURCES.txt -> hyperclaw-2.0.0.dev0/src/hyperclaw.egg-info\ncopying src/hyperclaw.egg-info/dependency_links.txt -> hyperclaw-2.0.0.dev0/src/hyperclaw.egg-info\ncopying src/hyperclaw.egg-info/entry_points.txt -> hyperclaw-2.0.0.dev0/src/hyperclaw.egg-info\ncopying src/hyperclaw.egg-info/requires.txt -> hyperclaw-2.0.0.dev0/src/hyperclaw.egg-info\ncopying src/hyperclaw.egg-info/top_level.txt -> hyperclaw-2.0.0.dev0/src/hyperclaw.egg-info\ncopying src/hyperclaw/execution/__init__.py -> hyperclaw-2.0.0.dev0/src/hyperclaw/execution\ncopying src/hyperclaw/execution/docker.py -> hyperclaw-2.0.0.dev0/src/hyperclaw/execution\ncopying src/hyperclaw/execution/policy.py -> hyperclaw-2.0.0.dev0/src/hyperclaw/execution\ncopying src/hyperclaw/execution/workspace.py -> hyperclaw-2.0.0.dev0/src/hyperclaw/execution\nWriting hyperclaw-2.0.0.dev0/setup.cfg\nCreating tar archive\nremoving 'hyperclaw-2.0.0.dev0' (and everything under it)\nBuilding wheel from source distribution...\nrunning egg_info\nwriting src/hyperclaw.egg-info/PKG-INFO\nwriting dependency_links to src/hyperclaw.egg-info/dependency_links.txt\nwriting entry points to src/hyperclaw.egg-info/entry_points.txt\nwriting requirements to src/hyperclaw.egg-info/requires.txt\nwriting top-level names to src/hyperclaw.egg-info/top_level.txt\nreading manifest file 'src/hyperclaw.egg-info/SOURCES.txt'\nadding license file 'LICENSE'\nwriting manifest file 'src/hyperclaw.egg-info/SOURCES.txt'\nrunning bdist_wheel\nrunning build\nrunning build_py\ncreating build/lib/hyperclaw\ncopying src/hyperclaw/store.py -> build/lib/hyperclaw\ncopying src/hyperclaw/config.py -> build/lib/hyperclaw\ncopying src/hyperclaw/__init__.py -> build/lib/hyperclaw\ncopying src/hyperclaw/runtime.py -> build/lib/hyperclaw\ncopying src/hyperclaw/api.py -> build/lib/hyperclaw\ncopying src/hyperclaw/cli.py -> build/lib/hyperclaw\ncopying src/hyperclaw/contracts.py -> build/lib/hyperclaw\ncopying src/hyperclaw/scheduling.py -> build/lib/hyperclaw\ncopying src/hyperclaw/ollama.py -> build/lib/hyperclaw\ncopying src/hyperclaw/__main__.py -> build/lib/hyperclaw\ncreating build/lib/hyperclaw/execution\ncopying src/hyperclaw/execution/policy.py -> build/lib/hyperclaw/execution\ncopying src/hyperclaw/execution/__init__.py -> build/lib/hyperclaw/execution\ncopying src/hyperclaw/execution/docker.py -> build/lib/hyperclaw/execution\ncopying src/hyperclaw/execution/workspace.py -> build/lib/hyperclaw/execution\nrunning egg_info\nwriting src/hyperclaw.egg-info/PKG-INFO\nwriting dependency_links to src/hyperclaw.egg-info/dependency_links.txt\nwriting entry points to src/hyperclaw.egg-info/entry_points.txt\nwriting requirements to src/hyperclaw.egg-info/requires.txt\nwriting top-level names to src/hyperclaw.egg-info/top_level.txt\nreading manifest file 'src/hyperclaw.egg-info/SOURCES.txt'\nadding license file 'LICENSE'\nwriting manifest file 'src/hyperclaw.egg-info/SOURCES.txt'\ninstalling to build/bdist.macosx-11.0-arm64/wheel\nrunning install\nrunning install_lib\ncreating build/bdist.macosx-11.0-arm64/wheel\ncreating build/bdist.macosx-11.0-arm64/wheel/hyperclaw\ncopying build/lib/hyperclaw/store.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw\ncopying build/lib/hyperclaw/config.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw\ncopying build/lib/hyperclaw/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw\ncopying build/lib/hyperclaw/runtime.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw\ncopying build/lib/hyperclaw/api.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw\ncopying build/lib/hyperclaw/cli.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw\ncreating build/bdist.macosx-11.0-arm64/wheel/hyperclaw/execution\ncopying build/lib/hyperclaw/execution/policy.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw/execution\ncopying build/lib/hyperclaw/execution/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw/execution\ncopying build/lib/hyperclaw/execution/docker.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw/execution\ncopying build/lib/hyperclaw/execution/workspace.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw/execution\ncopying build/lib/hyperclaw/contracts.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw\ncopying build/lib/hyperclaw/scheduling.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw\ncopying build/lib/hyperclaw/ollama.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw\ncopying build/lib/hyperclaw/__main__.py -> build/bdist.macosx-11.0-arm64/wheel/./hyperclaw\nrunning install_egg_info\nCopying src/hyperclaw.egg-info to build/bdist.macosx-11.0-arm64/wheel/./hyperclaw-2.0.0.dev0-py3.11.egg-info\nrunning install_scripts\ncreating build/bdist.macosx-11.0-arm64/wheel/hyperclaw-2.0.0.dev0.dist-info/WHEEL\ncreating '/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/dist/.tmp-_warrrj3/hyperclaw-2.0.0.dev0-py3-none-any.whl' and adding 'build/bdist.macosx-11.0-arm64/wheel' to it\nadding 'hyperclaw/__init__.py'\nadding 'hyperclaw/__main__.py'\nadding 'hyperclaw/api.py'\nadding 'hyperclaw/cli.py'\nadding 'hyperclaw/config.py'\nadding 'hyperclaw/contracts.py'\nadding 'hyperclaw/ollama.py'\nadding 'hyperclaw/runtime.py'\nadding 'hyperclaw/scheduling.py'\nadding 'hyperclaw/store.py'\nadding 'hyperclaw/execution/__init__.py'\nadding 'hyperclaw/execution/docker.py'\nadding 'hyperclaw/execution/policy.py'\nadding 'hyperclaw/execution/workspace.py'\nadding 'hyperclaw-2.0.0.dev0.dist-info/licenses/LICENSE'\nadding 'hyperclaw-2.0.0.dev0.dist-info/METADATA'\nadding 'hyperclaw-2.0.0.dev0.dist-info/WHEEL'\nadding 'hyperclaw-2.0.0.dev0.dist-info/entry_points.txt'\nadding 'hyperclaw-2.0.0.dev0.dist-info/top_level.txt'\nadding 'hyperclaw-2.0.0.dev0.dist-info/RECORD'\nremoving build/bdist.macosx-11.0-arm64/wheel\nSuccessfully built dist/hyperclaw-2.0.0.dev0.tar.gz\nSuccessfully built dist/hyperclaw-2.0.0.dev0-py3-none-any.whl\n"
+      },
+      {
+        "command": [
+          "uv",
+          "sync",
+          "--locked",
+          "--no-dev",
+          "--no-install-project",
+          "--python",
+          "3.11"
+        ],
+        "cwd": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
+        "exit_code": 0,
+        "elapsed_seconds": 0.104,
+        "output": "warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv` and will be ignored; use `--active` to target the active environment instead\nUsing CPython 3.11.13\nCreating virtual environment at: /var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv\nResolved 32 packages in 0.69ms\nInstalled 22 packages in 28ms\n + annotated-doc==0.0.5\n + annotated-types==0.8.0\n + anyio==4.15.1\n + certifi==2026.7.22\n + click==8.5.0\n + fastapi==0.141.1\n + h11==0.16.0\n + httpcore==1.0.9\n + httpx==0.28.1\n + idna==3.19\n + markdown-it-py==4.2.0\n + mdurl==0.1.2\n + pydantic==2.13.5\n + pydantic-core==2.46.5\n + pygments==2.21.0\n + rich==15.0.0\n + shellingham==1.5.4\n + starlette==1.6.0\n + typer==0.27.2\n + typing-extensions==4.16.0\n + typing-inspection==0.4.4\n + uvicorn==0.52.4\n",
+        "environment": {
+          "UV_PROJECT_ENVIRONMENT": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv"
+        }
+      },
+      {
+        "command": [
+          "uv",
+          "pip",
+          "install",
+          "--python",
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/python",
+          "--no-deps",
+          "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/dist/hyperclaw-2.0.0.dev0-py3-none-any.whl"
+        ],
+        "cwd": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
+        "exit_code": 0,
+        "elapsed_seconds": 0.044,
+        "output": "Using Python 3.11.13 environment at: /var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv\nResolved 1 package in 0.86ms\nPrepared 1 package in 3ms\nInstalled 1 package in 2ms\n + hyperclaw==2.0.0.dev0 (from file:///Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/dist/hyperclaw-2.0.0.dev0-py3-none-any.whl)\n"
+      },
+      {
+        "command": [
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/python",
+          "-c",
+          "import hyperclaw; print(hyperclaw.__file__)"
+        ],
+        "cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+        "exit_code": 0,
+        "elapsed_seconds": 0.014,
+        "output": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/lib/python3.11/site-packages/hyperclaw/__init__.py\n"
+      },
+      {
+        "command": [
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/hyperclaw",
+          "--root",
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime",
+          "--help"
+        ],
+        "cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+        "exit_code": 0,
+        "elapsed_seconds": 1.21,
+        "output": "CLI help exited successfully; full output retained in test-results/m3-wheel/execution.json."
+      },
+      {
+        "command": [
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/hyperclaw",
+          "--root",
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime",
+          "schedule",
+          "create",
+          "--help"
+        ],
+        "cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+        "exit_code": 0,
+        "elapsed_seconds": 0.147,
+        "output": "CLI help exited successfully; full output retained in test-results/m3-wheel/execution.json."
+      },
+      {
+        "command": [
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/hyperclaw",
+          "--root",
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime",
+          "schedule",
+          "list",
+          "--help"
+        ],
+        "cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+        "exit_code": 0,
+        "elapsed_seconds": 0.151,
+        "output": "CLI help exited successfully; full output retained in test-results/m3-wheel/execution.json."
+      },
+      {
+        "command": [
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/hyperclaw",
+          "--root",
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime",
+          "schedule",
+          "inspect",
+          "--help"
+        ],
+        "cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+        "exit_code": 0,
+        "elapsed_seconds": 0.148,
+        "output": "CLI help exited successfully; full output retained in test-results/m3-wheel/execution.json."
+      },
+      {
+        "command": [
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/hyperclaw",
+          "--root",
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime",
+          "schedule",
+          "pause",
+          "--help"
+        ],
+        "cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+        "exit_code": 0,
+        "elapsed_seconds": 0.145,
+        "output": "CLI help exited successfully; full output retained in test-results/m3-wheel/execution.json."
+      },
+      {
+        "command": [
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/hyperclaw",
+          "--root",
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime",
+          "schedule",
+          "retarget",
+          "--help"
+        ],
+        "cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+        "exit_code": 0,
+        "elapsed_seconds": 0.148,
+        "output": "CLI help exited successfully; full output retained in test-results/m3-wheel/execution.json."
+      },
+      {
+        "command": [
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/hyperclaw",
+          "--root",
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime",
+          "schedule",
+          "occurrences",
+          "--help"
+        ],
+        "cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+        "exit_code": 0,
+        "elapsed_seconds": 0.15,
+        "output": "CLI help exited successfully; full output retained in test-results/m3-wheel/execution.json."
+      },
+      {
+        "command": [
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/hyperclaw",
+          "--root",
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime",
+          "init"
+        ],
+        "cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+        "exit_code": 0,
+        "elapsed_seconds": 0.129,
+        "output": "Initialized runtime root: /var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime\n"
+      },
+      {
+        "command": [
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/hyperclaw",
+          "--root",
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime",
+          "schedule",
+          "list"
+        ],
+        "cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+        "exit_code": 0,
+        "elapsed_seconds": 0.14,
+        "output": "[\n  {\n    \"id\": \"wheel-smoke\",\n    \"session_id\": \"a5d315e94f444ca7bdf8b18af1e41a96\",\n    \"generation\": 0,\n    \"input\": \"Future wheel smoke\",\n    \"next_due_at\": \"2036-01-01T00:00:00Z\",\n    \"interval_seconds\": null,\n    \"tools\": [],\n    \"status\": \"active\",\n    \"pause_reason\": null\n  }\n]\n"
+      },
+      {
+        "command": [
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/hyperclaw",
+          "--root",
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime",
+          "schedule",
+          "inspect",
+          "wheel-smoke"
+        ],
+        "cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+        "exit_code": 0,
+        "elapsed_seconds": 0.142,
+        "output": "{\n  \"id\": \"wheel-smoke\",\n  \"session_id\": \"a5d315e94f444ca7bdf8b18af1e41a96\",\n  \"generation\": 0,\n  \"input\": \"Future wheel smoke\",\n  \"next_due_at\": \"2036-01-01T00:00:00Z\",\n  \"interval_seconds\": null,\n  \"tools\": [],\n  \"status\": \"active\",\n  \"pause_reason\": null\n}\n"
+      },
+      {
+        "command": [
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/hyperclaw",
+          "--root",
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime",
+          "schedule",
+          "occurrences",
+          "wheel-smoke"
+        ],
+        "cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+        "exit_code": 0,
+        "elapsed_seconds": 0.139,
+        "output": "[]\n"
+      },
+      {
+        "command": [
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/hyperclaw",
+          "--root",
+          "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime",
+          "schedule",
+          "pause",
+          "wheel-smoke"
+        ],
+        "cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+        "exit_code": 0,
+        "elapsed_seconds": 0.14,
+        "output": "{\n  \"id\": \"wheel-smoke\",\n  \"session_id\": \"a5d315e94f444ca7bdf8b18af1e41a96\",\n  \"generation\": 0,\n  \"input\": \"Future wheel smoke\",\n  \"next_due_at\": \"2036-01-01T00:00:00Z\",\n  \"interval_seconds\": null,\n  \"tools\": [],\n  \"status\": \"paused\",\n  \"pause_reason\": \"operator\"\n}\n"
+      }
+    ],
+    "wheel": {
+      "path": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/dist/hyperclaw-2.0.0.dev0-py3-none-any.whl",
+      "sha256": "44d95b0c6e0d6f9bdbaacf0a4fc5331fe5e3fcf04063f29c2d12093ead1ff0f1",
+      "source_matches": true,
+      "package_python_files": 14
+    },
+    "import": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/lib/python3.11/site-packages/hyperclaw/__init__.py",
+    "daemon_exit": -15,
+    "status": "passed",
+    "daemon_command": [
+      "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/venv/bin/hyperclaw",
+      "--root",
+      "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b/runtime",
+      "serve",
+      "--port",
+      "0"
+    ],
+    "daemon_cwd": "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b"
+  },
+  "source_sha256": {
+    "src/hyperclaw/__init__.py": "cbce46810e6319159862bd29a0826e628852e69172e2752ac867c6cf937f37b4",
+    "src/hyperclaw/__main__.py": "a46eaf19e57db9541fcbfff27022acdf42176d13baaca97fe6570443dd726d42",
+    "src/hyperclaw/api.py": "e220fc28885177f100ee286c3b4a022fe95032844864ff29e1cadbf67db45288",
+    "src/hyperclaw/cli.py": "135a0fb565ce0fd4cebfeae0269a092f6033a4b547435cd90e5cc1e63a2a42f6",
+    "src/hyperclaw/config.py": "237a6ab45e80105273a25c1d93914f7e5c6c76fc8ba2af3278adc818b828e197",
+    "src/hyperclaw/contracts.py": "08e5b9fab1bddcb35175fd99cb28253963447677cc7bfcd7041d2e752196059b",
+    "src/hyperclaw/execution/__init__.py": "bc1e4e62920334999d8d56917d6511496249109f6d5927a269b2a2d6f03a9bbc",
+    "src/hyperclaw/execution/docker.py": "a8efaa7e018e477f462509d4b0112f19bca7e79aba2539b6cb80c6f946d283ed",
+    "src/hyperclaw/execution/policy.py": "f41da2647d96295495beaab2bb595391c4624673db809735e8d5111b34134117",
+    "src/hyperclaw/execution/workspace.py": "05265e4e1cd3858cd29662c211233469d5e5509378311d5ec1593769b480f3ef",
+    "src/hyperclaw/ollama.py": "204a26ea228c8d8eac153637df2604224924d98f5cf71397351464cc9da440d3",
+    "src/hyperclaw/runtime.py": "f7ae77d092fab95080eb6c731f0c0a8a9cec5e56d50fab1b3176ebcf76e8c736",
+    "src/hyperclaw/scheduling.py": "059435e9912450c5b6dc086bcb0f54e70b5d407e108321dd216bffc3ccb6baa8",
+    "src/hyperclaw/store.py": "d91965457add846d57e21b793506ee2a6da157efc37958ccc7f7d7a3fddff4ce"
+  },
+  "test_and_dependency_sha256": {
+    "pyproject.toml": "1c1780365f97dabc26d40375a56ecb68b4457bc3803c6ab739ef73cf3e78b4fc",
+    "tests/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/conftest.py": "2aaf303e7a979824a6835ea921dc5c465a13901ac9c75f5fea00a46fe3363fd6",
+    "tests/integration/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/integration/test_background.py": "2a3c1344a2e74575dca7b1385f26d826f103deaef7c865c999404508cd6df9e5",
+    "tests/integration/test_cli_tools.py": "fe5d5626e437407ff8697d228b0b6fb8494096725da71695c27b22138c8c2bb6",
+    "tests/integration/test_execution.py": "d961121bd6341aa835e63f474d269858f00e2d9b28e59f53461778bb00fef0ab",
+    "tests/integration/test_http.py": "b4e277aedde5cae311b7e0dd3d08e5b7444629ce562290745095ce57414d27ff",
+    "tests/integration/test_recovery.py": "fba697a95c9d03fcc7281e4ee5f6718735b0d0259ae3f42e6a18e3142db11b2c",
+    "tests/integration/test_runtime.py": "9a32d7fe8a1b2a5adfffb0f30287c70744855abb631532d5fc8a7ed4e468bb6d",
+    "tests/integration/test_scheduling.py": "2cadb388b49cf0483ab857b868ad51ac25d51a0efcfdd49edf168bee1cff3a81",
+    "tests/integration/test_tools_runtime.py": "73db1d5d3ed0b339e838133e9f4c269df4bf804d3cb4ec852a04be9df8a6a3b4",
+    "tests/live/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/live/conftest.py": "8a87b9f7f1c93becab981afc21999f91eadd2b5d73c17fe612f1166bfd572ece",
+    "tests/live/test_background_docker.py": "7535de2fb16391123e9e0aee1023102820c767dcc7317152edd423b146832cb0",
+    "tests/live/test_docker.py": "7681ce57272d7b4e55ee0fe1162b7917321bdd2fad92696b317055294eeede78",
+    "tests/live/test_execution_docker.py": "ee733c005ad441565e2c602e4a469c3b466d4dee6359c10591b5fb62315ecfcf",
+    "tests/live/test_ollama.py": "ad68dc369784f58ebec10ef09a1d274cd58ab4fcfe2569214f62ffc3d5b5da4a",
+    "tests/live/test_recovery_docker.py": "aa3723c2549e7d98b6add03f62746d7ee0e2de5b2a907615b520caf1b28b1122",
+    "tests/support/__init__.py": "06b25d1766e2d34633096b34868e547d84142c8a255596d665dd73d3198c3cfb",
+    "tests/support/images.py": "d81443d852bb6eba38c6d8d13ff4dfd120205f5e4ad4fc480126174d0c625a5f",
+    "tests/support/maintenance_daemon.py": "c7dd14b5c380576a470ad575258219046f1bea35f476f4de7b9f8a9b93be0464",
+    "tests/support/process.py": "6a2ef18fd17ede743fbf094d4db1f6f1c5cb2f7d037896b9ab5e3a0e550b6889",
+    "tests/support/provider.py": "a33e6dbda220d1283d5aa2694eb80d793e56a94e16dfffe9881434f33f78ed49",
+    "tests/support/recovery_daemon.py": "8f0ef34cd602950a785877cb18037f43f3b08aa9e47534c27604dc9d0cb684b0",
+    "tests/support/tool_provider.py": "d7e604dd6aadb1dbace7f278bcfe66ff57ed70a5004ca6020c16ee2775f71f1f",
+    "tests/unit/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests/unit/test_battery.py": "65386c142c70c5b327476f41a3500b9ef81012c644c6505d91090c71bf20a688",
+    "tests/unit/test_config.py": "02dd694ab0830a1a984e2e2bcd3df38ca7cedf55cc945ad818097e3a58302d03",
+    "tests/unit/test_docker.py": "0e456640f48607e2b2375c857a415b6999871540e62394db8dad990328a32f6e",
+    "tests/unit/test_execution_store.py": "4032dc4749670ba06d4de2724569d0d100168273c055fc3955f4a2dd52310ee3",
+    "tests/unit/test_images.py": "50d57f28a1cc8a9ae01eaae0b77b66b6ec0cfe74c3ad864c415bbc5d64ae7384",
+    "tests/unit/test_ollama.py": "bf6efab7423f96cc2a4f669f4e48a5339a5c9c745cd5c429fa4a7ce39f044a12",
+    "tests/unit/test_policy.py": "6993660a27cce8b21724e9672768bc06ce5629f486a671d975480b8d9892309c",
+    "tests/unit/test_scheduling.py": "f1b7f692be3c4da4cdfc347d49814474e3ee2024e804c161a9c7c5cfd1188f4c",
+    "tests/unit/test_store.py": "b172418eb0cb0a6dbf9d1174dfdae500d2f0c1734b7c80ae4e31d5143bef9c2c",
+    "tests/unit/test_tool_transport.py": "f55aaabff17aa71a51ffc9637f072605c0852de2d2d8539136949aae038dee9d",
+    "tests/unit/test_workspace.py": "b39e765c46b858b85758dfe9001f4273b304287528a5e1fcdbedf41be6df4d3a",
+    "uv.lock": "91eae50a6f44fcab3d6fa9f5fa9913a8edf7563848a5e4afcea98370fb7054e4"
+  },
+  "final_inputs_match": true,
+  "implementation_evidence": {
+    "task_1": [
+      "uv run --locked pytest tests/integration/test_recovery.py -q\n2 failed, 5 passed in 48.32s\n",
+      "uv run --locked pytest 'tests/integration/test_recovery.py::test_process_kill_matrix[after_invocation-interrupted-interrupted-False]' 'tests/integration/test_recovery.py::test_process_kill_matrix[after_receipt-interrupted-succeeded-True]' -q\n2 passed in 2.71s\n",
+      "uv run --locked pytest tests/integration/test_recovery.py tests/integration/test_execution.py -q\n18 passed in 7.88s\n",
+      "uv run --locked pytest tests/live/test_recovery_docker.py --run-docker -q\n3 passed in 25.52s\n",
+      "uv run --locked pytest tests/unit/test_execution_store.py tests/unit/test_docker.py tests/unit/test_store.py tests/integration/test_execution.py tests/integration/test_runtime.py tests/integration/test_tools_runtime.py tests/integration/test_http.py tests/integration/test_cli_tools.py tests/integration/test_recovery.py -q\n85 passed in 41.56s\n",
+      "uv run --locked pytest tests/live/test_docker.py tests/live/test_execution_docker.py tests/live/test_recovery_docker.py --run-docker -q\n9 passed in 49.49s\n",
+      "uv run --locked pytest tests/integration/test_execution.py::test_reconcile_preserves_approved_queued_invocation -q\n1 failed in 0.21s\n",
+      "uv run --locked pytest tests/integration/test_recovery.py tests/integration/test_execution.py::test_reconcile_preserves_approved_queued_invocation tests/integration/test_execution.py::test_reconcile_settles_prepared_invocation_for_terminal_parent -q\n10 passed in 9.13s\ngit diff --check\nexit 0\n",
+      "uv run --locked pytest tests/live/test_recovery_docker.py --run-docker -q\n3 passed in 22.82s\ngit diff --check\nexit 0\n"
+    ],
+    "task_2": [
+      "uv run --locked pytest tests/unit/test_store.py tests/unit/test_execution_store.py -q\n16 passed in 1.24s\n",
+      "uv run --locked pytest tests/unit/test_scheduling.py -q\nexit 1: 14 failed\n",
+      "uv run --locked pytest tests/unit/test_scheduling.py -q\n13 passed, 1 failed in 0.41s\n",
+      "uv run --locked pytest tests/unit/test_scheduling.py::test_uncertain_occurrence_pauses_future_work_and_cannot_be_retargeted -q\n1 failed in 0.12s: expected paused, observed active\n",
+      "uv run --locked pytest tests/unit/test_scheduling.py -q\n14 passed in 0.31s\n",
+      "uv run --locked pytest tests/unit/test_scheduling.py tests/unit/test_store.py tests/unit/test_execution_store.py -q\n30 passed in 0.49s\n",
+      "uv run --locked pytest tests/unit -q\n129 passed in 7.73s\n\nuv run --locked pytest tests/integration/test_execution.py tests/integration/test_recovery.py tests/integration/test_runtime.py -q\n30 passed in 12.07s\n",
+      "uv run --locked pytest -q -k 'not approval_expires_while_another_session_occupies_worker and not failed_background_owner_makes_health_and_acceptance_unavailable'\n188 passed, 18 deselected in 34.87s\n",
+      "uv run --locked python -m compileall -q src/hyperclaw tests/unit/test_scheduling.py\nexit 0\n\ngit diff --check\nexit 0\n",
+      "uv run --locked pytest tests/unit/test_scheduling.py::test_v2_reserved_request_id_collision_does_not_become_schedule_provenance -q\n1 failed in 0.29s: observed legacy-run as the new occurrence run\n",
+      "uv run --locked pytest tests/unit/test_scheduling.py::test_v2_reserved_request_id_collision_does_not_become_schedule_provenance -q\n1 passed in 0.42s\n\nuv run --locked pytest tests/unit/test_scheduling.py tests/unit/test_store.py tests/unit/test_execution_store.py -q\n31 passed in 0.91s\n\nuv run --locked pytest tests/integration/test_execution.py tests/integration/test_recovery.py tests/integration/test_runtime.py -q\n30 passed in 13.22s\n\nuv run --locked pytest tests/unit -q\n130 passed in 9.32s\n\ngit diff --check\nexit 0\n\nuv run --locked python -m compileall -q src/hyperclaw tests/unit/test_scheduling.py\nexit 0\n"
+    ],
+    "task_3": [
+      "uv run --locked pytest tests/integration/test_scheduling.py tests/integration/test_background.py -q\n9 failed, 2 passed in 28.35s\n",
+      "uv run --locked pytest tests/integration/test_scheduling.py tests/integration/test_background.py -q\n2 failed, 9 passed in 13.90s\n",
+      "uv run --locked pytest tests/integration/test_scheduling.py::test_maintenance_reserves_other_session_while_worker_busy_then_runs_approved_tool 'tests/integration/test_background.py::test_failed_background_owner_makes_health_and_acceptance_unavailable[worker]' -q\n2 passed in 4.92s\n",
+      "uv run --locked pytest tests/integration/test_scheduling.py tests/integration/test_background.py -q\n11 passed in 19.18s\n",
+      "uv run --locked pytest tests/unit tests/integration/test_scheduling.py tests/integration/test_background.py tests/integration/test_runtime.py tests/integration/test_http.py tests/integration/test_cli_tools.py tests/integration/test_recovery.py -q\n1 failed, 181 passed in 51.95s\n",
+      "uv run --locked pytest tests/integration/test_http.py::test_storage_failure_rejects_new_work_with_503 -q\n1 passed in 0.59s\n",
+      "uv run --locked pytest tests/integration/test_scheduling.py::test_cli_schedule_commands_use_daemon_http_and_fetch_current_generations -q\n1 failed in 0.91s\n",
+      "uv run --locked pytest tests/integration/test_scheduling.py::test_cli_schedule_commands_use_daemon_http_and_fetch_current_generations -q\n1 passed in 3.87s\n",
+      "uv run --locked pytest tests/unit/test_scheduling.py tests/integration/test_scheduling.py tests/integration/test_background.py tests/integration/test_runtime.py tests/integration/test_http.py tests/integration/test_cli_tools.py tests/integration/test_recovery.py -q\n67 passed in 49.37s\n\nuv run --locked pytest tests/live/test_background_docker.py --run-docker -q\n1 passed in 10.51s\n\nuv run --locked python -m compileall -q src/hyperclaw tests/integration/test_scheduling.py tests/integration/test_background.py tests/live/test_background_docker.py tests/support/recovery_daemon.py tests/support/maintenance_daemon.py\nexit 0\n\ngit diff --check\nexit 0\n"
+    ]
+  },
+  "earlier_batteries": [
+    {
+      "artifact_path": "test-results/m3-final/live/live-20260910T035537851440Z/summary.json",
+      "mode": "live",
+      "started_at": "2026-09-10T03:55:37.851440+00:00",
+      "elapsed_seconds": 129.625,
+      "exit_code": 0,
+      "python": "3.11.13",
+      "command": [
+        "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/.venv/bin/python3",
+        "-m",
+        "pytest",
+        "tests/live",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/live/live-20260910T035537851440Z/junit.xml",
+        "--run-ollama",
+        "--ollama-url",
+        "http://127.0.0.1:11434",
+        "--ollama-model",
+        "qwen3.8:27b-mlx",
+        "-m",
+        "ollama"
+      ],
+      "tests": {
+        "total": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "artifact_path": "test-results/m3-final/macos-docker/docker-20260910T035850529265Z/summary.json",
+      "mode": "docker",
+      "started_at": "2026-09-10T03:58:50.529265+00:00",
+      "elapsed_seconds": 61.0,
+      "exit_code": 0,
+      "python": "3.11.13",
+      "command": [
+        "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/.venv/bin/python3",
+        "-m",
+        "pytest",
+        "tests/live",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/macos-docker/docker-20260910T035850529265Z/junit.xml",
+        "--run-docker",
+        "-m",
+        "docker"
+      ],
+      "tests": {
+        "total": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "artifact_path": "test-results/m3-final/macos311/quick-20260910T035552219193Z/summary.json",
+      "mode": "quick",
+      "started_at": "2026-09-10T03:55:52.219193+00:00",
+      "elapsed_seconds": 67.126,
+      "exit_code": 0,
+      "python": "3.11.13",
+      "command": [
+        "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/.venv/bin/python3",
+        "-m",
+        "pytest",
+        "tests",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/macos311/quick-20260910T035552219193Z/junit.xml",
+        "-m",
+        "not ollama and not docker",
+        "--cov=src/hyperclaw",
+        "--cov-report=xml:/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/macos311/quick-20260910T035552219193Z/coverage.xml",
+        "--cov-report=json:/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/macos311/quick-20260910T035552219193Z/coverage.json",
+        "--cov-report=html:/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/macos311/quick-20260910T035552219193Z/htmlcov",
+        "--cov-report=term:skip-covered"
+      ],
+      "tests": {
+        "total": 198,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "coverage": {
+        "statements": {
+          "covered": 2419,
+          "total": 2815
+        },
+        "branches": {
+          "covered": 602,
+          "total": 816
+        }
+      }
+    },
+    {
+      "artifact_path": "test-results/m3-final/macos313/quick-20260910T035717223397Z/summary.json",
+      "mode": "quick",
+      "started_at": "2026-09-10T03:57:17.223397+00:00",
+      "elapsed_seconds": 0.016,
+      "exit_code": 1,
+      "python": "3.13.5",
+      "command": [
+        "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-verify-imvxbo76/python313/bin/python",
+        "-m",
+        "pytest",
+        "tests",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/macos313/quick-20260910T035717223397Z/junit.xml",
+        "-m",
+        "not ollama and not docker"
+      ],
+      "tests": null
+    },
+    {
+      "artifact_path": "test-results/m3-final/macos313/quick-20260910T035841447815Z/summary.json",
+      "mode": "quick",
+      "started_at": "2026-09-10T03:58:41.447815+00:00",
+      "elapsed_seconds": 73.317,
+      "exit_code": 0,
+      "python": "3.13.5",
+      "command": [
+        "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-verify-imvxbo76/python313-final/bin/python",
+        "-m",
+        "pytest",
+        "tests",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor/test-results/m3-final/macos313/quick-20260910T035841447815Z/junit.xml",
+        "-m",
+        "not ollama and not docker"
+      ],
+      "tests": {
+        "total": 198,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "artifact_path": "test-results/m3-linux-initial/batteries/docker-20260910T035739265718Z/summary.json",
+      "mode": "docker",
+      "started_at": "2026-09-10T03:57:39.265718+00:00",
+      "elapsed_seconds": 62.458,
+      "exit_code": 0,
+      "python": "3.13.5",
+      "command": [
+        "/tmp/hyperclaw-m3-linux-ojrqcft2/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/live",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/tmp/hyperclaw-m3-linux-ojrqcft2/reports/docker-20260910T035739265718Z/junit.xml",
+        "--run-docker",
+        "-m",
+        "docker"
+      ],
+      "tests": {
+        "total": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "artifact_path": "test-results/m3-linux-initial/batteries/quick-20260910T035546289527Z/summary.json",
+      "mode": "quick",
+      "started_at": "2026-09-10T03:55:46.289527+00:00",
+      "elapsed_seconds": 112.401,
+      "exit_code": 0,
+      "python": "3.13.5",
+      "command": [
+        "/tmp/hyperclaw-m3-linux-ojrqcft2/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=/tmp/hyperclaw-m3-linux-ojrqcft2/reports/quick-20260910T035546289527Z/junit.xml",
+        "-m",
+        "not ollama and not docker"
+      ],
+      "tests": {
+        "total": 198,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    }
+  ],
+  "independent_review": {
+    "recovery": {
+      "range": "4727861..77d07df",
+      "spec": "approved",
+      "quality": "approved",
+      "findings": []
+    },
+    "scheduling": {
+      "range": "77d07df..b9e322c",
+      "important": "Migrated v2 schedule: IDs could alias historical runs into new occurrences.",
+      "fix_range": "b9e322c..1baf526",
+      "fix_verdict": "addressed; no new breakage",
+      "deferred_minor": "Each tick scans all active schedules before filtering due time."
+    },
+    "daemon": {
+      "range": "1baf526..627ed3c",
+      "status": "approved",
+      "spec": "compliant",
+      "quality": "approved",
+      "deferred_minor": "Maintenance failure logging omits the exception cause/traceback."
+    },
+    "final": {
+      "range": "4727861..dc4083e",
+      "implementation_commit": "627ed3c",
+      "model": "gpt-6-astra",
+      "spec": "compliant",
+      "quality": "approved",
+      "critical_findings": 0,
+      "important_findings": 0,
+      "deferred_minors": [
+        "Active schedules are scanned before filtering due time; large-population performance is unbenchmarked.",
+        "Maintenance failure logging omits exception cause/traceback."
+      ],
+      "report": "# Independent final M3 review\n\nReviewed range: `4727861..dc4083e`; final implementation: `627ed3c`.\n\n## Spec compliance\n\n**Compliant for the complete M3 milestone.** No material plan deviation or unresolved correctness defect was found. The review covered the whole-M3 package, changed source and tests, relevant surrounding ownership/reconciliation code, the design/roadmap/M3 plan, task reports and reviews, the migration fix re-review, and the acceptance Markdown/JSON. The package contains exactly the same changed lines as the named Git range; its additional wrapper/context accounts for the byte difference from plain `git diff`.\n\n- Foreground and detached work share `Runtime._work` and the existing execution loop. CLI observation is independent of ownership; disconnect does not cancel execution (`src/hyperclaw/runtime.py:162`, `tests/integration/test_recovery.py:32`, `tests/integration/test_recovery.py:58`).\n- Executor reconciliation, approval expiry, and running-run recovery finish before either worker or maintenance starts (`src/hyperclaw/runtime.py:38`). Prepared intents are settled only when their parent was running or terminal, preserving approved queued work; committed receipts remain immutable and recovery retains verification (`src/hyperclaw/execution/__init__.py:210`, `src/hyperclaw/store.py:532`).\n- Host and Docker SIGKILL tests cover invocation preparation, dispatch/effect ambiguity, committed receipts, owned process termination, unavailable backend evidence, repeated ordinary startup, and no effect/provider replay (`tests/integration/test_recovery.py:95`, `tests/live/test_recovery_docker.py:79`). The post-dispatch marker gap is conservatively uncertain; linked explicit retries cannot target an uncertain run.\n- Additive schema 3 and shared private submission keep run, message, queue event, occurrence, and schedule advancement in one serialized Store transaction. Tests cover simultaneous ticks, rollback, migration/reopen, and SIGKILL before/after COMMIT (`src/hyperclaw/store.py:86`, `src/hyperclaw/store.py:281`, `src/hyperclaw/store.py:396`, `tests/unit/test_scheduling.py:78`, `tests/integration/test_scheduling.py:229`).\n- UTC normalization and fixed precision, bounded inputs, integer cadence arithmetic, downtime coalescing, busy-session retention, consumed terminal occurrences, generation CAS, and permanent uncertainty pause match the plan. Reset and uncertain completion pause within their own transactions; retarget cannot erase uncertainty (`src/hyperclaw/contracts.py:124`, `src/hyperclaw/store.py:266`, `src/hyperclaw/store.py:373`, `src/hyperclaw/store.py:396`, `src/hyperclaw/store.py:517`).\n- The migrated v2 request-ID finding is resolved: scheduled submission cannot adopt an existing run; a collision selects a fresh bounded ID inside the same transaction while preserving the historical run/event (`src/hyperclaw/store.py:289`, `src/hyperclaw/store.py:423`, `tests/unit/test_scheduling.py:396`).\n- Maintenance owns expiry/reservation without executing work. Either owner failure makes new guarded acceptance unavailable and health returns 503; close wakes and awaits both tasks before releasing Store ownership (`src/hyperclaw/runtime.py:53`, `src/hyperclaw/runtime.py:141`, `src/hyperclaw/runtime.py:195`, `src/hyperclaw/runtime.py:202`, `src/hyperclaw/api.py:115`). The tests establish reservation and expiry while the worker is occupied, zero dispatch after queued cancellation, one exact approval decision/resume, and responsive controls under slow model and Docker work.\n- All schedule routes use the existing bearer boundary and Runtime; all CLI schedule controls use HTTP. Accepted IDs remain addressable as one URL segment, creation fetches the current session generation, and retarget supplies both generation values (`src/hyperclaw/api.py:93`, `src/hyperclaw/api.py:137`, `src/hyperclaw/cli.py:284`, `tests/integration/test_scheduling.py:51`).\n\nThe scope remains one package and CLI, one owner per root, existing execution policy and local model defaults, with no dependency expansion, M4 implementation, service adoption, push, or merge.\n\n## Strengths\n\n- Durable transitions reuse the existing Store connection, transaction wrapper, and normal submission logic, reducing the risk of divergent acceptance semantics.\n- Uncertainty handling composes correctly across effect recovery, terminalization, schedule pausing, and public retargeting. An incomplete model answer is interrupted even when a tool receipt proves its effect completed.\n- Failure tests inspect actual files, receipts, events, provider requests, and owned containers after real process death. Test-only fault controls do not become production settings.\n- The acceptance evidence names the exact final implementation, retains initial failures and their corrections, distinguishes selected external-service tests from offline tests, and separates executed local Linux from unexecuted hosted CI.\n\n## Issues\n\n### Critical \u2014 must fix\n\nNone.\n\n### Important \u2014 should fix\n\nNone.\n\n### Minor \u2014 nonblocking follow-ups\n\n1. **Active schedules are scanned before filtering due time.** `src/hyperclaw/store.py:404` loads all active schedules and reconstructs/checks each before its due-time comparison. At the 100 ms polling cadence (`src/hyperclaw/runtime.py:16`), large future schedule populations and their occurrence history can consume Store-owner time and delay other Store calls. The existing `(status,next_due_at)` index could bound the selection to due schedules. Preserve the transactional reset/uncertain-finish invariants when narrowing this query, and use a representative population measurement if schedule scale becomes a requirement. This is **not an M3 delivery blocker**: no large-population throughput target is specified, current behavior is correct, and the unbenchmarked limit is explicitly reported.\n\n2. **Maintenance failure logging loses the cause.** `src/hyperclaw/runtime.py:219` catches the exception and emits only a generic error message at line 223. Operators see the correct unavailable state but cannot diagnose the failure from that log. A future change should retain an appropriate exception class/cause or traceback in local logs while preserving the generic public 503 response. This is **not an M3 delivery blocker** because failure containment, acceptance gating, health reporting, and shutdown remain correct. The existing worker handler has the same diagnostic limitation.\n\n## Verification and limits\n\nNo test suite was rerun during review, as instructed. No concrete uncovered hypothesis required a targeted reproduction. Production source, tests, index, HEAD, and branch were not mutated; this report is the only review-authored file.\n\nThe controller's final recorded gates show 198 offline tests passing on macOS Python 3.11, macOS Python 3.13, and native-storage local Linux; 10 selected Docker tests passing on each of macOS and Linux; and all five selected Qwen tests passing. All six reported gate test counts and exit statuses were independently compared with their referenced local summary artifacts and matched. All 14 source hashes plus 39 test/dependency hashes were independently checked against current files and matched. The report records a built wheel with 14 Python files matching source, a fresh dependency/wheel installation, site-packages imports from an unrelated cwd, and installed CLI/HTTP schedule smoke checks.\n\nHosted Ubuntu CI is configured but was not run. Local Linux was a disposable Debian/aarch64 runner on Docker Desktop; this does not imply an independent hosted or x86 Linux execution. Large schedule-population performance was not measured. These limits are disclosed and do not invalidate the bounded M3 gates.\n\n## Recommendations\n\nRetain the two Minor items as explicit deferred follow-ups. Before declaring the overall task delivered, the controller should record this approval in the acceptance Markdown/JSON and plan/roadmap status, complete and record the test-owned keepalive cleanup, and make the authorized local documentation commit. Those final-review status and cleanup entries are intentionally pending in the reviewed snapshot and are administrative completion work, not implementation findings. No new full test battery is justified by documentation-only finalization.\n\n## Assessment\n\n**Spec verdict: compliant. Quality verdict: approved. Ready for M3 delivery: yes, after the already planned documentation/cleanup finalization.**\n\n**Ready to merge? Yes from this technical review; no merge or push is requested or authorized by this review.** The implementation satisfies the recovery, scheduling, public-control, and platform-evidence requirements with no Critical or Important issue. The two Minors can remain deferred without reopening the M3 implementation.\n"
+    }
+  },
+  "hosted_ci": {
+    "configured": true,
+    "executed": false,
+    "platform": "ubuntu-24.04",
+    "python": [
+      "3.11",
+      "3.13"
+    ],
+    "docker_gate_python": "3.13"
+  },
+  "diagnostic_attempts": [
+    {
+      "stage": "recovery_RED",
+      "result": "Prepared-intent settlement and retained receipt verification failed before the targeted recovery fix."
+    },
+    {
+      "stage": "schedule_RED",
+      "result": "Missing contracts/Store scheduling; uncertainty-retarget window then closed by pausing in the terminal transaction."
+    },
+    {
+      "stage": "review_migration_RED",
+      "result": "Exact v2 namespace collision reproduced legacy-run adoption; regression passed after 1baf526."
+    },
+    {
+      "stage": "daemon_RED",
+      "result": "9 failed/2 passed before routes, CLI, maintenance and health changes; initial timestamp/due-window test assumptions corrected as recorded in task3 evidence."
+    },
+    {
+      "stage": "legacy_health_regression",
+      "result": "181 passed/1 failed because the old test expected healthy status after worker death; updated assertion and affected 67 passed."
+    },
+    {
+      "stage": "Docker_startup",
+      "command": [
+        "uv",
+        "run",
+        "--locked",
+        "pytest",
+        "tests/live/test_background_docker.py",
+        "--run-docker",
+        "-q"
+      ],
+      "result": "1 failed in 41.69s while Docker VM startup was unavailable; direct Docker probes also failed. After readiness, 1 passed in 9.31s. No runtime fix was inferred from the outage."
+    },
+    {
+      "stage": "python313_environment",
+      "result": "Initial disposable environment had incomplete pytest package files and failed before collection. A fresh no-cache locked copy install succeeded; cause of earlier missing files not established."
+    },
+    {
+      "stage": "source_refresh",
+      "result": "Late CLI metavar ID/INPUT help clarification changed cli.py and its test after first platform runs. All final batteries and wheel were refreshed against 627ed3c; earlier runs retained separately."
+    }
+  ],
+  "preservation": {
+    "main_head": "6f758390996b61f86fe57415954aa3f8fced583a",
+    "personal_roots_touched": false,
+    "other_worktrees_touched": false,
+    "push": false,
+    "merge": false,
+    "service_adoption": false,
+    "m4_started": false,
+    "docker_keepalive_cleanup": "removed",
+    "final_check": {
+      "main_head": "6f758390996b61f86fe57415954aa3f8fced583a",
+      "main_status": "?? .engram/",
+      "other_worktree_head": "503080511fdc66635844513103054b4e3c1966ef",
+      "other_worktree_status": "",
+      "verified_inputs": 53,
+      "git_status_commands_exit": 0
+    }
+  },
+  "limits": [
+    "Local Linux uses a disposable Debian/aarch64 runner on Docker Desktop, not an executed hosted CI job.",
+    "Exactly-once reservation/enqueue does not promise exactly-once external effects; uncertain effects never retry automatically.",
+    "The trusted Linux verification runner has Docker socket access; runtime command containers do not.",
+    "Active schedule scans are unbounded by due time; large schedule-population performance was not benchmarked.",
+    "No lint or type-check tool is configured; no such passing gate is claimed."
+  ],
+  "cleanup": {
+    "docker_keepalive": {
+      "command": [
+        "docker",
+        "rm",
+        "--force",
+        "hyperclaw-m3-verification-83d1cb6893"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.114,
+      "output": "hyperclaw-m3-verification-83d1cb6893"
+    },
+    "temporary_roots_removed": [
+      "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-verify-imvxbo76",
+      "/tmp/hyperclaw-m3-linux-f2y5zmcm",
+      "/tmp/hyperclaw-m3-linux-ojrqcft2",
+      "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-uludjt1b",
+      "/var/folders/22/vq214l996slc0yh6d4764rxw0000gn/T/hyperclaw-m3-wheel-6vzt2r8g"
+    ],
+    "remaining_runtime_containers": {
+      "command": [
+        "docker",
+        "ps",
+        "-a",
+        "--filter",
+        "label=io.hyperclaw.installation",
+        "--format",
+        "{{.ID}} {{.Names}}"
+      ],
+      "exit_code": 0,
+      "output": ""
+    }
+  },
+  "controller_rulings": []
+}

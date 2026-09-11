@@ -1,0 +1,65 @@
+{
+  "milestone": "M1",
+  "branch": "refactor/runtime-v2",
+  "runs": [
+    {
+      "mode": "quick",
+      "started_at": "2026-09-09T21:23:40.775165+00:00",
+      "elapsed_seconds": 14.41,
+      "exit_code": 0,
+      "python": "3.11.13",
+      "tests": {
+        "total": 88,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "coverage": {
+        "statements": {
+          "covered": 989,
+          "total": 1138
+        },
+        "branches": {
+          "covered": 267,
+          "total": 348
+        }
+      },
+      "artifact_directory": "test-results/quick-20260909T212340775165Z"
+    },
+    {
+      "mode": "quick",
+      "started_at": "2026-09-09T21:23:41.675004+00:00",
+      "elapsed_seconds": 12.887,
+      "exit_code": 0,
+      "python": "3.13.5",
+      "tests": {
+        "total": 88,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "artifact_directory": "test-results/quick-20260909T212341675004Z"
+    },
+    {
+      "mode": "live",
+      "started_at": "2026-09-09T21:17:57.804834+00:00",
+      "elapsed_seconds": 13.002,
+      "exit_code": 0,
+      "python": "3.11.13",
+      "tests": {
+        "total": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "artifact_directory": "test-results/live-20260909T211757804834Z"
+    }
+  ],
+  "wheel": {
+    "name": "hyperclaw-2.0.0.dev0-py3-none-any.whl",
+    "contents": "only hyperclaw and intended dist-info metadata",
+    "isolated_install_help_import": "passed"
+  },
+  "hosted_ci": "configured, not executed in this session",
+  "m2": "not started"
+}
