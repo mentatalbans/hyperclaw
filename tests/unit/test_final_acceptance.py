@@ -144,14 +144,16 @@ def test_walkthrough_attempts_all_finalizers_and_preserves_body_failure(tmp_path
 
 
 @pytest.mark.parametrize('ancestor_git', [False, True], ids=['git-free', 'unrelated-ancestor-git'])
-def test_wheel_report_from_git_free_source_is_honest(tmp_path, ancestor_git):
+def test_wheel_report_from_git_free_source_is_honest(tmp_path, monkeypatch, ancestor_git):
     from scripts import verify_wheel as wheel
+    from tests.unit.test_measure_runtime import unrelated_git_parent
 
+    no_git = tmp_path / 'empty-path'
+    no_git.mkdir()
+    monkeypatch.setenv('PATH', str(no_git))
+    assert shutil.which('git') is None
     if ancestor_git:
-        subprocess.run(['git', 'init', '-q', str(tmp_path)], check=True)
-        subprocess.run(['git', '-C', str(tmp_path), '-c', 'user.name=Synthetic',
-                        '-c', 'user.email=synthetic@example.invalid', 'commit',
-                        '--allow-empty', '-qm', 'Unrelated synthetic ancestor'], check=True)
+        unrelated_git_parent(tmp_path)
     source = tmp_path / 'copied-source'
     (source / 'scripts').mkdir(parents=True)
     shutil.copy2(wheel.ROOT / 'scripts/verify_wheel.py', source / 'scripts/verify_wheel.py')
@@ -160,7 +162,8 @@ def test_wheel_report_from_git_free_source_is_honest(tmp_path, ancestor_git):
         'import json; from pathlib import Path; from scripts.verify_wheel import initial_report; '
         'print(json.dumps(initial_report(variant="base", python="3.13", browser_channel=None, '
         'mcp_docs_image=None, report_dir=Path("reports"))))'],
-        cwd=source, capture_output=True, text=True, env=wheel.clean_environment(Path(sys.executable).parent.parent, tmp_path))
+        cwd=source, capture_output=True, text=True,
+        env=wheel.clean_environment(Path(sys.executable).parent.parent, tmp_path) | {'PATH': str(no_git)})
     assert probe.returncode == 0, probe.stderr
     report = json.loads(probe.stdout)
     assert report['source_commit'] is None
