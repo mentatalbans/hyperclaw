@@ -7,6 +7,7 @@ import asyncio
 from collections import Counter, deque
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+import fnmatch
 import hashlib
 import importlib.metadata
 import json
@@ -43,6 +44,10 @@ from tests.support.telegram_peer import update
 
 PHASES = ('recovery', 'schedules', 'populated', 'sustained')
 UTC = timezone.utc
+COPY_EXCLUDES = (
+    '.git', '.pytest_cache', '.superpowers', '.venv', '__pycache__', '*.egg-info',
+    'dist', 'test-results', 'build', '.worktrees', '.coverage', '.coverage.*', '*.pyc',
+)
 
 
 def positive_duration(value):
@@ -56,13 +61,46 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def source_identity():
-    paths = subprocess.check_output(['git', 'ls-files', '-z', '--cached', '--others',
-                                     '--exclude-standard'], cwd=ROOT).decode().split('\0')
+def git_output(*arguments):
+    # Explicit local metadata and no ambient GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE.
+    return subprocess.check_output(['git', '--git-dir', str(ROOT / '.git'),
+        '--work-tree', str(ROOT), *arguments], cwd=ROOT, stderr=subprocess.PIPE,
+        env={key: value for key, value in os.environ.items() if not key.startswith('GIT_')})
+
+
+def source_identity(*, excluded_paths=()):
+    excluded_paths = tuple(path.resolve() for path in excluded_paths)
+    def excluded(path):
+        resolved = path.resolve()
+        return any(resolved == item or item in resolved.parents for item in excluded_paths)
+    # A copied source tree must never discover an unrelated checkout above ROOT.
+    if not (ROOT / '.git').exists():
+        git = {'status': 'unavailable', 'reason': 'root_has_no_git_metadata'}
+    elif shutil.which('git') is None:
+        git = {'status': 'unavailable', 'reason': 'git_executable_unavailable'}
+    else:
+        git = {'status': 'available'}
+    if git['status'] == 'available':
+        paths = git_output('ls-files', '-z', '--cached', '--others', '--exclude-standard').decode().split('\0')
+        commit = git_output('rev-parse', 'HEAD').decode().strip()
+        inventory = {'kind': 'git-index-and-unignored-files'}
+    else:
+        paths = []
+        def walk_error(error):
+            raise error  # An unreadable directory must not silently disappear from provenance.
+        for directory, directories, filenames in os.walk(ROOT, onerror=walk_error):
+            directories[:] = sorted(name for name in directories
+                if not any(fnmatch.fnmatchcase(name, pattern) for pattern in COPY_EXCLUDES)
+                and not excluded(Path(directory) / name))
+            paths.extend(str((Path(directory) / name).relative_to(ROOT)) for name in filenames
+                if not any(fnmatch.fnmatchcase(name, pattern) for pattern in COPY_EXCLUDES))
+        commit = None
+        inventory = {'kind': 'filesystem', 'excluded_patterns': list(COPY_EXCLUDES)}
+    inventory['excluded_owned_output_paths'] = [str(path.relative_to(ROOT.resolve()))
+        for path in excluded_paths if ROOT.resolve() in path.parents]
     files = {name: digest(ROOT / name) for name in sorted(set(paths))
-             if name and (ROOT / name).is_file()}
-    return {'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT,
-                                              text=True).strip(), 'files': files,
+             if name and (ROOT / name).is_file() and not excluded(ROOT / name)}
+    return {'commit': commit, 'git': git, 'inventory': inventory, 'files': files,
             'sha256': hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()}
 
 
@@ -668,17 +706,33 @@ def main(argv=None):
     args.report_dir.mkdir(parents=True, exist_ok=True)
     directory = args.report_dir / ('measurement-' + datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ'))
     directory.mkdir()
-    scratch = Path(tempfile.mkdtemp(prefix='hyperclaw-measure-'))
-    journal = Journal(directory)
-    report = {'status': 'failed', 'command': [sys.executable, *sys.argv], 'source': source_identity(),
-              'environment': environment_identity(), 'seed': args.seed,
+    scratch = journal = None
+    report = {'status': 'failed', 'command': [sys.executable, str(Path(__file__).resolve()),
+              *(sys.argv[1:] if argv is None else argv)],
+              'source': {'status': 'not_run'}, 'environment': {'status': 'not_run'}, 'seed': args.seed,
               'requested_duration_seconds': args.duration_seconds, 'selected_phases': selected,
-              'scratch': str(scratch), 'phases': {p: {'status': 'not_run'} for p in PHASES},
-              'cleanup': {'residual_owned_processes': [], 'scratch_removed': False}}
-    (directory / 'dirty.diff').write_bytes(subprocess.check_output(['git', 'diff', 'HEAD', '--'], cwd=ROOT))
+              'scratch': None, 'phases': {p: {'status': 'not_run'} for p in PHASES},
+              'cleanup': {'residual_owned_processes': [], 'scratch_removed': False,
+                          'journal_closed': False, 'errors': []}}
     baseline_threads = {thread.ident for thread in threading.enumerate()}
     started = time.monotonic()
+    stage = 'scratch'
     try:
+        scratch = Path(tempfile.mkdtemp(prefix='hyperclaw-measure-'))
+        report['scratch'] = str(scratch)
+        stage = 'journal'
+        journal = Journal(directory)
+        stage = 'source'
+        report['source'] = {'status': 'failed'}
+        report['source'] = source_identity(excluded_paths=(directory,))
+        stage = 'git_provenance'
+        (directory / 'git-provenance.json').write_text(json.dumps(report['source']['git'], indent=2) + '\n')
+        if report['source']['git']['status'] == 'available':
+            (directory / 'dirty.diff').write_bytes(git_output('diff', 'HEAD', '--'))
+        stage = 'environment'
+        report['environment'] = {'status': 'failed'}
+        report['environment'] = environment_identity()
+        stage = 'workload'
         for phase in selected:
             report['phases'][phase] = {'status': 'failed'}
             journal.write('phase_start', phase=phase, seed=args.seed)
@@ -694,27 +748,54 @@ def main(argv=None):
                 value = globals()[phase](scratch, journal, args.seed)
             report['phases'][phase] = value
             journal.write('phase_complete', phase=phase)
-        assert source_identity() == report['source'], 'Source files changed during the measurement'
+        stage = 'source_verification'
+        assert source_identity(excluded_paths=(directory,)) == report['source'], 'Source files changed during the measurement'
         report['status'] = 'passed'
     except BaseException as exc:
-        report['failure'] = {'type': type(exc).__name__, 'message': str(exc), 'traceback': traceback.format_exc()}
-        journal.write('failure', **report['failure'])
+        report['failure'] = {'stage': stage, 'type': type(exc).__name__, 'message': str(exc),
+                             'traceback': traceback.format_exc()}
+        if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
+            report['failure']['stderr'] = exc.stderr.decode(errors='replace')
+        if journal is not None:
+            try:
+                journal.write('failure', **report['failure'])
+            except OSError as log_error:
+                report['cleanup']['errors'].append(str(log_error))
         traceback.print_exc()
     finally:
         report['duration_seconds'] = time.monotonic() - started
         report['cleanup']['residual_owned_threads'] = [t.name for t in threading.enumerate()
             if t.ident not in baseline_threads and t.is_alive()]
-        report['cleanup']['owned_processes'] = [{'pid': p.pid, 'returncode': p.poll()} for p in journal.processes]
-        report['cleanup']['residual_owned_processes'] = [p.pid for p in journal.processes if p.poll() is None]
-        if report['cleanup']['residual_owned_threads'] or report['cleanup']['residual_owned_processes']:
+        processes = journal.processes if journal is not None else []
+        report['cleanup']['owned_processes'] = [{'pid': p.pid, 'returncode': p.poll()} for p in processes]
+        report['cleanup']['residual_owned_processes'] = [p.pid for p in processes if p.poll() is None]
+        # Hash failures must not skip deleting scratch or closing an opened journal.
+        try:
+            if scratch is not None and journal is not None:
+                journal.write('scratch_final_hashes', hashes={str(p.relative_to(scratch)): digest(p)
+                    for p in scratch.rglob('*') if p.is_file() and p.name not in
+                    {'token', 'telegram-token', 'daemon.json', 'config.toml'}})
+        except OSError as exc:
+            report['cleanup']['errors'].append(str(exc))
+        finally:
+            try:
+                if scratch is not None:
+                    shutil.rmtree(scratch)
+                report['cleanup']['scratch_removed'] = scratch is None or not scratch.exists()
+            except OSError as exc:
+                report['cleanup']['errors'].append(str(exc))
+            finally:
+                if journal is not None:
+                    try:
+                        journal.file.close()
+                    except OSError as exc:
+                        report['cleanup']['errors'].append(str(exc))
+                    report['cleanup']['journal_closed'] = journal.file.closed
+                else:
+                    report['cleanup']['journal_closed'] = True  # No journal was opened.
+        if (report['cleanup']['residual_owned_threads'] or report['cleanup']['residual_owned_processes']
+                or report['cleanup']['errors']):
             report['status'] = 'failed'
-        # Hash synthetic evidence before deleting only this invocation's scratch tree.
-        journal.write('scratch_final_hashes', hashes={str(p.relative_to(scratch)): digest(p)
-            for p in scratch.rglob('*') if p.is_file() and p.name not in
-            {'token', 'telegram-token', 'daemon.json', 'config.toml'}})
-        shutil.rmtree(scratch)
-        report['cleanup']['scratch_removed'] = not scratch.exists()
-        journal.file.close()
         (directory / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
         print(str(directory / 'report.json'), flush=True)
     return 0 if report['status'] == 'passed' else 1

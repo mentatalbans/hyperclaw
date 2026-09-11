@@ -236,3 +236,24 @@ experiments as `not_run`; a focused pass alone is not the full thirty-cycle or
 eight-experiment acceptance. Graceful reopen supplies the pending photo's synthetic
 reply and requires its run and delivery to succeed, with exact provider/send
 counts, after the original first-signal shutdown assertions have passed.
+
+Copied verification source does not need Git. The runner checks only `.git` at
+its own source root and never discovers an ancestor repository. When root metadata
+or the Git executable is absent, `source.commit` is null and `source.git` and
+`git-provenance.json` explicitly report the reason Git provenance is unavailable;
+no `dirty.diff` is fabricated. A filesystem inventory records each included
+relative path and SHA-256 plus the aggregate manifest hash. Its declared exclusions
+cover Git metadata, virtual environments, caches, build/coverage output, agent
+scratch and test-results, matching the verification copy's source scope while
+omitting generated state. The current invocation's output directory is also
+excluded, so a report inside the copied tree does not invalidate source identity.
+Both entry and exit inventories must still match. In a checkout, Git uses explicit
+root metadata/worktree paths and discards ambient `GIT_*` overrides.
+
+Scratch creation, journal opening, source/environment metadata and Git diff capture
+are inside the report/cleanup guard. A setup failure records its stage and traceback,
+leaves workload phases `not_run`, closes an opened journal and removes owned scratch.
+Cleanup errors remain failures. Report-directory creation itself happens before any
+owned resource is allocated; an unwritable report destination can only return the
+error on stderr. These checks require neither Git installation nor dependency
+installation, and do not claim a copied archive belongs to any commit.
