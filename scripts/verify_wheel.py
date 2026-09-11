@@ -55,6 +55,7 @@ CORE_COPIED_FILES = [
     "tests/integration/test_telegram.py",
     "tests/integration/test_web_api.py",
     "tests/support/__init__.py",
+    "tests/support/cli_generation_race.py",
     "tests/support/images.py",
     "tests/support/process.py",
     "tests/support/provider.py",

@@ -233,6 +233,7 @@ def test_wheel_harness_includes_lazy_dependencies_of_selected_public_tests(tmp_p
     )
 
     assert probe.returncode == 0, probe.stdout + probe.stderr
+    assert (harness / 'tests/support/cli_generation_race.py').is_file()
     assert not (harness / 'tests/browser').exists()
     assert not (harness / 'tests/live').exists()
     assert not (harness / 'examples').exists()

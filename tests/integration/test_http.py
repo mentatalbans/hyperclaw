@@ -33,13 +33,19 @@ def test_http_requires_operator_token(service):
         assert stranger.post('/v1/sessions', json={}).status_code == 401
         for path in ['/v1/runs/missing', '/v1/runs/missing/events', '/v1/sessions/missing']:
             assert stranger.get(path).status_code == 401
-        assert stranger.get('/v1/runs/missing', headers={'Authorization': 'Bearer wrong'}).status_code == 401
+        wrong = stranger.get('/v1/runs/missing', headers={'Authorization': 'Bearer ' + '0' * 64})
+        assert wrong.status_code == 401
+        assert wrong.json() == {'error': {
+            'code': 'unauthorized', 'message': 'Operator bearer token required.',
+        }}
     assert app.client.post('/v1/sessions', json={}).status_code == 200
+    assert len(app.client.get('/v1/sessions').json()) == 1
     assert app.client.get('/healthz', headers={'Host': 'evil.example'}).status_code == 400
     assert app.client.post('/v1/sessions', headers={'Origin': 'https://evil.example'}).status_code == 403
     metadata = (app.root / 'daemon.json').read_text()
     token = (app.root / 'token').read_text().strip()
-    assert token not in metadata and token not in app.diagnostics()
+    credentials_absent = token not in metadata and token not in app.diagnostics() and token not in wrong.text
+    assert credentials_absent, 'operator token appeared in public metadata, diagnostics, or an auth error'
     assert peer.requests.empty()
 
 

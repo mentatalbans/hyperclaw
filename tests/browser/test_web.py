@@ -48,6 +48,254 @@ def wait_approval(page):
     return approval
 
 
+def keyboard_reach(page, selector, *, limit=80):
+    target = page.locator(selector).first
+    for _ in range(limit):
+        page.keyboard.press("Tab")
+        if target.evaluate("element => document.activeElement === element"):
+            assert target.is_visible()
+            assert target.evaluate("element => element.matches(':focus-visible')")
+            return target
+    focused = page.evaluate("document.activeElement && (document.activeElement.id || document.activeElement.outerHTML)")
+    raise AssertionError(f"Keyboard focus did not reach {selector}; stopped at {focused}")
+
+
+def test_operator_announcements_are_exposed_in_the_accessibility_tree(web_service, browser_page):
+    app, peer = web_service
+    page = browser_page
+    page.goto(app.url)
+
+    page.locator("#connect").click()
+    assert page.locator("#errors").aria_snapshot() == '- alert: Enter the operator token.'
+
+    peer.enqueue(Reply())
+    page.locator("#token").fill((app.root / "token").read_text().strip())
+    page.locator("#connect").click()
+    page.locator("#workspace").wait_for(state="visible")
+    page.locator("#new-session").click()
+    page.locator("#session-id").filter(has_not_text="None").wait_for()
+    send(page, "announce the terminal state")
+    wait_status(page, "succeeded")
+
+    assert page.locator("#connection-status").aria_snapshot() == '- status: Connected'
+    assert page.locator("#run-status").aria_snapshot() == (
+        '- status: "Run: succeeded · No verification requested"'
+    )
+
+
+def test_keyboard_only_operator_workflow_has_visible_focus_and_exact_decisions(
+    web_service, browser_page, request
+):
+    app, peer = web_service
+    page = browser_page
+    skill_dir = app.root / "skills" / "keyboard-guidance"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: keyboard-guidance\ndescription: Synthetic keyboard guidance.\n---\n"
+        "Keep operator controls reachable.\n"
+    )
+    skill = Skills(app.root / "skills").load("keyboard-guidance")
+    app.client.post(
+        "/v1/skills/keyboard-guidance/admit", json={"content_hash": skill.content_hash}
+    ).raise_for_status()
+    peer.enqueue(
+        Reply(frames=frames(
+            message_start(),
+            *tool_block(0, "keyboard-approved", "workspace_write", (
+                '{"path":"keyboard-approved.txt","content":"approved"}',
+            )),
+            *message_end(),
+        )),
+        Reply(chunks=("Approval completed.",)),
+        Reply(frames=frames(
+            message_start(),
+            *tool_block(0, "keyboard-denied", "workspace_write", (
+                '{"path":"keyboard-denied.txt","content":"denied"}',
+            )),
+            *message_end(),
+        )),
+    )
+    decisions = []
+    page.on("request", lambda outgoing: decisions.append(json.loads(outgoing.post_data))
+            if "/v1/approvals/" in outgoing.url and outgoing.url.endswith("/decision") else None)
+
+    page.goto(app.url)
+    keyboard_reach(page, "#token").type((app.root / "token").read_text().strip())
+    keyboard_reach(page, "#connect").press("Enter")
+    page.locator("#workspace").wait_for(state="visible")
+    keyboard_reach(page, "#new-session").press("Enter")
+    page.locator("#session-id").filter(has_not_text="None").wait_for()
+
+    keyboard_reach(page, "details summary").press("Enter")
+    tool = keyboard_reach(page, 'input[name="tools"][value="workspace_read"]')
+    tool.press("Space")
+    assert not tool.is_checked()
+    selected_skill = keyboard_reach(page, 'input[name="skills"][value="keyboard-guidance"]')
+    selected_skill.press("Space")
+    assert selected_skill.is_checked()
+    assert app.client.get(f'/v1/sessions/{page.locator("#session-id").text_content()}/runs').json() == []
+
+    message = keyboard_reach(page, "#message")
+    message.type("keyboard approval request")
+    message.press("Enter")
+    assert peer.requests.empty(), "Enter in the multiline composer must not submit"
+    assert "\n" in message.input_value()
+    keyboard_reach(page, "#send").press("Enter")
+    submitted = peer.take_request()
+    assert submitted["messages"][-1]["content"] == "keyboard approval request\n"
+    assert "workspace_read" not in [tool["name"] for tool in submitted["tools"]]
+    assert "Keep operator controls reachable." in submitted["system"]
+
+    approval = wait_approval(page)
+    exact_approval = json.loads(approval.locator("pre").text_content())
+    keyboard_reach(page, 'button[data-decision="approve"]').press("Enter")
+    wait_status(page, "succeeded")
+    assert decisions[-1] == {
+        "approved": True,
+        "arguments_sha256": exact_approval["arguments_sha256"],
+        "policy_sha256": exact_approval["policy_sha256"],
+    }
+    assert (app.root / "workspace" / "keyboard-approved.txt").read_text() == "approved"
+    continued = peer.take_request()
+    assert continued["messages"][-1]["content"][0]["tool_use_id"] == "keyboard-approved"
+    approved_run_id = page.locator("#run-id").text_content()
+
+    message = keyboard_reach(page, "#message")
+    message.type("keyboard denial request")
+    keyboard_reach(page, "#send").press("Enter")
+    assert peer.take_request()["messages"][-1]["content"] == "keyboard denial request"
+    approval = wait_approval(page)
+    exact_denial = json.loads(approval.locator("pre").text_content())
+    keyboard_reach(page, 'button[data-decision="deny"]').press("Enter")
+    wait_status(page, "failed")
+    assert decisions[-1] == {
+        "approved": False,
+        "arguments_sha256": exact_denial["arguments_sha256"],
+        "policy_sha256": exact_denial["policy_sha256"],
+    }
+    assert not (app.root / "workspace" / "keyboard-denied.txt").exists()
+
+    gate = threading.Event()
+    peer.enqueue(Reply(chunks=("keyboard cancellation prefix", " hidden suffix"), gate=gate))
+    message = keyboard_reach(page, "#message")
+    message.type("keyboard cancellation request")
+    keyboard_reach(page, "#send").press("Enter")
+    peer.take_request()
+    page.locator("#transcript").filter(has_text="keyboard cancellation prefix").wait_for()
+    keyboard_reach(page, "#cancel-run").press("Enter")
+    wait_status(page, "cancelled")
+    assert "keyboard cancellation prefix" in page.locator("#transcript").text_content()
+
+    keyboard_reach(page, f'#run-history button[data-run-id="{approved_run_id}"]').press("Enter")
+    wait_status(page, "succeeded")
+    assert page.locator("#run-id").text_content() == approved_run_id
+
+    accessibility = page.locator("main").aria_snapshot()
+    for accessible_control in (
+        "button \"Disconnect\"", "button \"New session\"", "button \"Send\"",
+        "button \"Cancel run\"", "button \"Refresh approvals\"",
+        "textbox \"Message\"", "checkbox \"workspace_write\"",
+        "checkbox \"keyboard-guidance — Synthetic keyboard guidance.\"",
+    ):
+        assert accessible_control in accessibility
+    screenshot_dir = Path(request.config.getoption("--browser-screenshot-dir"))
+    screenshot_dir.mkdir(parents=True, exist_ok=True)
+    (screenshot_dir / "keyboard-accessibility.yml").write_text(accessibility)
+
+    keyboard_reach(page, "#logout").press("Enter")
+    page.locator("#workspace").wait_for(state="hidden")
+    assert page.locator("#connection-status").aria_snapshot() == '- status: Disconnected'
+
+
+@pytest.mark.parametrize("width,zoom", [(320, 1), (390, 1), (1440, 1), (1440, 2)])
+def test_responsive_operator_surface_wraps_synthetic_hostile_content_without_leaks(
+    web_service, browser_page, request, width, zoom
+):
+    app, peer = web_service
+    page = browser_page
+    console_errors = []
+    page_errors = []
+    failed_requests = []
+    requested_urls = []
+    page.on("console", lambda message: console_errors.append(message.text)
+            if message.type == "error" else None)
+    page.on("pageerror", lambda error: page_errors.append(str(error)))
+    page.on("requestfailed", lambda outgoing: failed_requests.append(outgoing.url))
+    page.on("request", lambda outgoing: requested_urls.append(outgoing.url))
+    long_path = "synthetic-<img-src=x-onerror=window.pwned=true>-" + "x" * 140 + ".txt"
+    long_text = "Synthetic hostile <script>window.pwned=true</script> " + "Y" * 220
+    peer.enqueue(
+        Reply(frames=frames(
+            message_start(),
+            *tool_block(0, "synthetic-long-tool-call-id-" + "c" * 96, "workspace_write", (
+                json.dumps({"path": long_path, "content": long_text}),
+            )),
+            *message_end(),
+        )),
+        Reply(chunks=(long_text,)),
+    )
+
+    connect(page, app)
+    token = (app.root / "token").read_text().strip()
+    page.locator("#new-session").click()
+    page.locator("#session-id").filter(has_not_text="None").wait_for()
+    send(page, long_text)
+    peer.take_request()
+    approval = wait_approval(page)
+    approval.locator('button[data-decision="approve"]').click()
+    wait_status(page, "succeeded")
+    page.locator("#receipts").filter(has_text=long_path).wait_for()
+
+    if zoom == 1:
+        page.set_viewport_size({"width": width, "height": 900})
+    else:
+        page.set_viewport_size({"width": width // zoom, "height": 900 // zoom})
+    page.locator("#logout").scroll_into_view_if_needed()
+    essential_controls = (
+        "#logout", "#new-session", "#reset-session", "#cancel-run", "#reconnect-stream",
+        "#message", "#send", "details summary", "#run-history button", "#refresh-approvals",
+    )
+    for selector in essential_controls:
+        control = page.locator(selector).first
+        assert control.is_visible(), selector
+        assert control.evaluate("""element => {
+          const bounds = element.getBoundingClientRect();
+          return bounds.left >= 0 && bounds.right <= window.innerWidth;
+        }"""), f"essential control is outside the horizontal viewport: {selector}"
+    assert page.evaluate("window.pwned") is None
+    assert page.evaluate("""() => document.documentElement.scrollWidth <= window.innerWidth &&
+      document.body.scrollWidth <= window.innerWidth""")
+    overflow = page.evaluate("""() => [...document.querySelectorAll('body *')]
+      .filter(element => element.scrollWidth > element.clientWidth &&
+        getComputedStyle(element).overflowX === 'visible')
+      .map(element => ({tag: element.tagName, id: element.id,
+                        scrollWidth: element.scrollWidth, clientWidth: element.clientWidth}))""")
+    assert not overflow, overflow
+    assert page.evaluate("secret => !document.documentElement.innerHTML.includes(secret)", token), (
+        "operator token appeared in rendered markup"
+    )
+    assert page.evaluate("secret => !location.href.includes(secret)", token), (
+        "operator token appeared in the current URL"
+    )
+    assert page.evaluate("""async secret => {
+      const serialized = JSON.stringify({local: {...localStorage}, session: {...sessionStorage},
+        cookies: document.cookie, databases: indexedDB.databases ? await indexedDB.databases() : []});
+      return !serialized.includes(secret);
+    }""", token), "operator token appeared in browser storage"
+    assert all(page.evaluate("([url, secret]) => !url.includes(secret)", [url, token])
+               for url in requested_urls), "operator token appeared in a requested URL"
+
+    screenshot_dir = Path(request.config.getoption("--browser-screenshot-dir"))
+    screenshot_dir.mkdir(parents=True, exist_ok=True)
+    suffix = f"{width}px" if zoom == 1 else f"{width}px-effective-viewport-200pct"
+    screenshot = screenshot_dir / f"responsive-synthetic-{suffix}.png"
+    page.screenshot(path=str(screenshot), full_page=True)
+    assert screenshot.is_file() and screenshot.stat().st_size > 0
+    assert console_errors == []
+    assert page_errors == []
+    assert failed_requests == []
+
+
 def gate_fetch_completion(page, key, method, path):
     page.evaluate(
         """({key, method, path}) => {

@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
@@ -28,6 +29,17 @@ def service(tmp_path):
 def cli(app, *args):
     return subprocess.run(
         [sys.executable, '-m', 'hyperclaw', '--root', str(app.root), *args],
+        cwd=app._cwd.name,
+        env={'PATH': os.environ['PATH']},
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+
+def cli_with_launcher(app, launcher, *args):
+    return subprocess.run(
+        [sys.executable, str(launcher), '--root', str(app.root), *args],
         cwd=app._cwd.name,
         env={'PATH': os.environ['PATH']},
         capture_output=True,
@@ -204,3 +216,85 @@ def test_cli_rejects_invalid_image_before_submitting_a_run(service, tmp_path):
     assert result.returncode != 0
     assert 'invalid_image' in result.stderr
     assert peer.requests.empty()
+
+
+def test_cli_wrong_token_is_nonzero_actionable_and_creates_no_session(service):
+    app, peer = service
+    token_path = app.root / 'token'
+    token = token_path.read_text()
+    wrong_token = ('0' if token.strip() != '0' * 64 else '1') * 64
+    before = app.client.get('/v1/sessions').json()
+    token_path.write_text(wrong_token + '\n')
+    try:
+        result = cli(app, 'chat', 'must not be accepted')
+    finally:
+        token_path.write_text(token)
+
+    assert result.returncode != 0
+    assert 'unauthorized' in result.stderr and 'operator bearer token' in result.stderr.lower()
+    assert wrong_token not in result.stdout + result.stderr
+    assert app.client.get('/v1/sessions').json() == before
+    assert peer.requests.empty()
+
+
+def test_cli_chat_reports_real_stale_generation_race_without_provider_effect(service):
+    app, peer = service
+    session = app.client.post('/v1/sessions').json()
+    launcher = Path(__file__).parents[1] / 'support' / 'cli_generation_race.py'
+
+    result = cli_with_launcher(
+        app, launcher, 'chat', 'stale request', '--session', session['id']
+    )
+
+    assert result.returncode != 0
+    assert 'stale_generation' in result.stderr and 'generation changed' in result.stderr.lower()
+    assert app.client.get(f"/v1/sessions/{session['id']}").json()['generation'] == 1
+    assert app.client.get(f"/v1/sessions/{session['id']}/runs").json() == []
+    assert peer.requests.empty()
+
+
+def test_cli_failed_foreground_chat_is_nonzero_and_preserves_actionable_error(service):
+    app, peer = service
+    peer.enqueue(Reply(status=502))
+
+    result = cli(app, 'chat', 'surface the synthetic provider failure')
+
+    assert result.returncode != 0
+    assert 'failed' in result.stderr and 'http_502' in result.stderr
+    assert 'Model endpoint returned HTTP 502' in result.stderr
+    assert peer.requests.qsize() == 1
+    assert list((app.root / 'workspace').iterdir()) == []
+
+
+def test_cli_missing_docker_reports_uncertain_run_actionably_and_never_retries(tmp_path):
+    peer = ProviderStub()
+    empty_path = tmp_path / 'empty-path'
+    empty_path.mkdir()
+    app = Process(tmp_path / 'runtime', peer.url, environment={'PATH': str(empty_path)})
+    try:
+        app.start()
+        workspace = app.client.get('/v1/workspace').json()
+        granted = cli(app, 'grant', 'execute', '--workspace-id', workspace['id'])
+        assert granted.returncode == 0, granted.stderr
+        peer.enqueue(Reply(frames=frames(
+            message_start(),
+            *tool_block(0, 'missing-docker-command', 'command', ('{"argv":["true"]}',)),
+            *message_end(),
+        )))
+
+        result = cli(app, 'chat', 'run the unavailable command')
+
+        assert result.returncode != 0
+        identifier = run_id(result.stderr)
+        inspected = cli(app, 'run', 'inspect', identifier)
+        assert inspected.returncode == 0, inspected.stderr
+        assert json.loads(inspected.stdout)['status'] == 'uncertain'
+        assert 'uncertain' in result.stderr
+        assert 'Docker is unavailable' in result.stderr
+        assert peer.requests.qsize() == 1
+        receipts = app.client.get(f'/v1/runs/{identifier}/receipts').json()
+        assert len(receipts) == 1 and receipts[0]['status'] == 'uncertain'
+        assert list((app.root / 'workspace').iterdir()) == []
+    finally:
+        app.stop()
+        peer.close()
