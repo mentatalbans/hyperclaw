@@ -50,7 +50,7 @@ def test_public_shell_is_the_only_unauthenticated_web_surface(service):
 
         assert shell.headers["content-security-policy"] == (
             "default-src 'none'; script-src 'self'; style-src 'self'; "
-            "connect-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'; "
+            "connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; "
             "form-action 'self'"
         )
         assert shell.headers["cache-control"] == "no-store"
@@ -60,6 +60,7 @@ def test_public_shell_is_the_only_unauthenticated_web_surface(service):
             "/v1/sessions", headers={"Authorization": "Bearer forged"}
         ).status_code == 401
         assert anonymous.get("/v1/approvals").status_code == 401
+        assert anonymous.get("/favicon.ico").status_code == 401
         assert anonymous.post("/", json={}).status_code == 401
         assert anonymous.get("/web/missing.js").status_code == 401
         assert anonymous.get("/", headers={"Host": "evil.example"}).status_code == 400

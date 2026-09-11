@@ -150,7 +150,7 @@ def create_app(settings: Settings) -> FastAPI:
             'Cache-Control': 'no-store',
             'Content-Security-Policy': (
                 "default-src 'none'; script-src 'self'; style-src 'self'; "
-                "connect-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'; "
+                "connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; "
                 "form-action 'self'"
             ),
             'Referrer-Policy': 'no-referrer',

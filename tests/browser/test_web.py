@@ -92,6 +92,45 @@ def release_fetch_gate(page, key):
     )
 
 
+def test_normal_conversation_has_no_browser_or_favicon_errors(web_service, browser_page):
+    app, peer = web_service
+    page = browser_page
+    console_errors = []
+    page_errors = []
+    failed_requests = []
+    favicon_requests = []
+    favicon_responses = []
+    page.on("console", lambda message: console_errors.append({
+        "text": message.text, "location": message.location,
+    }) if message.type == "error" else None)
+    page.on("pageerror", lambda error: page_errors.append(str(error)))
+    page.on("request", lambda request: favicon_requests.append(request.url)
+            if request.url.endswith("/favicon.ico") else None)
+    page.on("requestfailed", lambda request: failed_requests.append({
+        "url": request.url, "failure": request.failure,
+    }))
+    page.on("response", lambda response: favicon_responses.append({
+        "url": response.url, "status": response.status,
+    }) if response.url.endswith("/favicon.ico") else None)
+    peer.enqueue(Reply(chunks=("A normal synthetic reply.",)))
+
+    connect(page, app)
+    page.locator("#new-session").click()
+    page.locator("#session-id").filter(has_not_text="None").wait_for()
+    send(page, "normal console check")
+    assert peer.take_request()["messages"][-1]["content"] == "normal console check"
+    wait_status(page, "succeeded")
+    assert "A normal synthetic reply." in page.locator("#transcript").text_content()
+    page.locator("#logout").click()
+    page.locator("#workspace").wait_for(state="hidden")
+
+    assert favicon_requests == []
+    assert favicon_responses == []
+    assert failed_requests == []
+    assert page_errors == []
+    assert console_errors == []
+
+
 def test_connect_reload_stream_logout_and_hostile_text_are_safe(web_service, browser_page, request):
     app, peer = web_service
     page = browser_page
