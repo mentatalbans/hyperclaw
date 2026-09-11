@@ -119,3 +119,118 @@ For the VoiceOver pass:
 For the installed Safari pass, repeat the same core workflow without VoiceOver first and then with VoiceOver if available. Record the exact Safari version from Safari > About Safari, macOS version, runtime commit, viewport/display scaling, each completed operation, console errors, and any focus, announcement, reflow, or streaming issue. Treat the result as exploratory until every operation above passes.
 
 Automated Chrome checks cover 320, 390, and 1440 CSS-pixel widths plus a 1440-pixel display at an emulated 200% effective layout width by setting the viewport to 720 CSS pixels. This exercises responsive reflow at the same effective width, but it is not a native browser-toolbar zoom action, does not reproduce browser chrome or text rasterization at 200%, and does not prove Safari zoom behavior. The checks use long synthetic hostile text, tool-call IDs, approval hashes, and receipts; require reachable controls and no unintended horizontal overflow; inspect the real accessibility tree for status/alert roles and control names; and fail on page, request, console, or CSP console errors.
+
+### Opt-in scale and sustained measurements
+
+`scripts/measure_runtime.py` runs synthetic loopback provider/Telegram peers and owns
+all disposable roots and subprocesses. It does not contact Ollama, real Telegram,
+Docker, or download models. It requires the installed package and repository dev
+test dependencies. It is not selected by the quick battery; only its bounded
+CLI/report/cleanup tests run there.
+
+```sh
+.venv/bin/python scripts/measure_runtime.py --duration-seconds 12 --seed 1 --report-dir test-results/load-tooling --phase sustained
+.venv/bin/python scripts/measure_runtime.py --duration-seconds 1 --seed 1 --report-dir test-results/load-recovery-1 --phase recovery
+.venv/bin/python scripts/measure_runtime.py --duration-seconds 1 --seed 2 --report-dir test-results/load-recovery-2 --phase recovery
+.venv/bin/python scripts/measure_runtime.py --duration-seconds 1 --seed 3 --report-dir test-results/load-recovery-3 --phase recovery
+.venv/bin/python scripts/measure_runtime.py --duration-seconds 1 --seed 1 --report-dir test-results/load-scale --phase schedules --phase populated
+.venv/bin/python scripts/measure_runtime.py --duration-seconds 900 --seed 1 --report-dir test-results/load-smoke --phase sustained
+# Run the hour only after the smoke's invariants pass.
+.venv/bin/python scripts/measure_runtime.py --duration-seconds 3600 --seed 2 --report-dir test-results/load-hour --phase sustained
+```
+
+All three required options are explicit. Repeated `--phase` selects independent
+probes; omitted phases are `not_run`. Without `--phase`, all four run once in the
+listed order. Duration controls only sustained intake; setup, drain, reporting and
+cleanup are additional. Recovery uses a reproducibly shuffled ten-case deck for
+the supplied seed: the eight Task 2 crash boundary/active-state combinations,
+one graceful mixed-IO shutdown/reopen, and one shared-worker release/restart.
+Each case has its own root. Run seeds 1, 2 and 3 to obtain thirty cycles.
+
+The eight scheduler experiments use 1, 10, 100 and 1,000 active recurring schedules
+(interval one second), mapped by index modulo `min(size, 10)` sessions. Session
+zero holds the single model worker. In the due regime every schedule starts due;
+in the mostly future regime index zero is due and every other schedule is one day
+in the future; at size one, its sole schedule is one day in the future. There are at
+least two warmup ticks and exactly twenty reported subsequent real daemon ticks.
+A separately seeded approval expires during observation; health and busy-session
+reset controls are polled. Queue growth reflects this declared shared-session
+admission pattern, not a thousand simultaneously independent sessions. Schedules
+are paused before the held stream is released and accepted work drains. Test-only
+Store wrappers record actual transaction duration, tick call duration, active/due
+counts, and excess delay beyond the normal 100ms interval after the previous tick.
+Queue snapshots and instrumentation IO add overhead; these are observational
+measurements, with no production batching/indexing changes.
+
+The populated phase owns a separate real Store worker in the harness. It seeds
+100 sessions, 10,000 genuinely transitioned completed runs and 10,000 physical
+memory records, then walks session/run pages of seventeen IDs. A thousand synthetic
+query groups check private/shared visibility and exclude other sessions, other
+workspaces, expired, forgotten and superseded facts. Corrections have their own
+positive lookup. These facts never modify the sealed forty-case quality corpus.
+Seeding and query timing are separate. This phase measures Store APIs directly;
+scheduler and sustained phases measure a separately owned daemon through HTTP.
+
+Sustained intake permits at most one batch per second, each containing one HTTP
+run, one one-shot schedule and one synthetic Telegram update. The model stream is
+held until all three are visibly accepted, a busy-session conflict and health
+probe succeed, and then all three complete and delivery settles. There are at
+most three outstanding accepted requests, below the required cap of twenty.
+Batches drain independently with no catch-up bursts. Three fixed sessions reuse
+generation zero initially, then reset after each drained ten-second window;
+prior generations and durable run/event/message/schedule/Telegram history remain.
+This makes the context reconstruction cost and intentional database growth
+interpretable. First-text latency observes real SSE; completion latency ends when
+the batch's SSE histories have drained. Resource samples are taken initially,
+at drained ten-second boundaries, and after final drain. Sampling occurs after a
+batch settles, so a slow batch can delay the nominal ten-second boundary.
+
+Every invocation creates a unique `measurement-<UTC>/` directory with `report.json`,
+`events.jsonl`, `dirty.diff`, and per-root log/telemetry/hash/count artifacts.
+Reports include exact commands, source hashes, environment/dependency/lock hashes,
+seed, selected/omitted phases, failure traceback, accepted/completed/conflicted
+counts, queue snapshots, nearest-rank p50/p95/max latency and cleanup identities.
+Failure stops later phases and keeps evidence; there is no retry loop. The runner
+checks source identity again before success. Keep executable source stable during
+a measured run, and run external acceptance separately to avoid interference.
+
+Live observers discard provider request bodies after count/size measurement,
+retain Telegram method counters and at most one update, clear completed stream
+gates, and keep the last 1,000 daemon log lines. Compact events and transaction/tick
+measurements stream to disk for the finite selected workload. Exact percentile
+sorting happens after daemon shutdown, outside live resource samples. Daemon RSS,
+file descriptors and threads are sampled separately from harness resources with
+procfs on Linux or `ps`/`lsof` on macOS; no production dependency is added. SQLite
+size includes its sidecars. Integrity/foreign-key checks run only after the owner
+stops. Synthetic scratch hashes are retained before deleting owned scratch;
+credential/config files are excluded from artifacts. Process exit/reader/peer
+cleanup and final pending counts are checked. A watchdog intervention fails the
+run. Latency/RSS trends establish this measured operating envelope; they do not
+invent a production SLA or replace the existing focused responsiveness bounds.
+
+Occurrence lateness is reported separately: the durable `run.queued` timestamp
+minus the occurrence's nominal due time measures reservation delay, and
+`run.started` minus nominal due adds worker queue delay. Sustained one-shots are
+intentionally backdated one second. Scheduler scale occurrences are created in
+warmup when free mapped sessions first reserve; post-warmup ticks generally find
+those sessions busy. Their occurrence-delay summaries therefore cover all created
+occurrences, including warmup, while tick/transaction summaries use the specified
+twenty-tick observation interval. A zero-count occurrence summary means no
+occurrence was admitted (the single busy-session/future regime), not zero delay.
+
+Sustained `duplicate_effects` covers exact Telegram send/delivery counts, stable
+canonical run IDs and one schedule occurrence per batch. The sustained model
+answers are text-only: receipts, workspace files and grants must remain empty.
+This is not duplicate-write measurement. Real workspace-write/receipt ambiguity
+and replay protection are exercised by the separate Task 2 recovery-cycle deck.
+If daemon shutdown acceptance itself fails, peer cleanup still runs and the
+original failed result remains failed; cleanup never rescues acceptance.
+
+For a diagnosed fixture change, focused selectors avoid repeating unrelated
+measurements: `--recovery-case graceful` selects that one fixed-deck mode for the
+supplied seed; `--schedule-size 1 --schedule-regime future` selects one scheduler
+experiment. These options may be repeated. Reports enumerate omitted cycles and
+experiments as `not_run`; a focused pass alone is not the full thirty-cycle or
+eight-experiment acceptance. Graceful reopen supplies the pending photo's synthetic
+reply and requires its run and delivery to succeed, with exact provider/send
+counts, after the original first-signal shutdown assertions have passed.
