@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import importlib.util
+import os
 import shutil
 import subprocess
 import tempfile
@@ -363,7 +364,7 @@ def admit(app, fixture):
 def run_trial(args, fixture, case, number, scratch, directory):
     """One attempt, one owned root/session; errors are data and never retried."""
     directory.mkdir()
-    owned = scratch / f"{case['id']}-{number}"
+    owned = (scratch / f"{case['id']}-{number}").resolve()
     owned.mkdir()
     value = {'case_id': case['id'], 'trial': number, 'status': 'failed', 'run_id': None,
              'root': str(owned/'runtime'), 'errors': [], 'receipts': [], 'wire': [],
@@ -574,6 +575,10 @@ def evaluate(args):
                 report['cleanup']['hash_error'] = failure('scratch_hashes', exc)
                 report['status'] = 'failed'
             try:
+                # Admission snapshots are read-only while the daemon owns them.
+                # All owners have stopped and evidence hashes are retained above.
+                for directory, _, _ in os.walk(scratch, followlinks=False):
+                    Path(directory).chmod(0o700)
                 shutil.rmtree(scratch)
                 report['cleanup']['scratch_removed'] = not scratch.exists()
             except Exception as exc:

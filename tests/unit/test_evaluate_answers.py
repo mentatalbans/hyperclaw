@@ -473,3 +473,69 @@ def test_cleanup_hash_failure_does_not_prevent_owned_scratch_removal(tmp_path,mo
     assert result['cleanup'].get('scratch_removed') is True
     assert not scratch.exists()
     assert result['cleanup']['hash_error']['message']=='scratch hash failure'
+
+
+@pytest.mark.parametrize('through_evaluator', [False, True])
+def test_real_public_admission_accepts_canonicalized_owned_scratch_path(tmp_path, monkeypatch, through_evaluator):
+    """A symlinked temp ancestor must not turn owned public docs into a 422."""
+    module = evaluator()
+    from argparse import Namespace
+    from tests.support.provider import ProviderStub
+    peer = ProviderStub()
+    docs = tmp_path / 'docs'
+    docs.mkdir()
+    (docs / 'tiny.md').write_text('Synthetic admission fact.\n')
+    skill = tmp_path / 'skill'
+    skill.mkdir()
+    (skill / 'SKILL.md').write_text('---\nname: tiny\ndescription: Synthetic admission fixture.\n---\nCite the source.\n')
+    fixture = {'source_directory': 'docs', 'source_sha256': module.tree_hashes(docs),
+        'skill_directory': 'skill', 'skill_sha256': module.tree_hashes(skill), 'skill_name': 'tiny'}
+    real_scratch = tmp_path / 'real-scratch'
+    real_scratch.mkdir()
+    alias = tmp_path / 'scratch-alias'
+    alias.symlink_to(real_scratch, target_is_directory=True)
+    args = Namespace(cases=tmp_path / 'cases.json', ollama_url=peer.url,
+                     ollama_model='fixture-model', mcp_docs_image='sha256:' + 'a' * 64)
+    outside = tmp_path / 'outside-target'
+    outside.mkdir()
+    (outside / 'sentinel.txt').write_text('external fixture remains untouched')
+    outside.chmod(0o500)
+    observed = {}
+    original_admit = module.admit
+    def admit_then_stop(app, selected):
+        preview = app.client.get('/v1/mcp')
+        observed['preview_status'] = preview.status_code
+        observed['preview_body'] = preview.json()
+        observed['admitted'] = original_admit(app, selected)
+        saved = app.client.get('/v1/mcp')
+        saved.raise_for_status()
+        observed['saved'] = saved.json()['admission']
+        (app.root / 'workspace' / 'external-link').symlink_to(outside, target_is_directory=True)
+        # This regression exercises only public admission, never model generation.
+        raise RuntimeError('fixture stops after real admission before submission')
+    monkeypatch.setattr(module, 'admit', admit_then_stop)
+    # Admission launches no container. Replace only post-trial Docker inspection.
+    monkeypatch.setattr(module, 'owned_container_ids', lambda root: [])
+    monkeypatch.setattr(module, 'cleanup_owned', lambda root: None)
+    try:
+        if through_evaluator:
+            fixture['cases'] = [{'id': 'tiny'}]
+            args.cases.write_text(json.dumps(fixture))
+            args.trials = 1
+            args.report = tmp_path / 'evaluation.json'
+            monkeypatch.setattr(module, 'preflight', lambda *args: {})
+            overall = module.evaluate(args)
+            value = overall['trials'][0]
+            assert overall['cleanup'].get('scratch_removed') is True, overall['cleanup']
+        else:
+            value = module.run_trial(args, fixture, {'id': 'tiny'}, 1, alias, tmp_path / 'trial')
+        assert outside.stat().st_mode & 0o777 == 0o500
+        assert (outside / 'sentinel.txt').read_text() == 'external fixture remains untouched'
+        assert observed['preview_status'] == 200, observed['preview_body']
+        assert observed['saved']['sha256'] == observed['admitted']['mcp']['sha256']
+        assert observed['saved']['files'][0]['sha256'] == hashlib.sha256(b'Synthetic admission fact.\n').hexdigest()
+        assert value['run_id'] is None
+        assert value['errors'][0]['message'] == 'fixture stops after real admission before submission'
+        assert peer.requests.empty()
+    finally:
+        peer.close()
