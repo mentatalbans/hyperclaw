@@ -55,5 +55,75 @@ elif stage == 'submit':
         return result
     Runtime.submit = submit
 
+# Composition gates are armed by the parent only after unrelated setup settles.
+# Every persistence wrapper awaits the real operation before marking its boundary.
+async def composition_gate(name):
+    marker = root / ('test-composition-' + name)
+    if (root / 'test-composition-arm').exists() and not marker.exists():
+        marker.write_text(name)
+        await asyncio.Event().wait()
+
+
+if stage.startswith('composition-') or stage == 'observe-effects':
+    from hyperclaw.execution.workspace import Workspace
+    original_write = Workspace.write
+    def observed_write(self, path, *args, **kwargs):
+        result = original_write(self, path, *args, **kwargs)
+        # Observe each completed real write, including dispatch before a lost receipt.
+        with (root / 'test-observed-writes').open('a') as journal:
+            journal.write(path + '\n')
+        return result
+    Workspace.write = observed_write
+
+
+if stage.startswith('composition-'):
+    original_submit = Runtime.submit
+    async def composition_submit(self, request):
+        result = await original_submit(self, request)
+        if stage == 'composition-http' and request.request_id == 'mixed-http':
+            await composition_gate('intake')
+        if stage == 'composition-telegram-submit' and request.request_id.startswith('telegram:'):
+            await composition_gate('intake')
+        return result
+    Runtime.submit = composition_submit
+
+    original_tick = Store.tick_schedules
+    async def composition_tick(self, current):
+        result = await original_tick(self, current)
+        if stage == 'composition-schedule' and result:
+            await composition_gate('intake')
+        return result
+    Store.tick_schedules = composition_tick
+
+    original_reconcile = Store.telegram_reconcile
+    async def composition_reconcile(self, *args):
+        result = await original_reconcile(self, *args)
+        if stage == 'composition-telegram-bind' and result:
+            await composition_gate('intake')
+        return result
+    Store.telegram_reconcile = composition_reconcile
+
+    original_complete = Store.complete_invocation
+    async def composition_complete(self, receipt):
+        # Workspace dispatch has really finished; the receipt is not committed yet.
+        if (root / 'test-composition-hold-effect').exists():
+            await composition_gate('effect')
+        return await original_complete(self, receipt)
+    Store.complete_invocation = composition_complete
+
+elif stage == 'shutdown':
+    original_adapter_close = TelegramAdapter._close
+    async def composition_close(self):
+        original_transport_close = self.transport.close
+        async def delayed_close():
+            (root / 'test-cleanup-entered').touch()
+            while not (root / 'test-cleanup-release').exists():
+                await asyncio.sleep(.01)
+            await original_transport_close()
+            (root / 'test-cleanup-complete').touch()
+        self.transport.close = delayed_close
+        await original_adapter_close(self)
+    TelegramAdapter._close = composition_close
+
 from hyperclaw.cli import main
 main()
