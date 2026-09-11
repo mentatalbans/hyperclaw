@@ -2,7 +2,7 @@
   "schema": 1,
   "title": "Runtime v2 post-M6 testing",
   "date": "2026-09-11",
-  "assembled_at": "2026-09-11T10:16:16.627359+00:00",
+  "assembled_at": "2026-09-11T10:19:32.770327+00:00",
   "status": "failed",
   "execution_state": "completed_with_failed_and_blocked_gates_recorded",
   "worktree": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
@@ -2312,6 +2312,17 @@
         "path": "test-results/post-m6-20260911T012137Z/final/cleanup-adjudication.json",
         "sha256": "26606dfd6cca1c165222b8c84cbc9d0a23d98b1a0c73272371dfb8d8e376673c",
         "bytes": 9550
+      }
+    },
+    {
+      "id": "post-commit-docker-image-lookup",
+      "status": "failed",
+      "detail": "Retained tag lookups returned No such image; original immutable IDs later resolved and listed original tags. Intermittent name lookup, cause unknown.",
+      "report": "final/post-commit-docker-state.json",
+      "report_artifact": {
+        "path": "test-results/post-m6-20260911T012137Z/final/post-commit-docker-state.json",
+        "sha256": "23bdb5931c9f38d2487c0964343db7bbd75a2e7a4c6002e6cab367351e485e72",
+        "bytes": 3167
       }
     }
   ],
@@ -36301,7 +36312,7 @@
       ],
       "status": "needs_inspection"
     },
-    "narrative": "The final read-only audit confirms the main checkout remains at `6f758390996b61f86fe57415954aa3f8fced583a` with its original `?? .engram/` status, and the other worktree remains at `503080511fdc66635844513103054b4e3c1966ef` on `fix/1-hyperspeed-terminal-recovery`. No personal runtime or .engram contents were read. The other-worktree baseline covers HEAD/branch, not a complete initial dirty-file inventory.\n\nNo task-named processes, additional containers, proven owned containers or unattributed HyperClaw containers remain. Both retained pre-existing image tags match their initial immutable IDs. The wheel scratch, Linux runner scratch/environment, load source/environment, separate correction checkout/environment, admitted evaluation roots, and recorded explicit pytest roots were removed after evidence preservation. The prepared MCP image, isolated Python 3.13 environment and ignored evidence are retained resources, not running services. The historical live-Qwen JSON was restored byte-for-byte after its new result was archived.\n\n**The complete container-preservation gate is failed:** 28 of the initial 29 containers remain; initially running `436251a491d2a300f89cfa2e98c9413145ef853599fb3b4909496a135119393c` is absent. Docker returned HTTP 500 at the first final Linux launch and later answered read-only queries again. No controller service restart, unrelated-container stop/removal or replacement was performed. The bounded event query returned no evidence explaining the disappearance; its cause remains unknown. Thus cleanup of owned resources is verified, while unchanged state of that initial service is not claimed. No attempt was made to recreate or switch the operator's service.\n\nThe final file inventory found one earlier native-Chrome scratch root still present. Its exact recorded `--basetemp` proved ownership; four safe synthetic files were archived and hash-verified, two credential/config files were excluded, and the root was removed. A subsequent evidence scan found no credential-named files.\n\nThe supplied worktree and its local branch remain in place. Coordination and failed evidence are retained per the user's preservation instruction, overriding generic skill cleanup of scratch coordination files. No push, merge, publication or running-installation switch occurred.",
+    "narrative": "The final read-only audit confirms the main checkout remains at `6f758390996b61f86fe57415954aa3f8fced583a` with its original `?? .engram/` status, and the other worktree remains at `503080511fdc66635844513103054b4e3c1966ef` on `fix/1-hyperspeed-terminal-recovery`. No personal runtime or .engram contents were read. The other-worktree baseline covers HEAD/branch, not a complete initial dirty-file inventory.\n\nNo task-named processes, additional containers, proven owned containers or unattributed HyperClaw containers remain. At the 10:06 UTC audit, both retained pre-existing image tags matched their initial immutable IDs. The later post_commit_preservation_observation records intermittent tag-name lookup failures and successful immutable-ID observations; consistent name lookup is not claimed. The wheel scratch, Linux runner scratch/environment, load source/environment, separate correction checkout/environment, admitted evaluation roots, and recorded explicit pytest roots were removed after evidence preservation. The prepared MCP image, isolated Python 3.13 environment and ignored evidence are retained resources, not running services. The historical live-Qwen JSON was restored byte-for-byte after its new result was archived.\n\n**The complete container-preservation gate is failed:** 28 of the initial 29 containers remain; initially running `436251a491d2a300f89cfa2e98c9413145ef853599fb3b4909496a135119393c` is absent. Docker returned HTTP 500 at the first final Linux launch and later answered read-only queries again. No controller service restart, unrelated-container stop/removal or replacement was performed. The bounded event query returned no evidence explaining the disappearance; its cause remains unknown. Thus cleanup of owned resources is verified, while unchanged state of that initial service is not claimed. No attempt was made to recreate or switch the operator's service.\n\nThe final file inventory found one earlier native-Chrome scratch root still present. Its exact recorded `--basetemp` proved ownership; four safe synthetic files were archived and hash-verified, two credential/config files were excluded, and the root was removed. A subsequent evidence scan found no credential-named files.\n\nThe supplied worktree and its local branch remain in place. Coordination and failed evidence are retained per the user's preservation instruction, overriding generic skill cleanup of scratch coordination files. No push, merge, publication or running-installation switch occurred.",
     "supporting_evidence": [
       "final/fix-clone-cleanup.json",
       "task5/load-snapshot-cleanup.json",
@@ -45240,6 +45251,188 @@
     "Real Telegram blocked: no test bot/recipients/message authorization.",
     "Hosted CI not_run; local Linux is arm64 only.",
     "No OS-wide disk exhaustion, hardware fault, indefinite soak, production SLA or unmodified holdout improvement measured.",
-    "Initial running container disappeared during the session; cause unknown. No unchanged-service claim for that resource."
+    "Initial running container disappeared during the session; cause unknown. No unchanged-service claim for that resource.",
+    "Post-commit Docker tag-name lookups failed, while subsequent immutable-ID queries returned the original IDs and tags. No image deletion or stable name-lookup behavior is inferred."
+  ],
+  "post_commit_preservation_observation": {
+    "status": "failed",
+    "classification": "intermittent Docker image lookup; no confirmed image/tag removal",
+    "observation": {
+      "observed_at": "2026-09-11T10:17:49.674317+00:00",
+      "commands": [
+        {
+          "command": [
+            "docker",
+            "ps",
+            "-a",
+            "-q",
+            "--no-trunc"
+          ],
+          "exit_code": 0,
+          "stdout": "8857e1bc97fe9038afd997a79be4273603ff4b578c83971d7694913af27de520\ne7c64c5c2eced5e30f8bc2263a65c5b6b6e964e8822327c31f827da91f074eaa\n31facb58ee0fb4dc29dded7842450709f5090f78ff272533f492f36dc74b26c9\nab51edb80cc848c1d68b342d4886ab994d5eaae63224a44040aa9bf6c52d956b\n80daac629e79a3509d79b64db8a5f59a69bb6d6bfacb789e682ea11a62f35fa7\nf39703dcb646735c32f145dc26db32f0e4def090180e0dc7a106422da571b849\n088f2d9604cd9d476f2c67ebc10fa878b7002953bc17b819a53da0ee45f6dd32\n177c0aea9ed720e493ebcc638bf27657fe5afbd861b68bc48803b903791a2d2d\nb8ba4f4de24a31bbc35b72ca4df167f7b7eccb62e4004ab86b259fa57e4b6e7e\n32de8a1f3d62bc685f7cf8ab85b577454329b0eb08c255d346d0542dcc42d090\n1b64ac46cb89a8c247e03f8a44b777b33a16c19d3c1ccae3ffcd4b6ec3b21c6c\n4a8b21d6d1b46e192bf235ecfb2fc1f09677d5697c78789175ca8591d8a9912a\n99bc23bc5418a065571c7b19d71f4ed28cebd84dced4f988d1820e8eba2be114\nd7cf46120fde0ee342b93fce9881b96cc6826cdf29006c633f1b965a1056f6b8\n8b996d010cd40900d81cc8d4a050a331cdff632f78a7d934a96a53082b811fe7\n2fc3959a71fe9d00967d9282ba286b1f79408e27117f0d74204af0d0877cde51\n7a38267a97292838bb330aeb67b0bc07fef824fdb40dec02d35020d0dd4c5bd8\n759085b877d0e439ca0ada7dcf05afffc57ebebfda0ea196b5b84413598de70d\n5c953dea6cae529eec34c8f5f32769c1680c281ae233e8382e40791a0f54bd12\n9edf14177a49176ca37ee7de804c65109079c4e02ca1ab50ca56c27d6a5ddfae\n1cb9336cb487f12f232bcf1f57c3ba40a172dca80fc7f6728db3e973c9b03ba1\nb5b9bb5263f746ad747e1651f5edef2efc219f2e8f7ab44a3783b7a912973288\n93f1e5f8a6df40332dac135a47ba1cff3f8bec8ce9ccf0c97a9fc994a8e44345\n4bae08261b58b5264756e52ff5de466e878a75db9d1fbc9c6a6bddcbe5d8e518\ne7224bc46d82678a0cf0bd40104b7c6f54d41c5d89238eb97e387dfb3e057410\n1b3e9f5e65e3169564537da7bb3ceaf982fa888af9d4b68c031a17632d72ce1f\n47449e04e85d64cfb58bfd6f762c4d028d3e31f6d0afeb5bbdb999b1672d8635\n18e337d4f8403b1cb338f5e2e28a12bbc8216f4136b0c1b61b42668eba661bbc\n",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "docker",
+            "image",
+            "inspect",
+            "--format",
+            "{{.Id}}",
+            "hyperclaw-mcp-docs:runtime-v2-m6"
+          ],
+          "exit_code": 1,
+          "stdout": "\n",
+          "stderr": "Error response from daemon: {\"message\":\"No such image: hyperclaw-mcp-docs:runtime-v2-m6\"}\n"
+        },
+        {
+          "command": [
+            "docker",
+            "image",
+            "inspect",
+            "--format",
+            "{{.Id}}",
+            "hyperclaw-verification:runtime-v2-m6"
+          ],
+          "exit_code": 1,
+          "stdout": "\n",
+          "stderr": "Error response from daemon: {\"message\":\"No such image: hyperclaw-verification:runtime-v2-m6\"}\n"
+        },
+        {
+          "command": [
+            "docker",
+            "image",
+            "inspect",
+            "--format",
+            "{{.Id}}",
+            "sha256:e8c258ff64cb4d7ad7b43c3af827b27c0dee7f90206b8acd8dcb65ff37a88ee7"
+          ],
+          "exit_code": 0,
+          "stdout": "sha256:e8c258ff64cb4d7ad7b43c3af827b27c0dee7f90206b8acd8dcb65ff37a88ee7\n",
+          "stderr": ""
+        }
+      ],
+      "mutations_performed": false
+    },
+    "immutable_id_lookup": [
+      {
+        "command": [
+          "docker",
+          "image",
+          "inspect",
+          "--format",
+          "{{json .RepoTags}}",
+          "sha256:b2964cd04fc785ecd75bd780213cd14ebcf245ac65111d7c0359d49d7012cd9c"
+        ],
+        "exit_code": 0,
+        "stdout": "[\"hyperclaw-mcp-docs:runtime-v2-m6\"]\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "docker",
+          "image",
+          "inspect",
+          "--format",
+          "{{json .RepoTags}}",
+          "sha256:29b818552c8a0926f11f9596e803ec00f7b246444422f44bb3ced1237dd5814c"
+        ],
+        "exit_code": 0,
+        "stdout": "[\"hyperclaw-verification:runtime-v2-m6\"]\n",
+        "stderr": ""
+      }
+    ],
+    "cause": "unknown",
+    "controller_resource_mutations": false,
+    "notes": "At10:17UTC both retained tags returned No such image. At10:18UTC the original immutable image IDs resolved and each still listed its original tag. No restart,retag,rebuild,pull or removal occurred between observations. Earlier10:06audit remains a timestamped pass for image IDs/tags;consistent later name lookup is not claimed. Container inventory remains28initialcontainers,noadditionalownedresources;the original running436251a remains absent."
+  },
+  "late_command_attempts": [
+    {
+      "command": [
+        ".venv/bin/python",
+        "test-results/post-m6-20260911T012137Z/validate_report.py"
+      ],
+      "shell_reproduction": ".venv/bin/python test-results/post-m6-20260911T012137Z/validate_report.py",
+      "cwd": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
+      "started_at": "2026-09-11T10:16:16.748084+00:00",
+      "source_commit": "f7686e8ce757f6f031318b677cb2aa045385623d",
+      "source_hash": "9937f765a053bdfefd6c58cfb50454bfbedb568d305372422182826ccde34fcb",
+      "exit_code": 0,
+      "duration_seconds": 0.23441929099499248,
+      "status": "passed",
+      "metadata_path": "final/report-validation-20260911T101616712646Z/result.json",
+      "metadata_sha256": "4cbe9a9a1720a43b85819437af9c5c952505994a22e5fcdc37fd38df53ce09ab",
+      "log_sha256": "c887f431ed0eecb3c650310bdee3a3ed05a5e7dafc79c2e22ff4754072932ddd"
+    },
+    {
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "docs: record post-M6 testing results and remaining limits"
+      ],
+      "shell_reproduction": "git commit -m 'docs: record post-M6 testing results and remaining limits'",
+      "cwd": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
+      "started_at": "2026-09-11T10:16:48.311295+00:00",
+      "source_commit": "f7686e8ce757f6f031318b677cb2aa045385623d",
+      "source_hash": "9937f765a053bdfefd6c58cfb50454bfbedb568d305372422182826ccde34fcb",
+      "exit_code": 0,
+      "duration_seconds": 0.03443508299824316,
+      "status": "passed",
+      "metadata_path": "final/local-report-commit-20260911T101648276947Z/result.json",
+      "metadata_sha256": "ddf13a09de4b9d57157dcdb986dad78a9dc65ebc623af62ba6f5d15bfa91af76",
+      "log_sha256": "0ece0c90cb0ceb232859776fb5f4e30fd2677c547e73405d7809382e2236a622"
+    },
+    {
+      "command": [
+        ".venv/bin/python",
+        "test-results/post-m6-20260911T012137Z/verify_preservation.py"
+      ],
+      "shell_reproduction": ".venv/bin/python test-results/post-m6-20260911T012137Z/verify_preservation.py",
+      "cwd": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
+      "started_at": "2026-09-11T10:17:19.932424+00:00",
+      "source_commit": "cfd6f9325df6f29b3a973325dc4b3559b7a30319",
+      "source_hash": "9937f765a053bdfefd6c58cfb50454bfbedb568d305372422182826ccde34fcb",
+      "exit_code": 1,
+      "duration_seconds": 0.28002204099902883,
+      "status": "failed",
+      "metadata_path": "final/post-commit-preservation-20260911T101719896023Z/result.json",
+      "metadata_sha256": "8a36547eb9edde4198a6a9d70a48eeb0debe128965c4cb0e2a22dbf465ce47fd",
+      "log_sha256": "5ee4b34d669a02cd165a7b2ff1ff9a87fd797c18388ecd1d9a55952e965299af"
+    },
+    {
+      "command": [
+        ".venv/bin/python",
+        "-"
+      ],
+      "shell_reproduction": ".venv/bin/python -",
+      "cwd": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
+      "started_at": "2026-09-11T10:17:49.574535+00:00",
+      "source_commit": "cfd6f9325df6f29b3a973325dc4b3559b7a30319",
+      "source_hash": "9937f765a053bdfefd6c58cfb50454bfbedb568d305372422182826ccde34fcb",
+      "exit_code": 0,
+      "duration_seconds": 0.07537354200030677,
+      "status": "passed",
+      "metadata_path": "final/post-commit-docker-state-20260911T101749537111Z/result.json",
+      "metadata_sha256": "c14c4c31f5b612a32c39f4177b30662ecedbc7c775cd8c3a1c88ebdfec6754ee",
+      "log_sha256": "5f7b87e2fd05bab758d6bb8bb515151828c8c185b30004255d63ee5723410db3"
+    },
+    {
+      "command": [
+        ".venv/bin/python",
+        "-"
+      ],
+      "shell_reproduction": ".venv/bin/python -",
+      "cwd": "/Users/kairos/Projects/work/hyper/hyperclaw/.worktrees/runtime-refactor",
+      "started_at": "2026-09-11T10:18:29.128598+00:00",
+      "source_commit": "cfd6f9325df6f29b3a973325dc4b3559b7a30319",
+      "source_hash": "9937f765a053bdfefd6c58cfb50454bfbedb568d305372422182826ccde34fcb",
+      "exit_code": 0,
+      "duration_seconds": 0.044865832998766564,
+      "status": "passed",
+      "metadata_path": "final/post-commit-image-ids-20260911T101829083320Z/result.json",
+      "metadata_sha256": "144aa049a8d560e39668bb7245822d695b1988d501229b4a28bd3c75bb50152a",
+      "log_sha256": "d991c316344c9fbd4565e6e2035500984af82282c75933e8fc8d46d3d9a3cec8"
+    }
   ]
 }

@@ -120,7 +120,7 @@ make test-live-mcp PYTHON=.venv/bin/python MCP_DOCS_IMAGE="$MCP_DOCS_IMAGE" OLLA
 
 Run the quick command with a separate prepared Python 3.13 environment for that matrix leg. Use the [trusted Linux recipe](../containers/verification/README.md) for the copied-source Linux leg. Docker and Qwen gates run sequentially. The installed-wheel verifier requires actual, nonempty, consistent JUnit cases and zero selected failures/errors/skips; exit status zero alone is insufficient. The walkthrough finalizer attempts every owned cleanup action independently and preserves cleanup failures.
 
-The report records the failed initial Docker prerequisite, later observed API recovery, and verified owned cleanup. One initially running container was absent at the final inventory, with no established cause; unchanged state of that service is not claimed. Main checkout HEAD/status and other-worktree HEAD/branch matched their baselines. No real root was installed, switched or reconciled, and no hosted run or real Telegram message was authorized.
+The report records the failed initial Docker prerequisite, later observed API recovery, and verified owned cleanup. One initially running container was absent at the final inventory, with no established cause; unchanged state of that service is not claimed. A post-commit Docker name lookup also reported both old image tags missing, while subsequent immutable-ID lookups still returned those images and original tags; that intermittent lookup failure remains recorded. Main checkout HEAD/status and other-worktree HEAD/branch matched their baselines. No real root was installed, switched or reconciled, and no hosted run or real Telegram message was authorized.
 
 ### Manual operator accessibility and Safari checklist
 
