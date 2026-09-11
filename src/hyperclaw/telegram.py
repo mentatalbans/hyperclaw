@@ -157,6 +157,7 @@ class TelegramAdapter:
         self._tasks = []
         self._intake = asyncio.Lock()
         self._close_task = None
+        self._closing = False
 
     def authorized(self, update):
         return (self.settings.telegram_enabled and update.kind in {'text', 'photo'}
@@ -187,7 +188,7 @@ class TelegramAdapter:
             raise InvalidRequest('telegram_startup', 'Telegram startup failed: ' + self.error + '.') from None
 
     async def handle(self, update: TelegramUpdate) -> None:
-        if not self.settings.telegram_enabled:
+        if not self.settings.telegram_enabled or self._closing:
             return
         if self.bot_id is None:
             raise InvalidRequest('telegram_not_started', 'Telegram adapter has not authenticated.')
@@ -240,14 +241,20 @@ class TelegramAdapter:
 
     async def _poll(self):
         backoff = 1
-        while True:
+        while not self._closing:
             try:
                 async with self._intake:
                     for row in await self.runtime.store.telegram_pending(self.bot_id):
+                        if self._closing:
+                            return
                         await self._accept(row)
                 offset = await self.runtime.store.telegram_offset(self.bot_id)
+                if self._closing:
+                    return
                 values = await self.transport.call('getUpdates', {'offset': offset, 'limit': 25,
                                                    'timeout': 20, 'allowed_updates': ['message']})
+                if self._closing:
+                    return
                 if not isinstance(values, list) or len(values) > 25:
                     raise TelegramFailure('telegram_updates')
                 normalized = [TelegramUpdate.from_payload(value) for value in values]
@@ -260,6 +267,8 @@ class TelegramAdapter:
                 backoff = 1
                 await asyncio.sleep(.1)
             except (TelegramFailure, RuntimeErrorBase) as exc:
+                if self._closing:
+                    return
                 self.error = exc.code
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 30)
@@ -270,9 +279,13 @@ class TelegramAdapter:
         if not await store.telegram_begin_delivery(self.bot_id, update_id, phase):
             return
         try:
+            if self._closing:
+                raise asyncio.CancelledError
             if not self.authorized(update):
                 raise TelegramFailure('telegram_authorization_revoked', rejected=True)
             run = await self.runtime.get_run(row['run_id'])
+            if self._closing:
+                raise asyncio.CancelledError
             text = (f'Approval required. Review this run in the local web UI or CLI.' if phase == 'approval'
                     else run.output or f'Run {run.status}. Review details in the local web UI or CLI.')
             body = {'chat_id': update.chat_id, 'text': delivery_text(text, run.id),
@@ -293,19 +306,34 @@ class TelegramAdapter:
             raise
 
     async def _deliver(self):
-        while True:
+        while not self._closing:
             try:
                 for row in await self.runtime.store.telegram_delivery_candidates(self.bot_id):
+                    if self._closing:
+                        return
                     await self._send(row)
-                await asyncio.sleep(.1)
+                if not self._closing:
+                    await asyncio.sleep(.1)
             except RuntimeErrorBase as exc:
+                if self._closing:
+                    return
                 self.error = exc.code
                 await asyncio.sleep(1)
 
     async def close(self) -> None:
         if self._close_task is None:
+            # A transport may settle an in-flight call after suppressing cancellation.
+            self._closing = True
             self._close_task = asyncio.create_task(self._close())
-        await asyncio.shield(self._close_task)
+        cancelled = False
+        while not self._close_task.done():
+            try:
+                await asyncio.shield(self._close_task)
+            except asyncio.CancelledError:
+                cancelled = True
+        self._close_task.result()
+        if cancelled:
+            raise asyncio.CancelledError
 
     async def _close(self):
         for task in self._tasks:

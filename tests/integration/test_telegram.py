@@ -493,3 +493,91 @@ async def test_rejected_updates_commit_offsets_and_status_is_bounded(stack):
     assert status['updates'][0]['update_id'] == 63
     assert 'private rejected marker' not in str(status)
     assert (await store.telegram_update(123456, 7))['normalized_json'] is None
+
+
+@pytest.mark.parametrize('phase', ['poll', 'sent', 'uncertain'])
+async def test_shutdown_stops_cycles_when_transport_suppresses_cancellation(stack, monkeypatch, phase):
+    from hyperclaw.telegram_transport import TelegramFailure
+    adapter, peer, provider, store, runtime = stack
+    entered, cancelled = asyncio.Event(), asyncio.Event()
+    await adapter.start()
+    original = adapter.transport.call
+    target = 'getUpdates' if phase == 'poll' else 'sendMessage'
+    held = False
+
+    async def suppress_once(method, body=None):
+        nonlocal held
+        failure = None
+        try:
+            result = await original(method, body)
+        except TelegramFailure as exc:
+            result, failure = None, exc
+        if method == target and not held:
+            held = True
+            entered.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                # Model the observed lower-layer suppression after actual local HTTP IO.
+                cancelled.set()
+        if failure is not None:
+            raise failure
+        return result
+
+    monkeypatch.setattr(adapter.transport, 'call', suppress_once)
+    closing = None
+    try:
+        if phase != 'poll':
+            if phase == 'uncertain':
+                peer.responses['sendMessage'] = b'malformed receipt'
+            provider.enqueue(Reply(), Reply())
+            await adapter.handle(telegram_module().TelegramUpdate.from_payload(update()))
+            await adapter.handle(telegram_module().TelegramUpdate.from_payload(update(2, topic=7)))
+        await asyncio.wait_for(entered.wait(), 3)
+        requests_before_close = sum(method == target for method, _ in peer.requests)
+        closing = asyncio.create_task(adapter.close())
+        await asyncio.wait_for(cancelled.wait(), 3)
+        done, _ = await asyncio.wait({closing}, timeout=.5)
+        assert closing in done, 'Adapter shutdown kept waiting after transport suppressed cancellation'
+        await closing
+        assert sum(method == target for method, _ in peer.requests) == requests_before_close
+        assert all(task.done() for task in adapter._tasks)
+        assert adapter.transport.client.is_closed
+        if phase != 'poll':
+            deliveries = (await adapter.status())['deliveries']
+            assert len(deliveries) == 1
+            assert deliveries[0]['status'] == phase
+    finally:
+        # On RED, release the original unbounded loop using a second ordinary cancellation.
+        for task in adapter._tasks:
+            task.cancel()
+        if closing is not None:
+            await asyncio.gather(closing, return_exceptions=True)
+
+
+async def test_cancelled_close_waits_for_owned_transport_cleanup(stack, monkeypatch):
+    adapter, peer, provider, store, runtime = stack
+    await adapter.start()
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = adapter.transport.close
+    async def delayed_close():
+        entered.set()
+        await release.wait()
+        await original()
+    monkeypatch.setattr(adapter.transport, 'close', delayed_close)
+    closing = asyncio.create_task(adapter.close())
+    try:
+        await asyncio.wait_for(entered.wait(), 3)
+        closing.cancel()
+        done, _ = await asyncio.wait({closing}, timeout=.05)
+        assert closing not in done, 'Cancelled close returned while its owned transport was still open'
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await closing
+        assert adapter.transport.client.is_closed
+        assert all(task.done() for task in adapter._tasks)
+    finally:
+        release.set()
+        for task in adapter._tasks:
+            task.cancel()
+        await asyncio.gather(closing, return_exceptions=True)
