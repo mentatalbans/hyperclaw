@@ -209,7 +209,7 @@ def mcp_reply(*calls):
 
 @pytest.mark.docker
 def test_http_selected_read_search_grouped_sources_and_no_escalation(tmp_path, request):
-    from tests.support.process import events, submit
+    from tests.support.process import events, submit, workspace_grants
     from tests.support.provider import Reply
     from tests.live.test_recovery_docker import cleanup_owned, owned_container_ids
     image = request.config.getoption('--mcp-docs-image')
@@ -219,7 +219,8 @@ def test_http_selected_read_search_grouped_sources_and_no_escalation(tmp_path, r
         app.start()
         manifest = app.client.get('/v1/mcp').json()
         app.client.post('/v1/mcp/admit', json={'expected_sha256': manifest['sha256']}).raise_for_status()
-        grants = app.client.get('/v1/grants').json()
+        grants = workspace_grants(app)
+        assert grants == []
         peer.enqueue(mcp_reply(('mcp_docs_search', {'query': 'SQLite'}), ('mcp_docs_read', {'path': 'guide.md'})), Reply(chunks=('SQLite persists receipts (guide.md:2). opaque-doc-marker',)))
         run = submit(app, 'Read docs', tools=['mcp_docs_search', 'mcp_docs_read'])
         assert events(app, run['id'])[-1]['data']['status'] == 'succeeded'
@@ -233,7 +234,7 @@ def test_http_selected_read_search_grouped_sources_and_no_escalation(tmp_path, r
         first, second = peer.take_request(), peer.take_request()
         results = second['messages'][-1]['content']
         assert len(results) == 2 and all(r['type'] == 'tool_result' for r in results)
-        assert app.client.get('/v1/grants').json() == grants
+        assert workspace_grants(app) == grants
         assert owned_container_ids(app.root) == []
         app.client.delete('/v1/mcp/admission').raise_for_status()
         app.restart()

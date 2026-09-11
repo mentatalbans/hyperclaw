@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from tests.support.process import Process, events, submit
+from tests.support.process import Process, events, submit, workspace_grants
 from tests.live.test_recovery_docker import cleanup_owned, owned_container_ids
 
 pytestmark = [pytest.mark.ollama, pytest.mark.docker]
@@ -34,7 +34,8 @@ def test_qwen_answers_documentation_question_with_unseen_source_marker(tmp_path,
         app.client.post('/v1/skills/documentation-answer/admit', json={'content_hash': skill['content_hash']}).raise_for_status()
         preview = app.client.get('/v1/mcp').json()
         app.client.post('/v1/mcp/admit', json={'expected_sha256': preview['sha256']}).raise_for_status()
-        before = app.client.get('/v1/workspace').json()['grants']
+        before = workspace_grants(app)
+        assert before == []
         run = submit(app, 'Use the admitted public README.md to answer: what is the default runtime root and how does the runtime preserve tool outcomes across restart? Cite the source path and line numbers. Also find and quote the documentation verification marker from that file. Use search limits no greater than 5 and read at most 80 lines per call.',
                      tools=['mcp_docs_search', 'mcp_docs_read'], skills=['documentation-answer'])
         observed = events(app, run['id'])
@@ -49,7 +50,7 @@ def test_qwen_answers_documentation_question_with_unseen_source_marker(tmp_path,
         assert any(source['sha256'] == hashlib.sha256(text.encode()).hexdigest()
                    for receipt in receipts for source in receipt['evidence']['sources'])
         assert all(r['evidence']['content_hash'] == preview['content_hash'] for r in receipts)
-        assert app.client.get('/v1/workspace').json()['grants'] == before
+        assert workspace_grants(app) == before
         assert owned_container_ids(app.root) == []
         evidence = ROOT/'test-results/m5-task2/live-qwen.json'
         evidence.parent.mkdir(parents=True, exist_ok=True)

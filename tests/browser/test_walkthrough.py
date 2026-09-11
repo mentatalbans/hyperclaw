@@ -13,7 +13,7 @@ from tests.browser.test_web import connect, send, wait_status
 from tests.integration.test_memory import memory_call, search, tool_reply
 from tests.integration.test_recovery import grant_write, wait_for
 from tests.live.test_recovery_docker import cleanup_owned, owned_container_ids
-from tests.support.process import Process, events, submit
+from tests.support.process import Process, events, submit, workspace_grants
 from tests.support.provider import ProviderStub, Reply
 
 
@@ -135,7 +135,8 @@ def test_one_root_walkthrough_survives_recovery_without_repeating_effects(
         (app.root / "test-fault.json").write_text(json.dumps({"stage": "after_receipt"}))
         app.start()
         grant_write(app)
-        stable_grants = app.client.get("/v1/grants").json()
+        stable_grants = workspace_grants(app)
+        assert stable_grants == ["write"]
         peer.enqueue(
             tool_reply(
                 "workspace_write",
@@ -172,7 +173,7 @@ def test_one_root_walkthrough_survives_recovery_without_repeating_effects(
             else:
                 assert recovered["receipts"] == stable_receipts
                 assert recovered["events"] == stable_events
-            assert app.client.get("/v1/grants").json() == stable_grants
+            assert workspace_grants(app) == stable_grants
             app.stop()
         peer.take_request()
         assert peer.requests.empty()
@@ -191,7 +192,7 @@ def test_one_root_walkthrough_survives_recovery_without_repeating_effects(
         assert search(app, peer, session, "amber-old") == []
         assert search(app, peer, session, "exhibit label") == [current]
         assert current["supersedes"] == old["id"] and current["version"] == 2
-        assert app.client.get("/v1/grants").json() == stable_grants
+        assert workspace_grants(app) == stable_grants
 
         skill = app.client.get("/v1/skills/documentation-answer").json()
         app.client.post(
@@ -229,7 +230,7 @@ def test_one_root_walkthrough_survives_recovery_without_repeating_effects(
         assert skill["name"] in provider_request["system"]
         peer.take_request()
         assert peer.requests.empty()
-        assert app.client.get("/v1/grants").json() == stable_grants
+        assert workspace_grants(app) == stable_grants
         assert owned_container_ids(app.root) == []
         assert browser_errors == []
     finally:

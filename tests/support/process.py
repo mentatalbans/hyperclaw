@@ -143,3 +143,12 @@ def submit(app, text='hello', session=None, request_id='first', **changes):
 def events(app, run_id, after=0):
     with app.client.stream('GET', f'/v1/runs/{run_id}/events', params={'after': after}) as response:
         return list(sse_events(response))
+
+
+def workspace_grants(app):
+    """Observe workspace capabilities through the public API."""
+    response = app.client.get('/v1/workspace')
+    response.raise_for_status()
+    grants = response.json()['grants']
+    assert isinstance(grants, list) and all(isinstance(value, str) for value in grants)
+    return grants
