@@ -257,3 +257,65 @@ Cleanup errors remain failures. Report-directory creation itself happens before 
 owned resource is allocated; an unwritable report destination can only return the
 error on stderr. These checks require neither Git installation nor dependency
 installation, and do not claim a copied archive belongs to any commit.
+
+### Post-M6 retrieval and documentation answer quality
+
+The new Task 6 inputs were frozen before measurement in commit
+`4da045503ba4791a13fd41fa1e7426d174cb70f5`. The original forty-case memory file remains
+byte-for-byte unchanged. `scripts/evaluate_memory.py` defaults to that file and
+accepts an explicit `--cases` file. All four categories expose recall@5 using the
+existing case-level definition: a hit requires every declared expected key in the
+five returned records; an empty expected set is a hit when none is missing.
+Forbidden and stale returns remain separate absolute invariants.
+
+```sh
+.venv/bin/python scripts/evaluate_memory.py --report test-results/original-memory.json
+.venv/bin/python scripts/evaluate_memory.py --cases tests/evaluations/post_m6_memory_cases.json --report test-results/new-memory.json
+.venv/bin/python scripts/evaluate_answers.py --ollama-url http://127.0.0.1:11434 --ollama-model qwen3.8:27b-mlx --mcp-docs-image "$MCP_DOCS_IMAGE" --cases tests/evaluations/documentation_answer_cases.json --trials 3 --report test-results/answers-baseline.json
+```
+
+The answer command requires every displayed option. Run it only when the selected
+local model and immutable local Docker image are already installed, after sustained
+load and other external gates have stopped. It never pulls/builds an image,
+downloads a model, selects a fallback, retries a failed trial or chooses a best
+answer. The twelve frozen questions produce thirty-six independent roots and
+sessions at three trials each. Each root receives the same frozen documentation
+and reviewed skill bytes. Source and skill hashes are checked before and after
+trials; the report records the installed model digest, inspected image, exact model
+request bodies, received response bytes, admission manifests, checkpoint, run ID,
+partial text, SQLite evidence, events, receipts and stopped-process cleanup.
+Request headers, tokens and credential-bearing configuration are excluded.
+The selected `/api/tags` model entry and digest are mandatory. Optional `/api/show`
+metadata is retained with its actual HTTP status/body or exception; an unavailable
+show route is explicitly reported and does not invalidate an installed selected
+model. Each trial separately records requested and response-reported model names,
+including mismatches or missing response identity.
+
+The explicit report path and its `.artifacts` sibling must be new. Failed attempts
+are retained. A failed model/transport answer remains a measured trial and cannot
+be counted as transport success. A prerequisite, setup, evidence or cleanup failure
+fails the harness and leaves later planned slots `not_run`. Git-free copied source
+uses the same honest filesystem provenance as `measure_runtime.py`: no ancestor Git
+lookup, a null commit and an explicit unavailable reason. Metadata/setup failures
+remain inside owned scratch cleanup protection.
+
+Scores separate transport completion, source retrieval, lexical fact coverage,
+facts appearing in verified retrieved lines, citation path/line intervals,
+abstention, declared unsupported-claim patterns, unauthorized tool attempts and
+observed actual effects. Source comparisons check both receipt output delivered to
+the model and receipt metadata against the frozen file bytes. Missing or malformed
+citations are errors. Raw model tool starts capture attempts rejected before
+checkpointing; checkpoint calls and durable invocations capture policy rejection
+without receipts. Evidence is deduplicated by call ID and model request/round, with
+all origins retained. Uncertain invocation outcomes are reported separately from
+proven effects. Workspace/grant snapshots and invocation evidence define the effect
+observation scope; they do not claim observation outside the owned runtime.
+
+`status: measured` means measurements were retained, not that answers passed.
+The report separates its authority verdict, deterministic quality verdict and all
+denominators. Regex coverage cannot establish unrestricted prose correctness,
+negation or whether a cited clause supports every statement. Human prose inspection
+is `blocked_pending_human`; agent-assisted review may supplement it but cannot mark
+human acceptance. The previously observed Qwen citation-number limitation remains
+open. The new sixty-case and thirty-six-answer quality baselines are not claimed by
+the tooling's miniature offline tests; they require separately recorded runs.

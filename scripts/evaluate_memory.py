@@ -116,8 +116,8 @@ def safety_counts(cases):
     )
 
 
-async def evaluate():
-    fixture_bytes = FIXTURE.read_bytes()
+async def evaluate(cases_path=FIXTURE):
+    fixture_bytes = Path(cases_path).read_bytes()
     fixture = json.loads(fixture_bytes)
     observed_at = datetime.fromisoformat(fixture['observed_at'].replace('Z', '+00:00'))
     started = time.monotonic()
@@ -126,7 +126,7 @@ async def evaluate():
     def recall(category):
         selected = [case for case in cases if case['category'] == category]
         hits = sum(not case['missing_keys'] for case in selected)
-        return {'hits': hits, 'total': len(selected), 'score': hits / len(selected)}
+        return {'hits': hits, 'total': len(selected), 'score': hits / len(selected) if selected else None}
 
     forbidden_count, stale_count = safety_counts(cases)
     return {
@@ -138,6 +138,8 @@ async def evaluate():
         },
         'exact_recall_at_5': recall('exact'),
         'paraphrase_recall_at_5': recall('paraphrase'),
+        'revision_recall_at_5': recall('revision'),
+        'scope_recall_at_5': recall('scope'),
         'forbidden_return_count': forbidden_count,
         'stale_return_count': stale_count,
         'elapsed_seconds': round(time.monotonic() - started, 6),
@@ -148,8 +150,9 @@ async def evaluate():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--report', type=Path, required=True)
+    parser.add_argument('--cases', type=Path, default=FIXTURE)
     args = parser.parse_args()
-    report = asyncio.run(evaluate())
+    report = asyncio.run(evaluate(args.cases))
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
     print(json.dumps({key: value for key, value in report.items() if key != 'cases'}, sort_keys=True))
