@@ -48,6 +48,17 @@ def wait_approval(page):
     return approval
 
 
+def focus_indicator(locator):
+    return locator.evaluate("""element => {
+      const style = getComputedStyle(element);
+      const outlineVisible = style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0 &&
+        style.outlineColor !== 'transparent' && style.outlineColor !== 'rgba(0, 0, 0, 0)';
+      return {visible: outlineVisible || style.boxShadow !== 'none',
+              outline: `${style.outlineWidth} ${style.outlineStyle} ${style.outlineColor}`,
+              boxShadow: style.boxShadow};
+    }""")
+
+
 def keyboard_reach(page, selector, *, limit=80):
     target = page.locator(selector).first
     for _ in range(limit):
@@ -55,9 +66,59 @@ def keyboard_reach(page, selector, *, limit=80):
         if target.evaluate("element => document.activeElement === element"):
             assert target.is_visible()
             assert target.evaluate("element => element.matches(':focus-visible')")
+            indicator = focus_indicator(target)
+            assert indicator["visible"], f"No rendered focus indicator for {selector}: {indicator}"
             return target
     focused = page.evaluate("document.activeElement && (document.activeElement.id || document.activeElement.outerHTML)")
     raise AssertionError(f"Keyboard focus did not reach {selector}; stopped at {focused}")
+
+
+def browser_storage_inventory(page):
+    return page.evaluate("""async () => ({
+      local: Object.keys(localStorage),
+      session: Object.keys(sessionStorage),
+      cookies: document.cookie,
+      databases: indexedDB.databases ? (await indexedDB.databases()).map(database => database.name) : [],
+      caches: 'caches' in window ? await caches.keys() : [],
+    })""")
+
+
+def test_focus_indicator_check_rejects_invisible_keyboard_focus(browser_page):
+    page = browser_page
+    page.set_content("""<style>
+      button:focus-visible { outline: 3px solid rgb(1, 2, 3); }
+    </style><button>Focusable sentinel</button>""")
+    page.keyboard.press("Tab")
+    button = page.get_by_role("button", name="Focusable sentinel")
+    assert focus_indicator(button)["visible"]
+
+    page.add_style_tag(content="button:focus-visible { outline: none !important; box-shadow: none !important; }")
+    assert not focus_indicator(button)["visible"]
+
+
+def test_browser_storage_inventory_detects_indexeddb_and_cache_sentinels(web_service, browser_page):
+    app, _peer = web_service
+    page = browser_page
+    page.goto(app.url)
+    assert browser_storage_inventory(page) == {
+        "local": [], "session": [], "cookies": "", "databases": [], "caches": [],
+    }
+
+    page.evaluate("""async () => {
+      await new Promise((resolve, reject) => {
+        const request = indexedDB.open('opaque-indexeddb-sentinel', 1);
+        request.onupgradeneeded = () => request.result.createObjectStore('values').put(
+          'opaque-record-value', 'opaque-record-key');
+        request.onsuccess = () => { request.result.close(); resolve(); };
+        request.onerror = () => reject(request.error);
+      });
+      const cache = await caches.open('opaque-cache-sentinel');
+      await cache.put('/opaque-cache-key', new Response('opaque-cache-value'));
+    }""")
+
+    inventory = browser_storage_inventory(page)
+    assert inventory["databases"] == ["opaque-indexeddb-sentinel"]
+    assert inventory["caches"] == ["opaque-cache-sentinel"]
 
 
 def test_operator_announcements_are_exposed_in_the_accessibility_tree(web_service, browser_page):
@@ -277,11 +338,9 @@ def test_responsive_operator_surface_wraps_synthetic_hostile_content_without_lea
     assert page.evaluate("secret => !location.href.includes(secret)", token), (
         "operator token appeared in the current URL"
     )
-    assert page.evaluate("""async secret => {
-      const serialized = JSON.stringify({local: {...localStorage}, session: {...sessionStorage},
-        cookies: document.cookie, databases: indexedDB.databases ? await indexedDB.databases() : []});
-      return !serialized.includes(secret);
-    }""", token), "operator token appeared in browser storage"
+    assert browser_storage_inventory(page) == {
+        "local": [], "session": [], "cookies": "", "databases": [], "caches": [],
+    }
     assert all(page.evaluate("([url, secret]) => !url.includes(secret)", [url, token])
                for url in requested_urls), "operator token appeared in a requested URL"
 
