@@ -2,7 +2,7 @@
 
 Runtime v2 replaces the legacy test suite; raw count parity is not a goal. Historical source and tests remain at dcad202.
 
-The six-milestone roadmap ends at M6. The [post-M6 review](reports/2026-09-10-runtime-v2-post-m6-review.md) and [testing plan](superpowers/plans/2026-09-10-runtime-v2-post-m6-testing.md) define the next validation pass: repeatable installed-package acceptance, composed recovery, populated-state restoration, operator workflows, bounded load and separate answer-quality measurement. That plan is not yet executed; the accepted M6 results below remain the current baseline.
+The six-milestone roadmap ends at M6. The [post-M6 review](reports/2026-09-10-runtime-v2-post-m6-review.md) and [testing plan](superpowers/plans/2026-09-10-runtime-v2-post-m6-testing.md) define the next validation pass: repeatable installed-package acceptance, composed recovery, populated-state restoration, operator workflows, bounded load and separate answer-quality measurement. Tasks 1–6 now have implemented tooling and measured results in the [September 11 execution report](reports/2026-09-11-runtime-v2-post-m6-testing.md) and [companion JSON](reports/2026-09-11-runtime-v2-post-m6-testing.json). Identity-changing restore usability and answer/citation quality remain failed gates; human VoiceOver/Safari/prose checks and real Telegram remain blocked. The M6 results below are historical baselines.
 
 | Retained behavior | Destination | Milestone |
 | --- | --- | --- |
@@ -100,6 +100,27 @@ Two independent trials send actual SIGKILL at each of reserve-before-submit, sub
 The [M6 report](reports/2026-09-10-runtime-v2-m6.md) and [archived results](reports/2026-09-10-runtime-v2-m6-results.json) record final-source commands, versions, case outcomes, hashes, reviews, failed attempts and cleanup. Python 3.11/3.13 on macOS and Python 3.13 on Linux each passed 427 offline tests with one expected SDK-present/base-only skip. Docker passed 22 cases on each platform; the existing local Qwen gate passed seven; actual Chrome passed 17; fresh base/MCP wheels passed 164 combined public/browser cases with no SDK in base and all 24 packaged Python/web files verified. The unchanged forty-case memory evaluation retains 10/10 exact and 5/10 paraphrase recall, with zero forbidden/stale returns. Hosted CI remains configured but unexecuted.
 
 The accepted one-root walkthrough adds real desktop/mobile browser evidence, exact approval and verified file output, SIGKILL/reopen recovery without repeated effects, corrected-memory recall, admitted Docker MCP plus a reviewed skill, and an actual Qwen web conversation with no console/CSP errors. Telegram's 88 focused cases use synthetic credentials and a local HTTP peer, including actual SIGKILL and cancellation-suppression recovery; no real Telegram user is contacted. The report retains the model citation-number limitation and other M4/M5 follow-ups.
+
+## Post-M6 local acceptance — September 11, 2026
+
+At implementation `f7686e8ce757f6f031318b677cb2aa045385623d`, macOS Python 3.11/3.13 and local Linux Python 3.13 each passed 587 offline tests with one expected SDK-present/base-only skip. Docker passed 22 on each platform, installed Chrome passed 26, and the existing Qwen gate passed seven. Fresh base/MCP wheels passed 183 public/browser executions, including the missing-SDK public case and the corrected one-root walkthrough, with all 24 packaged files matching. Reconciliation found all 644 collected IDs executed and passed across explicitly selected gates (66 new test functions; 170 more collected cases than the planning baseline).
+
+The 900-second and 3,600-second synthetic workloads completed 2,700 and 10,800 runs with zero pending work or duplicate effects. The original forty-case corpus retains 10/10 exact and 5/10 paraphrase case-hit recall@5; the frozen sixty-case corpus scores 15/15 in each category, both with zero forbidden/stale returns. All 36 documentation answers transported, but the frozen quality verdict failed: required-source matches 46/48, expected facts 41/42, and 53/89 parsed range citations satisfy declared path/interval rules. Twenty trials have citation errors; the report distinguishes actual prose defects from lexical-oracle false positives. These are separate measured baselines, not general quality guarantees.
+
+Repeat the implemented local gates with already prepared dependencies:
+
+```sh
+.venv/bin/python scripts/test_battery.py quick --coverage --report-dir test-results/post-m6-offline
+.venv/bin/python scripts/test_battery.py browser --browser-channel chrome --report-dir test-results/post-m6-chrome
+.venv/bin/python scripts/test_battery.py docker --mcp-docs-image "$MCP_DOCS_IMAGE" --report-dir test-results/post-m6-docker
+# Explicitly prepared cached Python/dependencies; both wheels and the walkthrough.
+UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never .venv/bin/python scripts/verify_wheel.py --python 3.11 --variant both --browser-channel chrome --mcp-docs-image "$MCP_DOCS_IMAGE" --report-dir test-results/post-m6-wheel
+make test-live-mcp PYTHON=.venv/bin/python MCP_DOCS_IMAGE="$MCP_DOCS_IMAGE" OLLAMA_URL=http://127.0.0.1:11434 OLLAMA_MODEL=qwen3.8:27b-mlx
+```
+
+Run the quick command with a separate prepared Python 3.13 environment for that matrix leg. Use the [trusted Linux recipe](../containers/verification/README.md) for the copied-source Linux leg. Docker and Qwen gates run sequentially. The installed-wheel verifier requires actual, nonempty, consistent JUnit cases and zero selected failures/errors/skips; exit status zero alone is insufficient. The walkthrough finalizer attempts every owned cleanup action independently and preserves cleanup failures.
+
+The report records the failed initial Docker prerequisite, later observed API recovery, and verified owned cleanup. One initially running container was absent at the final inventory, with no established cause; unchanged state of that service is not claimed. Main checkout HEAD/status and other-worktree HEAD/branch matched their baselines. No real root was installed, switched or reconciled, and no hosted run or real Telegram message was authorized.
 
 ### Manual operator accessibility and Safari checklist
 
