@@ -100,14 +100,16 @@ def observe_browser_failures(page):
     return observations
 
 
-def exercise_synthetic_hostile_operator_run(page, app, peer):
-    observations = observe_browser_failures(page)
+def exercise_synthetic_hostile_operator_run(page, app, peer, *, observations=None):
+    if observations is None:
+        observations = observe_browser_failures(page)
     long_path = "synthetic-<img-src=x-onerror=window.pwned=true>-" + "x" * 140 + ".txt"
     long_text = "Synthetic hostile <script>window.pwned=true</script> " + "Y" * 220
+    long_tool_call_id = "synthetic-long-tool-call-id-" + "c" * 96
     peer.enqueue(
         Reply(frames=frames(
             message_start(),
-            *tool_block(0, "synthetic-long-tool-call-id-" + "c" * 96, "workspace_write", (
+            *tool_block(0, long_tool_call_id, "workspace_write", (
                 json.dumps({"path": long_path, "content": long_text}),
             )),
             *message_end(),
@@ -130,6 +132,7 @@ def exercise_synthetic_hostile_operator_run(page, app, peer):
         "approval_review": approval_review,
         "long_path": long_path,
         "long_text": long_text,
+        "long_tool_call_id": long_tool_call_id,
         "observations": observations,
         "token": token,
     }
@@ -185,6 +188,7 @@ def assert_synthetic_operator_surface(page, state):
         "operator token appeared in a requested URL"
     )
     assert state["long_path"] in page.locator("#receipts").text_content()
+    assert state["long_tool_call_id"] in page.locator("#activity").text_content()
     for key in ("arguments_sha256", "policy_sha256"):
         value = state["approval_review"][key]
         assert len(value) == 64 and all(character in "0123456789abcdef" for character in value)
@@ -432,7 +436,7 @@ def test_responsive_operator_surface_wraps_synthetic_hostile_content_without_lea
     suffix = f"{width}px" if zoom == 1 else f"{width}px-effective-viewport-200pct"
     screenshot = screenshot_dir / f"responsive-synthetic-{suffix}.png"
     page.screenshot(path=str(screenshot), full_page=True)
-    assert screenshot.is_file() and screenshot.stat().st_size > 0
+    assert screenshot.is_file() and screenshot.stat().st_size > 0, screenshot
 
 
 def test_native_200_percent_page_zoom_reflows_real_operator_surface(
@@ -498,6 +502,7 @@ def test_native_200_percent_page_zoom_reflows_real_operator_surface(
                     )
                 try:
                     page = context.pages[0]
+                    observations = observe_browser_failures(page)
                     page.goto(app.url)
                     cdp = context.new_cdp_session(page)
                     metrics = native_zoom_metrics(page, cdp)
@@ -514,9 +519,14 @@ def test_native_200_percent_page_zoom_reflows_real_operator_surface(
                             cdp, screenshot_dir / "native-100-calibration.png",
                             metrics["outerWidth"], page.evaluate("scrollY"),
                         ))
+                        assert observations["console"] == []
+                        assert observations["page"] == []
+                        assert observations["requests"] == []
                         continue
 
-                    state = exercise_synthetic_hostile_operator_run(page, app, peer)
+                    state = exercise_synthetic_hostile_operator_run(
+                        page, app, peer, observations=observations
+                    )
                     assert_synthetic_operator_surface(page, state)
                     observation["post_workflow_metrics"] = native_zoom_metrics(page, cdp)
                     for label, selector in (
