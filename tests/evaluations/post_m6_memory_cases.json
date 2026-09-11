@@ -1,0 +1,2388 @@
+{
+  "version": 1,
+  "observed_at": "2026-09-10T12:00:00Z",
+  "description": "Frozen synthetic Task 6 baseline. Expected keys are declared record aliases; visibility is after actions. No case tuning after measurement.",
+  "cases": [
+    {
+      "id": "exact-01",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Aster locker is amber.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 1.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Aster locker",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-02",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Beryl departure is 06:40.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 2.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Beryl departure",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-03",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Cobalt custodian is Mira.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 3.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Cobalt custodian",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-04",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Dahlia temperature is 18 Celsius.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 4.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Dahlia temperature",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-05",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Elm capacity is 24 crates.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 5.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Elm capacity",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-06",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Flint password is riverstone.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 6.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Flint password",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-07",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Garnet inspection is Monday.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 7.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Garnet inspection",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-08",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Heather route is north bridge.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 8.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Heather route",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-09",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Iris budget is 730 credits.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 9.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Iris budget",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-10",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Jasper backup is 02:15.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 10.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Jasper backup",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-11",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Kelvin frequency is 440 hertz.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 11.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Kelvin frequency",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-12",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Larch location is east annex.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 12.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Larch location",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-13",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Mallow duration is 9 minutes.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 13.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Mallow duration",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-14",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Nacre material is brass.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 14.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Nacre material",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "exact-15",
+      "category": "exact",
+      "records": [
+        {
+          "key": "target",
+          "text": "Opal owner is Tessa.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 15.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Opal owner",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-01",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Aster locker is amber.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 1.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Where is the Aster storage compartment?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-02",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Beryl departure is 06:40.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 2.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "When does Beryl leave?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-03",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Cobalt custodian is Mira.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 3.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Who looks after Cobalt?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-04",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Dahlia temperature is 18 Celsius.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 4.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "How warm should Dahlia be?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-05",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Elm capacity is 24 crates.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 5.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "How much cargo fits in Elm?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-06",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Flint password is riverstone.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 6.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "What secret phrase unlocks Flint?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-07",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Garnet inspection is Monday.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 7.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Which weekday is Garnet checked?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-08",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Heather route is north bridge.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 8.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Which way should Heather travel?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-09",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Iris budget is 730 credits.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 9.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "How much funding does Iris have?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-10",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Jasper backup is 02:15.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 10.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "When is Jasper copied for safekeeping?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-11",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Kelvin frequency is 440 hertz.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 11.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "What pitch does Kelvin emit?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-12",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Larch location is east annex.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 12.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Where can Larch be found?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-13",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Mallow duration is 9 minutes.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 13.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "How long does Mallow take?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-14",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Nacre material is brass.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 14.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "What is Nacre made from?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "paraphrase-15",
+      "category": "paraphrase",
+      "records": [
+        {
+          "key": "target",
+          "text": "Opal owner is Tessa.",
+          "workspace": "harbor",
+          "session": "one"
+        },
+        {
+          "key": "distractor",
+          "text": "Zinnia unrelated archive entry 15.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Who owns Opal?",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [],
+      "visibility": {
+        "target": "visible",
+        "distractor": "visible"
+      }
+    },
+    {
+      "id": "revision-01",
+      "category": "revision",
+      "records": [
+        {
+          "key": "old",
+          "text": "Aster locker is amber.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [
+        {
+          "op": "correct",
+          "target": "old",
+          "key": "current",
+          "text": "Aster locker is revised-1."
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Aster locker",
+      "expected_keys": [
+        "current"
+      ],
+      "forbidden_keys": [
+        "old"
+      ],
+      "visibility": {
+        "old": "forbidden",
+        "current": "visible"
+      }
+    },
+    {
+      "id": "revision-02",
+      "category": "revision",
+      "records": [
+        {
+          "key": "old",
+          "text": "Beryl departure is 06:40.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [
+        {
+          "op": "correct",
+          "target": "old",
+          "key": "current",
+          "text": "Beryl departure is revised-2."
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Beryl departure",
+      "expected_keys": [
+        "current"
+      ],
+      "forbidden_keys": [
+        "old"
+      ],
+      "visibility": {
+        "old": "forbidden",
+        "current": "visible"
+      }
+    },
+    {
+      "id": "revision-03",
+      "category": "revision",
+      "records": [
+        {
+          "key": "old",
+          "text": "Cobalt custodian is Mira.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [
+        {
+          "op": "correct",
+          "target": "old",
+          "key": "current",
+          "text": "Cobalt custodian is revised-3."
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Cobalt custodian",
+      "expected_keys": [
+        "current"
+      ],
+      "forbidden_keys": [
+        "old"
+      ],
+      "visibility": {
+        "old": "forbidden",
+        "current": "visible"
+      }
+    },
+    {
+      "id": "revision-04",
+      "category": "revision",
+      "records": [
+        {
+          "key": "old",
+          "text": "Dahlia temperature is 18 Celsius.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [
+        {
+          "op": "correct",
+          "target": "old",
+          "key": "current",
+          "text": "Dahlia temperature is revised-4."
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Dahlia temperature",
+      "expected_keys": [
+        "current"
+      ],
+      "forbidden_keys": [
+        "old"
+      ],
+      "visibility": {
+        "old": "forbidden",
+        "current": "visible"
+      }
+    },
+    {
+      "id": "revision-05",
+      "category": "revision",
+      "records": [
+        {
+          "key": "old",
+          "text": "Elm capacity is 24 crates.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [
+        {
+          "op": "correct",
+          "target": "old",
+          "key": "current",
+          "text": "Elm capacity is revised-5."
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Elm capacity",
+      "expected_keys": [
+        "current"
+      ],
+      "forbidden_keys": [
+        "old"
+      ],
+      "visibility": {
+        "old": "forbidden",
+        "current": "visible"
+      }
+    },
+    {
+      "id": "revision-06",
+      "category": "revision",
+      "records": [
+        {
+          "key": "expired",
+          "text": "Flint password is riverstone.",
+          "workspace": "harbor",
+          "session": "one",
+          "valid_for_seconds": 30
+        },
+        {
+          "key": "current",
+          "text": "Flint password is renewed-6.",
+          "workspace": "harbor",
+          "session": "one",
+          "valid_for_seconds": 90
+        }
+      ],
+      "actions": [
+        {
+          "op": "advance",
+          "seconds": 31
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Flint password",
+      "expected_keys": [
+        "current"
+      ],
+      "forbidden_keys": [
+        "expired"
+      ],
+      "visibility": {
+        "expired": "forbidden",
+        "current": "visible"
+      }
+    },
+    {
+      "id": "revision-07",
+      "category": "revision",
+      "records": [
+        {
+          "key": "expired",
+          "text": "Garnet inspection is Monday.",
+          "workspace": "harbor",
+          "session": "one",
+          "valid_for_seconds": 30
+        },
+        {
+          "key": "current",
+          "text": "Garnet inspection is renewed-7.",
+          "workspace": "harbor",
+          "session": "one",
+          "valid_for_seconds": 90
+        }
+      ],
+      "actions": [
+        {
+          "op": "advance",
+          "seconds": 30
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Garnet inspection",
+      "expected_keys": [
+        "current"
+      ],
+      "forbidden_keys": [
+        "expired"
+      ],
+      "visibility": {
+        "expired": "forbidden",
+        "current": "visible"
+      }
+    },
+    {
+      "id": "revision-08",
+      "category": "revision",
+      "records": [
+        {
+          "key": "expired",
+          "text": "Heather route is north bridge.",
+          "workspace": "harbor",
+          "session": "one",
+          "valid_for_seconds": 30
+        },
+        {
+          "key": "current",
+          "text": "Heather route is renewed-8.",
+          "workspace": "harbor",
+          "session": "one",
+          "valid_for_seconds": 90
+        }
+      ],
+      "actions": [
+        {
+          "op": "advance",
+          "seconds": 31
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Heather route",
+      "expected_keys": [
+        "current"
+      ],
+      "forbidden_keys": [
+        "expired"
+      ],
+      "visibility": {
+        "expired": "forbidden",
+        "current": "visible"
+      }
+    },
+    {
+      "id": "revision-09",
+      "category": "revision",
+      "records": [
+        {
+          "key": "expired",
+          "text": "Iris budget is 730 credits.",
+          "workspace": "harbor",
+          "session": "one",
+          "valid_for_seconds": 30
+        },
+        {
+          "key": "current",
+          "text": "Iris budget is renewed-9.",
+          "workspace": "harbor",
+          "session": "one",
+          "valid_for_seconds": 90
+        }
+      ],
+      "actions": [
+        {
+          "op": "advance",
+          "seconds": 30
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Iris budget",
+      "expected_keys": [
+        "current"
+      ],
+      "forbidden_keys": [
+        "expired"
+      ],
+      "visibility": {
+        "expired": "forbidden",
+        "current": "visible"
+      }
+    },
+    {
+      "id": "revision-10",
+      "category": "revision",
+      "records": [
+        {
+          "key": "expired",
+          "text": "Jasper backup is 02:15.",
+          "workspace": "harbor",
+          "session": "one",
+          "valid_for_seconds": 30
+        },
+        {
+          "key": "current",
+          "text": "Jasper backup is renewed-10.",
+          "workspace": "harbor",
+          "session": "one",
+          "valid_for_seconds": 90
+        }
+      ],
+      "actions": [
+        {
+          "op": "advance",
+          "seconds": 31
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Jasper backup",
+      "expected_keys": [
+        "current"
+      ],
+      "forbidden_keys": [
+        "expired"
+      ],
+      "visibility": {
+        "expired": "forbidden",
+        "current": "visible"
+      }
+    },
+    {
+      "id": "revision-11",
+      "category": "revision",
+      "records": [
+        {
+          "key": "forgotten",
+          "text": "Kelvin frequency is 440 hertz.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [
+        {
+          "op": "forget",
+          "target": "forgotten"
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Kelvin frequency",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "forgotten"
+      ],
+      "visibility": {
+        "forgotten": "forbidden"
+      }
+    },
+    {
+      "id": "revision-12",
+      "category": "revision",
+      "records": [
+        {
+          "key": "forgotten",
+          "text": "Larch location is east annex.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [
+        {
+          "op": "forget",
+          "target": "forgotten"
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Larch location",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "forgotten"
+      ],
+      "visibility": {
+        "forgotten": "forbidden"
+      }
+    },
+    {
+      "id": "revision-13",
+      "category": "revision",
+      "records": [
+        {
+          "key": "forgotten",
+          "text": "Mallow duration is 9 minutes.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [
+        {
+          "op": "forget",
+          "target": "forgotten"
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Mallow duration",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "forgotten"
+      ],
+      "visibility": {
+        "forgotten": "forbidden"
+      }
+    },
+    {
+      "id": "revision-14",
+      "category": "revision",
+      "records": [
+        {
+          "key": "forgotten",
+          "text": "Nacre material is brass.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [
+        {
+          "op": "forget",
+          "target": "forgotten"
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Nacre material",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "forgotten"
+      ],
+      "visibility": {
+        "forgotten": "forbidden"
+      }
+    },
+    {
+      "id": "revision-15",
+      "category": "revision",
+      "records": [
+        {
+          "key": "forgotten",
+          "text": "Opal owner is Tessa.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [
+        {
+          "op": "forget",
+          "target": "forgotten"
+        }
+      ],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Opal owner",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "forgotten"
+      ],
+      "visibility": {
+        "forgotten": "forbidden"
+      }
+    },
+    {
+      "id": "scope-01",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Aster locker is amber.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Aster locker is amber.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Aster locker is amber.",
+          "workspace": "inland",
+          "session": null
+        },
+        {
+          "key": "target",
+          "text": "Aster locker is amber.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Aster locker",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden",
+        "target": "visible"
+      }
+    },
+    {
+      "id": "scope-02",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Beryl departure is 06:40.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Beryl departure is 06:40.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Beryl departure is 06:40.",
+          "workspace": "inland",
+          "session": null
+        },
+        {
+          "key": "target",
+          "text": "Beryl departure is 06:40.",
+          "workspace": "harbor",
+          "session": null
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Beryl departure",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden",
+        "target": "visible"
+      }
+    },
+    {
+      "id": "scope-03",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Cobalt custodian is Mira.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Cobalt custodian is Mira.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Cobalt custodian is Mira.",
+          "workspace": "inland",
+          "session": null
+        },
+        {
+          "key": "target",
+          "text": "Cobalt custodian is Mira.",
+          "workspace": "harbor",
+          "session": null
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": null
+      },
+      "query": "Cobalt custodian",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden",
+        "target": "visible"
+      }
+    },
+    {
+      "id": "scope-04",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Dahlia temperature is 18 Celsius.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Dahlia temperature is 18 Celsius.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Dahlia temperature is 18 Celsius.",
+          "workspace": "inland",
+          "session": null
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Dahlia temperature",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden"
+      }
+    },
+    {
+      "id": "scope-05",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Elm capacity is 24 crates.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Elm capacity is 24 crates.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Elm capacity is 24 crates.",
+          "workspace": "inland",
+          "session": null
+        },
+        {
+          "key": "hidden-0",
+          "text": "Elm capacity",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-1",
+          "text": "Elm capacity",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-2",
+          "text": "Elm capacity",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-3",
+          "text": "Elm capacity",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-4",
+          "text": "Elm capacity",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-5",
+          "text": "Elm capacity",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-6",
+          "text": "Elm capacity",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "target",
+          "text": "Elm capacity is 24 crates.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Elm capacity",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared",
+        "hidden-0",
+        "hidden-1",
+        "hidden-2",
+        "hidden-3",
+        "hidden-4",
+        "hidden-5",
+        "hidden-6"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden",
+        "hidden-0": "forbidden",
+        "hidden-1": "forbidden",
+        "hidden-2": "forbidden",
+        "hidden-3": "forbidden",
+        "hidden-4": "forbidden",
+        "hidden-5": "forbidden",
+        "hidden-6": "forbidden",
+        "target": "visible"
+      }
+    },
+    {
+      "id": "scope-06",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Flint password is riverstone.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Flint password is riverstone.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Flint password is riverstone.",
+          "workspace": "inland",
+          "session": null
+        },
+        {
+          "key": "target",
+          "text": "Flint password is riverstone.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Flint password",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden",
+        "target": "visible"
+      }
+    },
+    {
+      "id": "scope-07",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Garnet inspection is Monday.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Garnet inspection is Monday.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Garnet inspection is Monday.",
+          "workspace": "inland",
+          "session": null
+        },
+        {
+          "key": "target",
+          "text": "Garnet inspection is Monday.",
+          "workspace": "harbor",
+          "session": null
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Garnet inspection",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden",
+        "target": "visible"
+      }
+    },
+    {
+      "id": "scope-08",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Heather route is north bridge.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Heather route is north bridge.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Heather route is north bridge.",
+          "workspace": "inland",
+          "session": null
+        },
+        {
+          "key": "target",
+          "text": "Heather route is north bridge.",
+          "workspace": "harbor",
+          "session": null
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": null
+      },
+      "query": "Heather route",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden",
+        "target": "visible"
+      }
+    },
+    {
+      "id": "scope-09",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Iris budget is 730 credits.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Iris budget is 730 credits.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Iris budget is 730 credits.",
+          "workspace": "inland",
+          "session": null
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Iris budget",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden"
+      }
+    },
+    {
+      "id": "scope-10",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Jasper backup is 02:15.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Jasper backup is 02:15.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Jasper backup is 02:15.",
+          "workspace": "inland",
+          "session": null
+        },
+        {
+          "key": "hidden-0",
+          "text": "Jasper backup",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-1",
+          "text": "Jasper backup",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-2",
+          "text": "Jasper backup",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-3",
+          "text": "Jasper backup",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-4",
+          "text": "Jasper backup",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-5",
+          "text": "Jasper backup",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-6",
+          "text": "Jasper backup",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "target",
+          "text": "Jasper backup is 02:15.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Jasper backup",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared",
+        "hidden-0",
+        "hidden-1",
+        "hidden-2",
+        "hidden-3",
+        "hidden-4",
+        "hidden-5",
+        "hidden-6"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden",
+        "hidden-0": "forbidden",
+        "hidden-1": "forbidden",
+        "hidden-2": "forbidden",
+        "hidden-3": "forbidden",
+        "hidden-4": "forbidden",
+        "hidden-5": "forbidden",
+        "hidden-6": "forbidden",
+        "target": "visible"
+      }
+    },
+    {
+      "id": "scope-11",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Kelvin frequency is 440 hertz.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Kelvin frequency is 440 hertz.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Kelvin frequency is 440 hertz.",
+          "workspace": "inland",
+          "session": null
+        },
+        {
+          "key": "target",
+          "text": "Kelvin frequency is 440 hertz.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Kelvin frequency",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden",
+        "target": "visible"
+      }
+    },
+    {
+      "id": "scope-12",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Larch location is east annex.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Larch location is east annex.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Larch location is east annex.",
+          "workspace": "inland",
+          "session": null
+        },
+        {
+          "key": "target",
+          "text": "Larch location is east annex.",
+          "workspace": "harbor",
+          "session": null
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Larch location",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden",
+        "target": "visible"
+      }
+    },
+    {
+      "id": "scope-13",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Mallow duration is 9 minutes.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Mallow duration is 9 minutes.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Mallow duration is 9 minutes.",
+          "workspace": "inland",
+          "session": null
+        },
+        {
+          "key": "target",
+          "text": "Mallow duration is 9 minutes.",
+          "workspace": "harbor",
+          "session": null
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": null
+      },
+      "query": "Mallow duration",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden",
+        "target": "visible"
+      }
+    },
+    {
+      "id": "scope-14",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Nacre material is brass.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Nacre material is brass.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Nacre material is brass.",
+          "workspace": "inland",
+          "session": null
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Nacre material",
+      "expected_keys": [],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden"
+      }
+    },
+    {
+      "id": "scope-15",
+      "category": "scope",
+      "records": [
+        {
+          "key": "private",
+          "text": "Opal owner is Tessa.",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "foreign",
+          "text": "Opal owner is Tessa.",
+          "workspace": "inland",
+          "session": "one"
+        },
+        {
+          "key": "foreign-shared",
+          "text": "Opal owner is Tessa.",
+          "workspace": "inland",
+          "session": null
+        },
+        {
+          "key": "hidden-0",
+          "text": "Opal owner",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-1",
+          "text": "Opal owner",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-2",
+          "text": "Opal owner",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-3",
+          "text": "Opal owner",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-4",
+          "text": "Opal owner",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-5",
+          "text": "Opal owner",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "hidden-6",
+          "text": "Opal owner",
+          "workspace": "harbor",
+          "session": "two"
+        },
+        {
+          "key": "target",
+          "text": "Opal owner is Tessa.",
+          "workspace": "harbor",
+          "session": "one"
+        }
+      ],
+      "actions": [],
+      "query_scope": {
+        "workspace": "harbor",
+        "session": "one"
+      },
+      "query": "Opal owner",
+      "expected_keys": [
+        "target"
+      ],
+      "forbidden_keys": [
+        "private",
+        "foreign",
+        "foreign-shared",
+        "hidden-0",
+        "hidden-1",
+        "hidden-2",
+        "hidden-3",
+        "hidden-4",
+        "hidden-5",
+        "hidden-6"
+      ],
+      "visibility": {
+        "private": "forbidden",
+        "foreign": "forbidden",
+        "foreign-shared": "forbidden",
+        "hidden-0": "forbidden",
+        "hidden-1": "forbidden",
+        "hidden-2": "forbidden",
+        "hidden-3": "forbidden",
+        "hidden-4": "forbidden",
+        "hidden-5": "forbidden",
+        "hidden-6": "forbidden",
+        "target": "visible"
+      }
+    }
+  ]
+}
