@@ -1,6 +1,6 @@
 # HyperClaw Runtime v2 Roadmap Implementation Plan
 
-M1 and M2 completed 2026-09-09: [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md), [M2 acceptance](../../reports/2026-09-09-runtime-v2-m2.md). M3 completed 2026-09-09: [M3 acceptance](../../reports/2026-09-09-runtime-v2-m3.md). M4 completed 2026-09-10: [M4 evidence](../../reports/2026-09-10-runtime-v2-m4.md). M5 completed 2026-09-10 after final review, scoped fixes and refreshed acceptance: [M5 evidence](../../reports/2026-09-10-runtime-v2-m5.md). M6 is not started. Baseline notes below describe the original planning state.
+M1 and M2 completed 2026-09-09: [M1 acceptance](../../reports/2026-09-09-runtime-v2-m1.md), [M2 acceptance](../../reports/2026-09-09-runtime-v2-m2.md). M3 completed 2026-09-09: [M3 acceptance](../../reports/2026-09-09-runtime-v2-m3.md). M4 completed 2026-09-10: [M4 evidence](../../reports/2026-09-10-runtime-v2-m4.md). M5 completed 2026-09-10 after final review, scoped fixes and refreshed acceptance: [M5 evidence](../../reports/2026-09-10-runtime-v2-m5.md). M6 completed 2026-09-10 after independent reviews, final platform/package gates and the disposable-root walkthrough: [M6 acceptance](../../reports/2026-09-10-runtime-v2-m6.md). Baseline notes below describe the original planning state.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -192,11 +192,11 @@ Web authentication uses the bearer header, with no token in a URL or persistent 
 
 **Gate:**
 
-- [ ] Web reconnect replays run state without resubmitting work; approvals bind exact invocations.
-- [ ] Forged/missing bearer tokens cannot read transcripts, approve, reset, or submit.
-- [ ] Telegram authorization, duplicate updates, group-sender isolation, and restart mapping pass with fixtures.
-- [ ] No stale launchers, dead routes, broad feature claims, or obsolete dependency instructions remain.
-- [ ] A disposable-root walkthrough covers chat, verified file task, interruption recovery, correction recall, MCP lookup, and a reviewed skill.
+- [x] Web reconnect replays run state without resubmitting work; approvals bind exact invocations.
+- [x] Forged/missing bearer tokens cannot read transcripts, approve, reset, or submit.
+- [x] Telegram authorization, duplicate updates, group-sender isolation, and restart mapping pass with fixtures.
+- [x] No stale launchers, dead routes, broad feature claims, or obsolete dependency instructions remain.
+- [x] A disposable-root walkthrough covers chat, verified file task, interruption recovery, correction recall, MCP lookup, and a reviewed skill.
 
 ## Completion and operating limits
 
