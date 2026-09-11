@@ -18,7 +18,9 @@
       <button id="logout" type="button" hidden>Disconnect</button>
       <p id="connection-status" role="status">Disconnected</p>
     </section>
+    <div id="errors" class="errors" role="alert" aria-live="assertive"></div>
     <section id="workspace" hidden aria-label="Conversation workspace">
+      <div id="discovery-errors" class="errors" role="status"></div>
       <div class="workspace-grid">
         <aside aria-label="Sessions">
           <div class="row">
@@ -40,7 +42,6 @@
             <button id="cancel-run" type="button" disabled>Cancel run</button>
             <button id="reconnect-stream" type="button" disabled>Reconnect stream</button>
           </div>
-          <div id="errors" class="errors" role="alert" aria-live="assertive"></div>
           <div id="transcript" class="transcript" aria-live="polite"></div>
           <form id="composer">
             <label for="message">Message</label>

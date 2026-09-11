@@ -32,6 +32,7 @@ pre { margin: .4rem 0 0; max-height: 24rem; overflow: auto; }
 h2, h3 { margin: .35rem 0; }
 .label, .muted { color: #a7b5bf; }
 .errors, .warning { color: #ffb5ad; min-height: 1.5rem; white-space: pre-wrap; }
+.errors:empty { display: none; }
 .run-state[data-status="succeeded"] { color: #95d6a4; }
 .run-state[data-status="failed"], .run-state[data-status="uncertain"], .run-state[data-status="interrupted"] { color: #ffb5ad; }
 fieldset { border: 1px solid #33414b; margin-top: .75rem; }

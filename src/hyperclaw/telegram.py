@@ -129,7 +129,7 @@ class TelegramUpdate(Value):
             if not choices:
                 return rejected
             chosen = max(choices, key=lambda p: p['width'] * p['height'])
-            return cls(**base, **data, kind='photo', text=text or 'Describe this image.', file_id=chosen['file_id'])
+            return cls(**base, **data, kind='photo', text=text if text.strip() else 'Describe this image.', file_id=chosen['file_id'])
         if not text.strip() or 'caption' in msg:
             return rejected
         return cls(**base, **data, kind='text', text=text)

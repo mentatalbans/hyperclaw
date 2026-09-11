@@ -218,3 +218,20 @@ def test_untrusted_chat_type_is_rejected_without_crashing_intake(chat_type):
     payload = update()
     payload['message']['chat']['type'] = chat_type
     assert telegram_module().TelegramUpdate.from_payload(payload).kind == 'rejected'
+
+
+@pytest.mark.parametrize('caption,want', [
+    (None, 'Describe this image.'), ('', 'Describe this image.'),
+    (' \t\n ', 'Describe this image.'), ('\u2003', 'Describe this image.'),
+    ('  Describe the red square.\n', '  Describe the red square.\n'),
+])
+def test_photo_caption_normalizes_to_a_valid_request_without_changing_meaningful_text(caption, want):
+    from hyperclaw.contracts import RunRequest
+    from tests.support.telegram_peer import update
+    payload = update(photo=[{'file_id': 'synthetic', 'width': 1, 'height': 1}])
+    if caption is not None:
+        payload['message']['caption'] = caption
+    normalized = telegram_module().TelegramUpdate.from_payload(payload)
+    assert normalized.kind == 'photo'
+    request = RunRequest(session_id='session', generation=0, request_id='caption', text=normalized.text)
+    assert request.text == want

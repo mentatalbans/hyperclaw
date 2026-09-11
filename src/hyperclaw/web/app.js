@@ -277,16 +277,29 @@
     if (!candidate) { showError({message: 'Enter the operator token.'}); return; }
     state.connectionEpoch += 1; beginSelection(); state.approvalsEpoch += 1;
     const connectionEpoch = state.connectionEpoch;
-    clearError(); state.token = candidate; setPhase('connecting');
+    clearError(); clear(byId('discovery-errors')); state.token = candidate; setPhase('connecting');
     try {
-      const [sessions, skills, mcp] = await Promise.all([
-        request('/v1/sessions'), request('/v1/skills'), request('/v1/mcp'),
+      const [sessions, discovery] = await Promise.all([
+        request('/v1/sessions'),
+        Promise.allSettled([request('/v1/skills'), request('/v1/mcp')]),
       ]);
       if (!ownsConnection(connectionEpoch, candidate)) return;
+      const authFailure = discovery.find(result => result.status === 'rejected' &&
+        [401, 403].includes(result.reason.status));
+      if (authFailure) throw authFailure.reason;
+      const [skills, mcp] = discovery;
+      const guidance = [
+        'Skills unavailable. Review installed skills and their admissions, then reconnect.',
+        'MCP tools unavailable. Review MCP documentation configuration and admission, then reconnect.',
+      ];
+      byId('discovery-errors').textContent = discovery.flatMap((result, index) =>
+        result.status === 'rejected' ? [`${guidance[index]} ${describe(result.reason)}`] : [],
+      ).join('\n');
       state.sessions = sessions;
       state.sessionCursor = sessions.length ? sessions.at(-1).id : null;
       state.hasOlderSessions = sessions.length === 50;
-      renderChoices(skills, mcp);
+      renderChoices(skills.status === 'fulfilled' ? skills.value : [],
+        mcp.status === 'fulfilled' ? mcp.value : null);
       byId('workspace').hidden = false; byId('logout').hidden = false; byId('connect').hidden = true;
       byId('connection-panel').classList.add('connected');
       byId('connection-status').textContent = 'Connected';
@@ -316,6 +329,7 @@
     byId('run-id').textContent = 'None'; byId('run-status').textContent = 'No run selected';
     clear(byId('sessions')); clear(byId('run-history')); clear(byId('transcript'));
     clear(byId('activity')); clear(byId('receipts')); clear(byId('approvals')); clearError();
+    clear(byId('discovery-errors'));
     history.replaceState(null, '', location.pathname); setPhase('disconnected');
   }
 

@@ -497,3 +497,171 @@ def test_hash_and_run_history_recover_records_beyond_first_page(web_service, bro
     page.locator("#errors").filter(has_text="run_session_mismatch").wait_for()
     assert page.locator("#session-id").text_content() == sessions[1]["id"]
     assert page.locator("#run-id").text_content() == "None"
+
+
+@pytest.fixture
+def configured_mcp_service(tmp_path):
+    peer = ProviderStub()
+    app = Process(tmp_path / 'runtime', peer.url)
+    docs = tmp_path / 'public-docs'
+    docs.mkdir()
+    (docs / 'guide.md').write_text('Synthetic public documentation.\n')
+    config = app.root / 'config.toml'
+    config.write_text(config.read_text().replace('mcp_docs_path = ""', f'mcp_docs_path = {json.dumps(str(docs))}')
+                      .replace('mcp_docs_image = ""', 'mcp_docs_image = "sha256:' + '0' * 64 + '"'))
+    try:
+        app.start()
+        yield app, peer, docs
+    finally:
+        app.stop()
+        peer.close()
+
+
+def admit_browser_docs(app):
+    preview = app.client.get('/v1/mcp')
+    preview.raise_for_status()
+    app.client.post('/v1/mcp/admit', json={'expected_sha256': preview.json()['sha256']}).raise_for_status()
+
+
+def test_optional_mcp_discovery_failure_preserves_core_web_work(configured_mcp_service, browser_page):
+    app, peer, docs = configured_mcp_service
+    page = browser_page
+    (docs / 'guide.md').unlink()
+    docs.rmdir()
+    assert app.client.get('/v1/mcp').status_code == 422
+    peer.enqueue(Reply(chunks=('Ordinary chat is available.',)))
+    page.goto(app.url)
+    page.locator('#token').fill((app.root / 'token').read_text().strip())
+    page.locator('#connect').click()
+    page.locator('#workspace').wait_for(state='visible', timeout=3000)
+    warning = page.locator('#discovery-errors')
+    warning.filter(has_text='invalid_mcp_docs').wait_for(state='visible')
+    assert 'MCP' in warning.text_content() and 'reconnect' in warning.text_content().lower()
+    assert page.locator('input[name="tools"][value^="mcp_"]:disabled').count() == 2
+    assert page.locator('input[name="tools"][value^="mcp_"]:checked').count() == 0
+    page.locator('#new-session').click()
+    page.locator('#session-id').filter(has_not_text='None').wait_for()
+    assert page.locator('#reset-session').is_enabled()
+    page.locator('#refresh-approvals').click()
+    page.locator('#approvals').filter(has_text='No waiting approvals.').wait_for()
+    send(page, 'Ordinary chat with missing optional documentation')
+    wait_status(page, 'succeeded')
+    assert peer.take_request()['messages'][-1]['content'] == 'Ordinary chat with missing optional documentation'
+    assert 'Ordinary chat is available.' in page.locator('#transcript').text_content()
+    assert page.locator('#run-history button').count() == 1
+    assert warning.is_visible() and 'invalid_mcp_docs' in warning.text_content()
+    gate = threading.Event()
+    peer.enqueue(Reply(gate=gate, disconnected=threading.Event()))
+    send(page, 'Cancel this ordinary run')
+    peer.take_request()
+    wait_status(page, 'running')
+    page.locator('#cancel-run').click()
+    wait_status(page, 'cancelled')
+    page.locator('#reset-session').click()
+    page.locator('#generation').filter(has_text='1').wait_for()
+    page.locator('#logout').click()
+    assert warning.text_content() == ''
+    # Restoring and admitting real local documentation enables selection on a fresh connection.
+    docs.mkdir()
+    (docs / 'guide.md').write_text('Synthetic public documentation.\n')
+    admit_browser_docs(app)
+    page.locator('#token').fill((app.root / 'token').read_text().strip())
+    page.locator('#connect').click()
+    page.locator('#workspace').wait_for(state='visible')
+    assert warning.text_content() == ''
+    assert page.locator('input[name="tools"][value^="mcp_"]:enabled').count() == 2
+    assert page.locator('input[name="tools"][value^="mcp_"]:checked').count() == 0
+    page.locator('details summary').click()
+    page.locator('input[value="mcp_docs_read"]').check()
+    assert page.locator('input[value="mcp_docs_read"]').is_checked()
+
+
+def test_login_errors_are_visible_and_clear_on_success_and_logout(web_service, browser_page):
+    app, _peer = web_service
+    page = browser_page
+    page.goto(app.url)
+    page.locator('#connect').click()
+    page.locator('#errors').filter(has_text='Enter the operator token.').wait_for(state='visible', timeout=3000)
+    page.locator('#token').fill('invalid-synthetic-token')
+    page.locator('#connect').click()
+    page.locator('#errors').filter(has_text='unauthorized').wait_for(state='visible', timeout=3000)
+    assert page.locator('#workspace').is_hidden()
+    assert page.locator('#token').input_value() == ''
+    page.locator('#token').fill((app.root / 'token').read_text().strip())
+    page.locator('#connect').click()
+    page.locator('#workspace').wait_for(state='visible')
+    assert page.locator('#errors').text_content() == ''
+    page.route('**/v1/approvals', lambda route: route.fulfill(status=503, content_type='application/json',
+        body=json.dumps({'error': {'code': 'synthetic_unavailable', 'message': 'Try refresh again.'}})))
+    page.locator('#refresh-approvals').click()
+    page.locator('#errors').filter(has_text='synthetic_unavailable').wait_for(state='visible')
+    page.locator('#logout').click()
+    assert page.locator('#errors').text_content() == ''
+    assert page.locator('#workspace').is_hidden()
+
+
+def test_optional_skill_discovery_failure_keeps_chat_without_skill_selection(web_service, browser_page):
+    app, peer = web_service
+    page = browser_page
+    page.route('**/v1/skills', lambda route: route.fulfill(status=503, content_type='application/json',
+        body=json.dumps({'error': {'code': 'synthetic_skills_unavailable', 'message': 'Review the skills directory.'}})))
+    peer.enqueue(Reply())
+    page.goto(app.url)
+    page.locator('#token').fill((app.root / 'token').read_text().strip())
+    page.locator('#connect').click()
+    page.locator('#workspace').wait_for(state='visible', timeout=3000)
+    page.locator('#discovery-errors').filter(has_text='synthetic_skills_unavailable').wait_for(state='visible')
+    assert page.locator('input[name="skills"]').count() == 0
+    page.locator('#new-session').click()
+    page.locator('#session-id').filter(has_not_text='None').wait_for()
+    send(page, 'Chat without optional skills')
+    wait_status(page, 'succeeded')
+    run_id = page.locator('#run-id').text_content()
+    assert app.client.get(f'/v1/runs/{run_id}').json()['request']['skills'] == []
+
+
+@pytest.mark.parametrize('path,status', [('/v1/skills', 401), ('/v1/mcp', 403)])
+def test_optional_discovery_auth_failure_still_disconnects(web_service, browser_page, path, status):
+    app, _peer = web_service
+    page = browser_page
+    page.route('**' + path, lambda route: route.fulfill(status=status, content_type='application/json',
+        body=json.dumps({'error': {'code': 'synthetic_auth_failure', 'message': 'Reconnect with an authorized token.'}})))
+    page.goto(app.url)
+    page.locator('#token').fill((app.root / 'token').read_text().strip())
+    page.locator('#connect').click()
+    page.locator('#errors').filter(has_text='synthetic_auth_failure').wait_for(state='visible', timeout=3000)
+    assert page.locator('#workspace').is_hidden()
+    assert page.evaluate('document.body.dataset.phase') == 'disconnected'
+    assert page.locator('#token').input_value() == ''
+
+
+@pytest.mark.parametrize('old_auth_failure', [False, True])
+def test_new_connection_owns_late_optional_discovery(configured_mcp_service, browser_page, old_auth_failure):
+    app, _peer, docs = configured_mcp_service
+    page = browser_page
+    admit_browser_docs(app)
+    if old_auth_failure:
+        page.route('**/v1/mcp', lambda route: route.fulfill(status=401, content_type='application/json',
+            body=json.dumps({'error': {'code': 'old_auth_failure', 'message': 'Stale connection.'}})), times=1)
+    page.goto(app.url)
+    gate_fetch_completion(page, 'old-mcp', 'GET', '/v1/mcp')
+    page.locator('#token').fill((app.root / 'token').read_text().strip())
+    page.locator('#connect').click()
+    wait_fetch_gate(page, 'old-mcp')
+    if not old_auth_failure:
+        (docs / 'guide.md').unlink()
+        docs.rmdir()
+    page.locator('#token').fill((app.root / 'token').read_text().strip())
+    page.locator('#connect').click()
+    page.locator('#workspace').wait_for(state='visible', timeout=3000)
+    release_fetch_gate(page, 'old-mcp')
+    assert page.locator('#workspace').is_visible()
+    assert page.locator('#connection-status').text_content() == 'Connected'
+    assert page.locator('#errors').text_content() == ''
+    if old_auth_failure:
+        assert page.locator('#discovery-errors').text_content() == ''
+        assert page.locator('input[name="tools"][value^="mcp_"]:enabled').count() == 2
+    else:
+        assert 'invalid_mcp_docs' in page.locator('#discovery-errors').text_content()
+        assert page.locator('input[name="tools"][value^="mcp_"]:disabled').count() == 2
+    assert page.locator('input[name="tools"][value^="mcp_"]:checked').count() == 0
