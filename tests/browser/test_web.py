@@ -1,5 +1,12 @@
+import base64
+import hashlib
+from importlib.resources import files
 import json
+import math
 from pathlib import Path
+import shutil
+import struct
+import subprocess
 import threading
 
 import pytest
@@ -81,6 +88,144 @@ def browser_storage_inventory(page):
       databases: indexedDB.databases ? (await indexedDB.databases()).map(database => database.name) : [],
       caches: 'caches' in window ? await caches.keys() : [],
     })""")
+
+
+def observe_browser_failures(page):
+    observations = {"console": [], "page": [], "requests": [], "urls": []}
+    page.on("console", lambda message: observations["console"].append(message.text)
+            if message.type == "error" else None)
+    page.on("pageerror", lambda error: observations["page"].append(str(error)))
+    page.on("requestfailed", lambda outgoing: observations["requests"].append(outgoing.url))
+    page.on("request", lambda outgoing: observations["urls"].append(outgoing.url))
+    return observations
+
+
+def exercise_synthetic_hostile_operator_run(page, app, peer):
+    observations = observe_browser_failures(page)
+    long_path = "synthetic-<img-src=x-onerror=window.pwned=true>-" + "x" * 140 + ".txt"
+    long_text = "Synthetic hostile <script>window.pwned=true</script> " + "Y" * 220
+    peer.enqueue(
+        Reply(frames=frames(
+            message_start(),
+            *tool_block(0, "synthetic-long-tool-call-id-" + "c" * 96, "workspace_write", (
+                json.dumps({"path": long_path, "content": long_text}),
+            )),
+            *message_end(),
+        )),
+        Reply(chunks=(long_text,)),
+    )
+
+    connect(page, app)
+    token = (app.root / "token").read_text().strip()
+    page.locator("#new-session").click()
+    page.locator("#session-id").filter(has_not_text="None").wait_for()
+    send(page, long_text)
+    peer.take_request()
+    approval = wait_approval(page)
+    approval_review = json.loads(approval.locator("pre").text_content())
+    approval.locator('button[data-decision="approve"]').click()
+    wait_status(page, "succeeded")
+    page.locator("#receipts").filter(has_text=long_path).wait_for()
+    return {
+        "approval_review": approval_review,
+        "long_path": long_path,
+        "long_text": long_text,
+        "observations": observations,
+        "token": token,
+    }
+
+
+def assert_synthetic_operator_surface(page, state):
+    page.locator("#logout").scroll_into_view_if_needed()
+    essential_controls = (
+        "#logout", "#new-session", "#reset-session", "#cancel-run", "#reconnect-stream",
+        "#message", "#send", "details summary", "#run-history button", "#refresh-approvals",
+    )
+    for selector in essential_controls:
+        control = page.locator(selector).first
+        assert control.is_visible(), selector
+        control.evaluate("element => element.scrollIntoView({block: 'center', inline: 'nearest'})")
+        geometry = control.evaluate("""element => {
+          const bounds = element.getBoundingClientRect();
+          const viewport = window.visualViewport;
+          return {
+            bounds: {left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom},
+            viewport: {left: viewport.offsetLeft, top: viewport.offsetTop,
+              right: viewport.offsetLeft + viewport.width, bottom: viewport.offsetTop + viewport.height},
+            scrollY,
+          };
+        }""")
+        assert (
+            geometry["bounds"]["left"] >= geometry["viewport"]["left"]
+            and geometry["bounds"]["right"] <= geometry["viewport"]["right"]
+            and geometry["bounds"]["top"] >= geometry["viewport"]["top"]
+            and geometry["bounds"]["bottom"] <= geometry["viewport"]["bottom"]
+        ), f"essential control is outside the viewport after scrolling: {selector}: {geometry}"
+    assert page.evaluate("window.pwned") is None
+    assert page.evaluate("""() => document.documentElement.scrollWidth <= window.innerWidth &&
+      document.body.scrollWidth <= window.innerWidth""")
+    overflow = page.evaluate("""() => [...document.querySelectorAll('body *')]
+      .filter(element => element.scrollWidth > element.clientWidth &&
+        getComputedStyle(element).overflowX === 'visible')
+      .map(element => ({tag: element.tagName, id: element.id,
+                        scrollWidth: element.scrollWidth, clientWidth: element.clientWidth}))""")
+    assert not overflow, overflow
+    assert page.evaluate(
+        "secret => !document.documentElement.innerHTML.includes(secret)", state["token"]
+    ), "operator token appeared in rendered markup"
+    assert page.evaluate(
+        "secret => !location.href.includes(secret)", state["token"]
+    ), "operator token appeared in the current URL"
+    assert page.locator("#token").input_value() == ""
+    assert browser_storage_inventory(page) == {
+        "local": [], "session": [], "cookies": "", "databases": [], "caches": [],
+    }
+    assert all(page.evaluate("([url, secret]) => !url.includes(secret)", [url, state["token"]])
+               for url in state["observations"]["urls"]), (
+        "operator token appeared in a requested URL"
+    )
+    assert state["long_path"] in page.locator("#receipts").text_content()
+    for key in ("arguments_sha256", "policy_sha256"):
+        value = state["approval_review"][key]
+        assert len(value) == 64 and all(character in "0123456789abcdef" for character in value)
+    for selector in ("#transcript .message", "#receipts pre", "#run-history button"):
+        assert page.locator(selector).first.evaluate(
+            "element => element.scrollWidth <= element.clientWidth"
+        ), f"synthetic content did not wrap inside {selector}"
+    assert state["observations"]["console"] == []
+    assert state["observations"]["page"] == []
+    assert state["observations"]["requests"] == []
+
+
+def native_zoom_preferences(factor):
+    return {"partition": {"default_zoom_level": {"x": math.log(factor) / math.log(1.2)}}}
+
+
+def native_zoom_metrics(page, cdp):
+    metrics = page.evaluate("""() => ({
+      innerWidth, innerHeight, outerWidth, outerHeight, devicePixelRatio,
+      visualViewportScale: visualViewport.scale,
+      narrowMediaQuery: matchMedia('(max-width: 850px)').matches,
+      workspaceColumns: getComputedStyle(document.querySelector('.workspace-grid')).gridTemplateColumns,
+    })""")
+    layout = cdp.send("Page.getLayoutMetrics")
+    metrics["css_visual_viewport"] = layout["cssVisualViewport"]
+    metrics["layout_viewport"] = layout["layoutViewport"]
+    return metrics
+
+
+def capture_native_viewport(cdp, path, expected_width, scroll_y):
+    capture = cdp.send("Page.captureScreenshot", {
+        "format": "png", "fromSurface": True, "captureBeyondViewport": False,
+    })
+    data = base64.b64decode(capture["data"])
+    assert data.startswith(b"\x89PNG\r\n\x1a\n")
+    width, height = struct.unpack(">II", data[16:24])
+    assert width == expected_width
+    assert height > 0
+    path.write_bytes(data)
+    return {"path": path.name, "sha256": hashlib.sha256(data).hexdigest(),
+            "width": width, "height": height, "scroll_y": scroll_y}
 
 
 def test_focus_indicator_check_rejects_invisible_keyboard_focus(browser_page):
@@ -274,75 +419,13 @@ def test_responsive_operator_surface_wraps_synthetic_hostile_content_without_lea
 ):
     app, peer = web_service
     page = browser_page
-    console_errors = []
-    page_errors = []
-    failed_requests = []
-    requested_urls = []
-    page.on("console", lambda message: console_errors.append(message.text)
-            if message.type == "error" else None)
-    page.on("pageerror", lambda error: page_errors.append(str(error)))
-    page.on("requestfailed", lambda outgoing: failed_requests.append(outgoing.url))
-    page.on("request", lambda outgoing: requested_urls.append(outgoing.url))
-    long_path = "synthetic-<img-src=x-onerror=window.pwned=true>-" + "x" * 140 + ".txt"
-    long_text = "Synthetic hostile <script>window.pwned=true</script> " + "Y" * 220
-    peer.enqueue(
-        Reply(frames=frames(
-            message_start(),
-            *tool_block(0, "synthetic-long-tool-call-id-" + "c" * 96, "workspace_write", (
-                json.dumps({"path": long_path, "content": long_text}),
-            )),
-            *message_end(),
-        )),
-        Reply(chunks=(long_text,)),
-    )
-
-    connect(page, app)
-    token = (app.root / "token").read_text().strip()
-    page.locator("#new-session").click()
-    page.locator("#session-id").filter(has_not_text="None").wait_for()
-    send(page, long_text)
-    peer.take_request()
-    approval = wait_approval(page)
-    approval.locator('button[data-decision="approve"]').click()
-    wait_status(page, "succeeded")
-    page.locator("#receipts").filter(has_text=long_path).wait_for()
+    state = exercise_synthetic_hostile_operator_run(page, app, peer)
 
     if zoom == 1:
         page.set_viewport_size({"width": width, "height": 900})
     else:
         page.set_viewport_size({"width": width // zoom, "height": 900 // zoom})
-    page.locator("#logout").scroll_into_view_if_needed()
-    essential_controls = (
-        "#logout", "#new-session", "#reset-session", "#cancel-run", "#reconnect-stream",
-        "#message", "#send", "details summary", "#run-history button", "#refresh-approvals",
-    )
-    for selector in essential_controls:
-        control = page.locator(selector).first
-        assert control.is_visible(), selector
-        assert control.evaluate("""element => {
-          const bounds = element.getBoundingClientRect();
-          return bounds.left >= 0 && bounds.right <= window.innerWidth;
-        }"""), f"essential control is outside the horizontal viewport: {selector}"
-    assert page.evaluate("window.pwned") is None
-    assert page.evaluate("""() => document.documentElement.scrollWidth <= window.innerWidth &&
-      document.body.scrollWidth <= window.innerWidth""")
-    overflow = page.evaluate("""() => [...document.querySelectorAll('body *')]
-      .filter(element => element.scrollWidth > element.clientWidth &&
-        getComputedStyle(element).overflowX === 'visible')
-      .map(element => ({tag: element.tagName, id: element.id,
-                        scrollWidth: element.scrollWidth, clientWidth: element.clientWidth}))""")
-    assert not overflow, overflow
-    assert page.evaluate("secret => !document.documentElement.innerHTML.includes(secret)", token), (
-        "operator token appeared in rendered markup"
-    )
-    assert page.evaluate("secret => !location.href.includes(secret)", token), (
-        "operator token appeared in the current URL"
-    )
-    assert browser_storage_inventory(page) == {
-        "local": [], "session": [], "cookies": "", "databases": [], "caches": [],
-    }
-    assert all(page.evaluate("([url, secret]) => !url.includes(secret)", [url, token])
-               for url in requested_urls), "operator token appeared in a requested URL"
+    assert_synthetic_operator_surface(page, state)
 
     screenshot_dir = Path(request.config.getoption("--browser-screenshot-dir"))
     screenshot_dir.mkdir(parents=True, exist_ok=True)
@@ -350,9 +433,150 @@ def test_responsive_operator_surface_wraps_synthetic_hostile_content_without_lea
     screenshot = screenshot_dir / f"responsive-synthetic-{suffix}.png"
     page.screenshot(path=str(screenshot), full_page=True)
     assert screenshot.is_file() and screenshot.stat().st_size > 0
-    assert console_errors == []
-    assert page_errors == []
-    assert failed_requests == []
+
+
+def test_native_200_percent_page_zoom_reflows_real_operator_surface(
+    web_service, request, tmp_path
+):
+    if not request.config.getoption("--run-browser"):
+        pytest.fail("Browser test selected without --run-browser.", pytrace=False)
+    try:
+        from playwright.sync_api import Error, sync_playwright
+    except ImportError:
+        pytest.fail(
+            "Browser tests require the optional dependency: uv sync --locked --extra dev --extra browser",
+            pytrace=False,
+        )
+
+    app, peer = web_service
+    channel = request.config.getoption("--browser-channel")
+    screenshot_dir = Path(request.config.getoption("--browser-screenshot-dir")) / "native-zoom"
+    screenshot_dir.mkdir(parents=True, exist_ok=True)
+    report_path = screenshot_dir / "native-zoom-report.json"
+    profiles = tmp_path / "native-zoom-profiles"
+    report = {
+        "browser_channel": channel,
+        "capture_method": {
+            "api": "CDP Page.captureScreenshot",
+            "captureBeyondViewport": False,
+            "fromSurface": True,
+            "clip": None,
+        },
+        "interaction": "native default page zoom loaded from a fresh profile at startup",
+        "toolbar_interaction": "not_run",
+        "web_source_sha256": {
+            name: hashlib.sha256(files("hyperclaw").joinpath(f"web/{name}").read_bytes()).hexdigest()
+            for name in ("index.html", "app.js", "style.css")
+        },
+        "observations": [],
+        "captures": [],
+    }
+    try:
+        with sync_playwright() as playwright:
+            for factor in (1, 2):
+                profile = profiles / f"profile-{factor}"
+                (profile / "Default").mkdir(parents=True)
+                preferences = json.dumps(
+                    native_zoom_preferences(factor), sort_keys=True, separators=(",", ":")
+                )
+                (profile / "Default" / "Preferences").write_text(preferences)
+                options = {
+                    "headless": True,
+                    "no_viewport": True,
+                    "args": ["--window-size=1440,900"],
+                }
+                if channel != "chromium":
+                    options["channel"] = channel
+                try:
+                    context = playwright.chromium.launch_persistent_context(str(profile), **options)
+                except Error as exc:
+                    pytest.fail(
+                        f"Requested browser channel {channel!r} is unavailable. Install it explicitly "
+                        f"(for bundled Chromium: playwright install {channel}) or select an installed "
+                        f"channel. {exc}",
+                        pytrace=False,
+                    )
+                try:
+                    page = context.pages[0]
+                    page.goto(app.url)
+                    cdp = context.new_cdp_session(page)
+                    metrics = native_zoom_metrics(page, cdp)
+                    observation = {
+                        "factor": factor,
+                        "preferences": json.loads(preferences),
+                        "preferences_sha256": hashlib.sha256(preferences.encode()).hexdigest(),
+                        "browser_version": context.browser.version,
+                        "metrics": metrics,
+                    }
+                    report["observations"].append(observation)
+                    if factor == 1:
+                        report["captures"].append(capture_native_viewport(
+                            cdp, screenshot_dir / "native-100-calibration.png",
+                            metrics["outerWidth"], page.evaluate("scrollY"),
+                        ))
+                        continue
+
+                    state = exercise_synthetic_hostile_operator_run(page, app, peer)
+                    assert_synthetic_operator_surface(page, state)
+                    observation["post_workflow_metrics"] = native_zoom_metrics(page, cdp)
+                    for label, selector in (
+                        ("top", None),
+                        ("composer", "#message"),
+                        ("receipt-history", "#receipts pre"),
+                    ):
+                        if selector is None:
+                            page.evaluate("scrollTo(0, 0)")
+                        else:
+                            page.locator(selector).first.scroll_into_view_if_needed()
+                        report["captures"].append(capture_native_viewport(
+                            cdp, screenshot_dir / f"native-200-{label}.png",
+                            metrics["outerWidth"], page.evaluate("scrollY"),
+                        ))
+                finally:
+                    context.close()
+
+        baseline, zoomed = report["observations"]
+        baseline_metrics = baseline["metrics"]
+        zoomed_metrics = zoomed["metrics"]
+        assert baseline_metrics["outerWidth"] == zoomed_metrics["outerWidth"] == 1440
+        assert baseline_metrics["innerWidth"] == 1440
+        assert zoomed_metrics["innerWidth"] == 720
+        assert baseline_metrics["devicePixelRatio"] == 1
+        assert zoomed_metrics["devicePixelRatio"] == 2
+        assert baseline_metrics["css_visual_viewport"]["zoom"] == 1
+        assert zoomed_metrics["css_visual_viewport"]["zoom"] == 2
+        assert baseline_metrics["css_visual_viewport"]["scale"] == 1
+        assert zoomed_metrics["css_visual_viewport"]["scale"] == 1
+        assert baseline_metrics["visualViewportScale"] == 1
+        assert zoomed_metrics["visualViewportScale"] == 1
+        assert zoomed["post_workflow_metrics"]["css_visual_viewport"]["zoom"] == 2
+        assert zoomed["post_workflow_metrics"]["css_visual_viewport"]["scale"] == 1
+        assert zoomed["post_workflow_metrics"]["innerWidth"] == 720
+        assert not baseline_metrics["narrowMediaQuery"]
+        assert zoomed_metrics["narrowMediaQuery"]
+        assert baseline_metrics["workspaceColumns"] == (
+            "minmax(208px, 288px) minmax(320px, 1fr) minmax(240px, 352px)"
+        )
+        assert zoomed_metrics["workspaceColumns"] == "1fr"
+        assert len(report["captures"]) == 4
+        assert all(capture["width"] == 1440 for capture in report["captures"])
+        report["status"] = "passed"
+    except BaseException as exc:
+        report["status"] = "failed"
+        report["error_type"] = type(exc).__name__
+        raise
+    finally:
+        if profiles.exists():
+            shutil.rmtree(profiles)
+        processes = subprocess.check_output(["ps", "-axo", "command="], text=True)
+        report["cleanup"] = {
+            "profiles_removed": not profiles.exists(),
+            "remaining_owned_process_count": sum(
+                str(profiles) in line for line in processes.splitlines()
+            ),
+        }
+        report_path.write_text(json.dumps(report, indent=2) + "\n")
+    assert report["cleanup"] == {"profiles_removed": True, "remaining_owned_process_count": 0}
 
 
 def gate_fetch_completion(page, key, method, path):
