@@ -605,7 +605,7 @@ def sustained(scratch, journal, seed, duration):
                 journal.write('window_drained_reset', window=reset_window, sessions=resets,
                               accepted=accepted, completed=completed, pending=0)
                 next_sample += 10
-            # Fixed maximum cadence: one three-source batch per second, no catch-up burst.
+            # Target one batch per second; a sample boundary can shorten the interval.
             remaining = min(batch_started + 1, deadline, next_sample) - time.monotonic()
             if remaining > 0:
                 time.sleep(remaining)
@@ -640,7 +640,7 @@ def sustained(scratch, journal, seed, duration):
             'file_effect_coverage': 'text-only sustained workload: no write/command tools dispatched; empty receipts/workspace and unchanged empty grants; duplicate-write recovery is exercised separately by Task 2 recovery cycles',
             'batches': batches, 'max_outstanding': max_outstanding, 'samples': samples,
             'durable_counts': durable,
-            'cadence': 'one HTTP + one one-shot schedule + one Telegram update per batch; at most one batch per second; drain each batch; no catch-up bursts',
+            'cadence': 'one HTTP + one one-shot schedule + one Telegram update per batch; target approximately one batch per second; sample-boundary wakeups can shorten the interval between batches; drain each batch; no catch-up bursts',
             'session_policy': 'three fixed sessions (Telegram topic 0); generation resets after each drained 10s window; durable prior generations retained',
             'latency_seconds': latencies, 'provider_max_messages_json_bytes': max_context,
             'schedule_lateness_definitions': {

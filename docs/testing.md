@@ -171,12 +171,14 @@ positive lookup. These facts never modify the sealed forty-case quality corpus.
 Seeding and query timing are separate. This phase measures Store APIs directly;
 scheduler and sustained phases measure a separately owned daemon through HTTP.
 
-Sustained intake permits at most one batch per second, each containing one HTTP
+Sustained intake targets approximately one batch per second, each containing one HTTP
 run, one one-shot schedule and one synthetic Telegram update. The model stream is
 held until all three are visibly accepted, a busy-session conflict and health
 probe succeed, and then all three complete and delivery settles. There are at
 most three outstanding accepted requests, below the required cap of twenty.
-Batches drain independently with no catch-up bursts. Three fixed sessions reuse
+Batches drain independently with no catch-up bursts. A sample-boundary wakeup can
+shorten the interval between batches: for example, a batch starting at 9.2 seconds
+can be followed by one at the 10-second sample boundary. Three fixed sessions reuse
 generation zero initially, then reset after each drained ten-second window;
 prior generations and durable run/event/message/schedule/Telegram history remain.
 This makes the context reconstruction cost and intentional database growth
