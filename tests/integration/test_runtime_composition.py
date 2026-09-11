@@ -58,13 +58,14 @@ def assert_serial(replays):
         assert sum(e['kind'] == 'run.finished' for e in replay) == 1
 
 
-def test_http_telegram_and_schedule_share_one_worker(process_stack):
+@pytest.mark.parametrize('completion', ['release', 'cancel'])
+def test_http_telegram_and_schedule_share_one_worker(process_stack, completion):
     app, telegram, provider = process_stack
-    gate = threading.Event()
+    gate, disconnected = threading.Event(), threading.Event()
     app.start()
-    provider.enqueue(Reply(gate=gate), Reply(), Reply())
+    provider.enqueue(Reply(gate=gate, disconnected=disconnected), Reply(), Reply())
     active = submit(app, 'HTTP owns the worker', tools=[])
-    committed_prefix(app, active['id'])
+    prefix = committed_prefix(app, active['id'])
     telegram.updates = [update(text='Telegram accepted behind HTTP')]
     row = wait_for(lambda: telegram_row(app), app)
     occurrence = due_schedule(app)
@@ -79,15 +80,40 @@ def test_http_telegram_and_schedule_share_one_worker(process_stack):
         else:
             assert duplicate.status_code == 202 and duplicate.json()['id'] == run['id']
         assert len(app.client.get(f"/v1/sessions/{run['request']['session_id']}/runs").json()) == 1
-    gate.set()
+    if completion == 'cancel':
+        cancelled = app.client.post(f"/v1/runs/{active['id']}/cancel")
+        assert cancelled.status_code == 200 and cancelled.json()['status'] == 'cancelled'
+        assert disconnected.wait(2), 'Operator cancellation left actual model IO open'
+        assert not gate.is_set(), 'Cancellation must disconnect before fixture release'
+    else:
+        gate.set()
     replays = [events(app, identifier) for identifier in identifiers]
-    assert all(replay[-1]['data']['status'] == 'succeeded' for replay in replays)
+    assert replays[0][:len(prefix)] == prefix
+    if completion == 'cancel':
+        assert [replay[-1]['data']['status'] for replay in replays] == [
+            'cancelled', 'succeeded', 'succeeded']
+    else:
+        assert all(replay[-1]['data']['status'] == 'succeeded' for replay in replays)
     assert_serial(replays)
     assert app.client.get('/v1/schedules/mixed-schedule/occurrences').json() == [occurrence]
     assert app.client.get('/v1/telegram').json()['updates'] == [row]
     wait_for(lambda: delivered(app), app)
     assert sum(method == 'sendMessage' for method, _ in telegram.requests) == 1
     assert provider.requests.qsize() == 3 and not provider.errors
+    if completion == 'cancel':
+        repeated = app.client.post(f"/v1/runs/{active['id']}/cancel")
+        assert repeated.status_code == 200 and repeated.json()['status'] == 'cancelled'
+        app.restart()
+        assert [events(app, identifier) for identifier in identifiers] == replays
+        assert app.client.get('/v1/schedules/mixed-schedule/occurrences').json() == [occurrence]
+        assert app.client.get('/v1/telegram').json()['updates'] == [row]
+        assert delivered(app)
+        assert sum(method == 'sendMessage' for method, _ in telegram.requests) == 1
+        assert provider.requests.qsize() == 3 and not provider.errors
+    assert all(app.client.get(f'/v1/runs/{identifier}/receipts').json() == []
+               for identifier in identifiers)
+    assert app.client.get('/v1/workspace').json()['grants'] == []
+    assert list((app.root / 'workspace').iterdir()) == []
 
 
 @pytest.mark.parametrize('approved', [False, True], ids=['deny-exact', 'approve-exact'])
