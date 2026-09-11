@@ -1,6 +1,7 @@
 """Deterministic one-root public walkthrough with explicit browser and Docker gates."""
 
 import hashlib
+from contextlib import contextmanager
 import json
 from pathlib import Path
 import re
@@ -42,6 +43,29 @@ def result(app, identifier):
     }
 
 
+@contextmanager
+def finalize_walkthrough(app, peer):
+    """Keep the body failure and attempt every owned finalizer independently."""
+    failures = []
+    try:
+        yield
+    except BaseException as exc:
+        failures.append(exc)
+    finally:
+        def observe_containers():
+            assert owned_container_ids(app.root) == []
+
+        for action in (app.stop, lambda: cleanup_owned(app.root), peer.close, observe_containers):
+            try:
+                action()
+            except BaseException as exc:
+                failures.append(exc)
+        if len(failures) == 1:
+            raise failures[0]
+        if failures:
+            raise BaseExceptionGroup("Walkthrough and owned cleanup failures", failures)
+
+
 def test_one_root_walkthrough_survives_recovery_without_repeating_effects(
     tmp_path, browser_page, request
 ):
@@ -69,7 +93,7 @@ def test_one_root_walkthrough_survives_recovery_without_repeating_effects(
         ROOT / "examples/skills/documentation-answer",
         app.root / "skills/documentation-answer",
     )
-    try:
+    with finalize_walkthrough(app, peer):
         app.start()
         connect(page, app)
         page.locator("#new-session").click()
@@ -233,8 +257,3 @@ def test_one_root_walkthrough_survives_recovery_without_repeating_effects(
         assert workspace_grants(app) == stable_grants
         assert owned_container_ids(app.root) == []
         assert browser_errors == []
-    finally:
-        app.stop()
-        cleanup_owned(app.root)
-        peer.close()
-        assert owned_container_ids(app.root) == []

@@ -95,7 +95,7 @@ def test_counts(path: Path) -> dict[str, int] | None:
         return None
     root = ET.parse(path).getroot()
     suites = [root] if root.tag == "testsuite" else root.findall("testsuite")
-    return {
+    counts = {
         label: sum(int(suite.get(attribute, "0")) for suite in suites)
         for label, attribute in (
             ("total", "tests"),
@@ -104,19 +104,34 @@ def test_counts(path: Path) -> dict[str, int] | None:
             ("skipped", "skipped"),
         )
     }
+    cases = list(root.iter("testcase"))
+    counts.update({
+        "case_total": len(cases),
+        "executed": sum(case.find("skipped") is None for case in cases),
+        **{
+            f"case_{label}": sum(case.find(tag) is not None for case in cases)
+            for label, tag in (("failures", "failure"), ("errors", "error"), ("skipped", "skipped"))
+        },
+    })
+    return counts
 
 
 def initial_report(*, variant: str, python: str, browser_channel: str | None,
                    mcp_docs_image: str | None, report_dir: Path) -> dict:
     selected = {variant} if variant != "both" else {"base", "mcp"}
+    # Trusted verification copies omit .git; never borrow an ancestor repository.
+    has_git = (ROOT / ".git").exists()
     return {
         "started_at": datetime.now(timezone.utc).isoformat(),
+        "source_git": {"status": "available", "root": str(ROOT)} if has_git else {
+            "status": "unavailable", "reason": "root_has_no_git_metadata", "root": str(ROOT),
+        },
         "source_commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
-        ).strip(),
+        ).strip() if has_git else None,
         "dirty_diff_sha256": hashlib.sha256(subprocess.check_output(
             ["git", "diff", "HEAD", "--"], cwd=ROOT
-        )).hexdigest(),
+        )).hexdigest() if has_git else None,
         "lock_sha256": sha256(ROOT / "uv.lock"),
         "requested_python": python,
         "requested_variant": variant,
@@ -165,6 +180,37 @@ class Verification:
         (self.report / "summary.json").write_text(
             json.dumps(self.state, indent=2) + "\n", encoding="utf-8"
         )
+
+    def run_pytest(self, python: Path, tests: list[str], junit: Path, extra: list[str],
+                   *, reports: dict, label: str, cwd: Path, env: dict[str, str]) -> dict:
+        """Every selected group must supply executed, skip-free JUnit evidence."""
+        details = {"path": str(junit), "tests": None, "status": "pending"}
+        reports[label] = details
+        failure = None
+        try:
+            self.run(pytest_command(python, tests, junit, *extra), cwd=cwd, env=env)
+        except BaseException as exc:
+            failure = exc
+            details["command_exception"] = traceback.format_exc()
+        try:
+            counts = details["tests"] = test_counts(junit)
+            if counts is None:
+                raise AssertionError(f"Selected pytest report is missing: {junit}")
+            if counts["executed"] < 1 or any(counts[key] for key in (
+                "failures", "errors", "skipped", "case_failures", "case_errors", "case_skipped",
+            )) or counts["total"] != counts["case_total"]:
+                raise AssertionError(f"Selected pytest report must contain executed tests and no failures/errors/skips: {counts}")
+        except BaseException as exc:
+            details["junit_exception"] = traceback.format_exc()
+            if failure is None:
+                failure = exc
+        details["status"] = "failed" if failure else "passed"
+        if failure:
+            details["exception"] = repr(failure)
+        self.save()
+        if failure:
+            raise failure
+        return counts
 
     def run(self, command: list[object], *, cwd: Path = ROOT,
             env: dict[str, str] | None = None, timeout: int = 1200) -> str:
@@ -355,9 +401,8 @@ print(json.dumps({'package': str(p), 'distribution_version': importlib.metadata.
     ]
     for label, tests, extra in checks:
         junit = verifier.report / f"{variant}-{label}.xml"
-        verifier.run(pytest_command(python, tests, junit, *extra), cwd=unrelated, env=environment)
-        variant_report["reports"][label] = {"path": str(junit), "tests": test_counts(junit)}
-        verifier.save()
+        verifier.run_pytest(python, tests, junit, extra, reports=variant_report["reports"],
+                            label=label, cwd=unrelated, env=environment)
 
     mcp_tests = BASE_MCP_TESTS if variant == "base" else MCP_TESTS.copy()
     mcp_extra: list[str] = []
@@ -366,11 +411,12 @@ print(json.dumps({'package': str(p), 'distribution_version': importlib.metadata.
         mcp_extra = ["--run-docker", "--mcp-docs-image", mcp_docs_image]
         verifier.current_gate = "docker_mcp"
     junit = verifier.report / f"{variant}-mcp-public.xml"
-    verifier.run(pytest_command(python, mcp_tests, junit, *mcp_extra), cwd=unrelated, env=environment)
-    variant_report["reports"]["mcp-public"] = {"path": str(junit), "tests": test_counts(junit)}
+    counts = verifier.run_pytest(python, mcp_tests, junit, mcp_extra,
+                                reports=variant_report["reports"], label="mcp-public",
+                                cwd=unrelated, env=environment)
     if variant == "mcp" and mcp_docs_image:
         verifier.state["gates"]["docker_mcp"] = {
-            "status": "passed", "tests": test_counts(junit), "image": mcp_docs_image,
+            "status": "passed", "tests": counts, "image": mcp_docs_image,
         }
     verifier.current_gate = variant
     verifier.save()
@@ -397,14 +443,13 @@ print(json.dumps({'package': str(p), 'distribution_version': importlib.metadata.
         ]
         if variant == "mcp" and mcp_docs_image:
             browser_extra += ["--run-docker", "--mcp-docs-image", mcp_docs_image]
-        verifier.run(
-            pytest_command(python, ["tests/browser"], junit, *browser_extra),
-            cwd=unrelated, env=environment,
+        counts = verifier.run_pytest(
+            python, ["tests/browser"], junit, browser_extra,
+            reports=variant_report["reports"], label="browser", cwd=unrelated, env=environment,
         )
-        variant_report["reports"]["browser"] = {"path": str(junit), "tests": test_counts(junit)}
         prior = verifier.state["gates"].get("browser", {})
         runs = prior.get("runs", [])
-        runs.append({"variant": variant, "tests": test_counts(junit)})
+        runs.append({"variant": variant, "tests": counts})
         verifier.state["gates"]["browser"] = {"status": "passed", "runs": runs}
         verifier.save()
 

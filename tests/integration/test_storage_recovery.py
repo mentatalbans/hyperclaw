@@ -449,8 +449,17 @@ def test_whole_stopped_root_restore_preserves_state_and_rejects_stale_authority(
             restore_contents(snapshot, app.root)
         assert stopped_manifest(app.root) == before
         evidence(record_property, 'snapshot_hashes', before)
-        for _ in range(2):
+        restored_polls = []
+        for phase in range(2):
+            request_boundary = len(telegram_peer.requests)
             app.start()
+            wait_for(lambda: any(method == 'getUpdates' and body['offset'] == 73
+                                 for method, body in telegram_peer.requests[request_boundary:]), app)
+            restored_polls.append({'reopen': phase + 1, 'request_boundary': request_boundary,
+                                   'offset': 73, 'request_index': next(
+                                       index for index, (method, body) in enumerate(telegram_peer.requests)
+                                       if index >= request_boundary and method == 'getUpdates' and body['offset'] == 73)})
+            evidence(record_property, f'restored_telegram_poll_{phase + 1}', restored_polls[-1])
             assert app.client.get(f"/v1/runs/{completed['id']}/receipts").json() == receipts
             assert events(app, completed['id']) == replay
             assert app.client.get('/v1/sessions/completed').json()['generation'] == 3
@@ -516,6 +525,7 @@ def test_whole_stopped_root_restore_preserves_state_and_rejects_stale_authority(
         evidence(record_property, 'restore_result', {'replace_identity': replace_identity,
                  'old_workspace': workspace['id'], 'restored_workspace': selected['id'],
                  'audit': checked, 'telegram_replayed': False,
+                 'restored_telegram_polls': restored_polls,
                  'telegram_poll_offsets': [body['offset'] for method, body in telegram_peer.requests if method == 'getUpdates'],
                  'memory_visible': not replace_identity})
     finally:
